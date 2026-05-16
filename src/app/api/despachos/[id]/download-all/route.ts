@@ -62,7 +62,11 @@ export async function GET(
     }
 
     const chunks: any[] = []
-    const archive = archiver('zip', { zlib: { level: 5 } })
+    const archiverFunc = typeof archiver === 'function' ? archiver : (archiver as any).default;
+    if (typeof archiverFunc !== 'function') {
+      throw new Error('Archiver is not a function');
+    }
+    const archive = archiverFunc('zip', { zlib: { level: 5 } })
 
     archive.on('data', (chunk: any) => chunks.push(chunk))
     
