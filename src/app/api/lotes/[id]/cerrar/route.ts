@@ -1,0 +1,48 @@
+import { NextResponse } from 'next/server'
+import { headers } from 'next/headers'
+import { supabaseAdmin } from '@/lib/supabase-admin'
+
+export async function POST(
+  request: Request,
+  { params }: { params: Promise<{ id: string }> }
+) {
+  try {
+    const { id } = await params
+    const headersList = await headers()
+    const userId = headersList.get('x-user-id')
+    const userRole = headersList.get('x-user-role')
+
+    if (userRole !== 'admin') {
+      return NextResponse.json({ error: 'Solo el administrador puede cerrar lotes.' }, { status: 403 })
+    }
+
+    // Actualizar estado general a closed
+    const { data: lot, error } = await supabaseAdmin
+      .from('lots')
+      .update({ overall_status: 'closed' })
+      .eq('id', id)
+      .select()
+      .single()
+
+    if (error) {
+      return NextResponse.json({ error: error.message }, { status: 500 })
+    }
+
+    // Auditoría
+    await supabaseAdmin.from('audit_log').insert({
+      user_id: userId || null,
+      action: 'CLOSE_LOT',
+      entity_type: 'lots',
+      entity_id: id,
+      details: { message: 'Lote cerrado definitivamente por el administrador' },
+    })
+
+    return NextResponse.json({ data: lot })
+  } catch (err: any) {
+    console.error('POST /api/lotes/[id]/cerrar error:', err)
+    return NextResponse.json(
+      { error: err.message || 'Error interno al cerrar el lote' },
+      { status: 500 }
+    )
+  }
+}

@@ -1,0 +1,279 @@
+@import "tailwindcss";
+
+/* =============================================
+   VARIABLES DE TEMA — MODO OSCURO (default)
+   ============================================= */
+:root,
+[data-theme="dark"] {
+  --bg-app:           #020817;
+  --bg-sidebar:       #0f172a;
+  --bg-card:          rgba(30, 41, 59, 0.6);
+  --bg-card-hover:    rgba(30, 41, 59, 0.9);
+  --bg-input:         rgba(255,255,255,0.05);
+  --bg-badge:         rgba(255,255,255,0.06);
+  --border:           rgba(255,255,255,0.08);
+  --border-focus:     rgba(99,102,241,0.5);
+  --text-primary:     #f1f5f9;
+  --text-secondary:   #94a3b8;
+  --text-muted:       #475569;
+  --text-link:        #818cf8;
+  --sidebar-border:   rgba(255,255,255,0.06);
+  --nav-active-bg:    rgba(34,197,94,0.15);
+  --nav-active-text:  #86efac;
+  --nav-active-border:rgba(34,197,94,0.2);
+  --nav-idle-text:    rgba(255,255,255,0.55);
+  --nav-hover-bg:     rgba(255,255,255,0.05);
+  --nav-hover-text:   #f1f5f9;
+  --divider:          rgba(255,255,255,0.06);
+}
+
+/* =============================================
+   VARIABLES DE TEMA — MODO CLARO
+   ============================================= */
+[data-theme="light"] {
+  --bg-app:           #f0f4f8;
+  --bg-sidebar:       #ffffff;
+  --bg-card:          #ffffff;
+  --bg-card-hover:    #f8fafc;
+  --bg-input:         #f1f5f9;
+  --bg-badge:         #f1f5f9;
+  --border:           #d1d5db;
+  --border-focus:     #6366f1;
+  --text-primary:     #0f172a;
+  --text-secondary:   #1e293b;
+  --text-muted:       #334155;
+  --text-link:        #4f46e5;
+  --sidebar-border:   #e2e8f0;
+  --nav-active-bg:    #dcfce7;
+  --nav-active-text:  #15803d;
+  --nav-active-border:#86efac;
+  --nav-idle-text:    #1e293b;
+  --nav-hover-bg:     #f1f5f9;
+  --nav-hover-text:   #0f172a;
+  --divider:          #e2e8f0;
+}
+
+/* =============================================
+   BASE STYLES
+   ============================================= */
+html {
+  transition: background-color 0.3s ease, color 0.3s ease;
+}
+
+body {
+  background-color: var(--bg-app);
+  color: var(--text-primary);
+  font-family: var(--font-sans, 'Inter', Arial, sans-serif);
+  transition: background-color 0.3s ease, color 0.3s ease;
+}
+
+/* =============================================
+   SOBRESCRITURA DE CLASES TAILWIND EN MODO CLARO
+   Corrige textos invisibles, fondos y bordes hardcodeados
+   ============================================= */
+
+/* — Textos — */
+[data-theme="light"] .text-white          { color: #0f172a !important; }
+[data-theme="light"] .text-white\/80      { color: #1e293b !important; }
+[data-theme="light"] .text-white\/60      { color: #334155 !important; }
+[data-theme="light"] .text-white\/50      { color: #475569 !important; }
+[data-theme="light"] .text-white\/40      { color: #64748b !important; }
+[data-theme="light"] .text-gray-300       { color: #1e293b !important; }
+[data-theme="light"] .text-gray-400       { color: #475569 !important; }
+[data-theme="light"] .text-gray-500       { color: #64748b !important; }
+[data-theme="light"] .text-gray-600       { color: #64748b !important; }
+[data-theme="light"] .text-slate-400      { color: #475569 !important; }
+[data-theme="light"] .text-slate-500      { color: #64748b !important; }
+[data-theme="light"] .text-indigo-100     { color: #1e1b4b !important; }
+[data-theme="light"] .text-indigo-300     { color: #4338ca !important; }
+[data-theme="light"] .text-indigo-400     { color: #4f46e5 !important; }
+[data-theme="light"] .text-blue-400       { color: #1e40af !important; }
+[data-theme="light"] .text-green-100      { color: #14532d !important; }
+[data-theme="light"] .text-green-300      { color: #15803d !important; }
+[data-theme="light"] .text-green-400      { color: #16a34a !important; }
+[data-theme="light"] .text-green-400\/70  { color: #166534 !important; }
+[data-theme="light"] .text-emerald-400    { color: #065f46 !important; }
+[data-theme="light"] .text-yellow-400     { color: #92400e !important; }
+[data-theme="light"] .text-orange-400     { color: #9a3412 !important; }
+[data-theme="light"] .text-red-400        { color: #b91c1c !important; }
+[data-theme="light"] .text-purple-400     { color: #6d28d9 !important; }
+[data-theme="light"] .text-indigo-100     { color: #312e81 !important; }
+[data-theme="light"] .text-indigo-300     { color: #4338ca !important; }
+
+/* — Fondos de tarjetas y secciones — */
+[data-theme="light"] .bg-white\/2         { background-color: #f8fafc !important; }
+[data-theme="light"] .bg-white\/3         { background-color: #f1f5f9 !important; }
+[data-theme="light"] .bg-white\/4         { background-color: #f1f5f9 !important; }
+[data-theme="light"] .bg-white\/5         { background-color: #f1f5f9 !important; }
+[data-theme="light"] .bg-white\/8         { background-color: #e2e8f0 !important; }
+[data-theme="light"] .bg-white\/10        { background-color: #e2e8f0 !important; }
+[data-theme="light"] .bg-slate-800\/50    { background-color: #ffffff !important; }
+[data-theme="light"] .bg-slate-800\/60    { background-color: #ffffff !important; }
+[data-theme="light"] .bg-slate-900        { background-color: #ffffff !important; }
+[data-theme="light"] .bg-slate-950        { background-color: #f0f4f8 !important; }
+[data-theme="light"] .bg-\[\#0f172a\]     { background-color: #ffffff !important; border-color: #e2e8f0 !important; }
+[data-theme="light"] .bg-black\/10        { background-color: #f1f5f9 !important; }
+[data-theme="light"] .bg-black\/40        { background-color: #ffffff !important; }
+
+/* — Hover fondos — */
+[data-theme="light"] .hover\:bg-white\/5:hover  { background-color: #f1f5f9 !important; }
+[data-theme="light"] .hover\:bg-white\/10:hover { background-color: #e2e8f0 !important; }
+[data-theme="light"] .hover\:bg-white\/3:hover  { background-color: #f8fafc !important; }
+
+/* — Bordes — */
+[data-theme="light"] .border-white\/5     { border-color: #e2e8f0 !important; }
+[data-theme="light"] .border-white\/6     { border-color: #e2e8f0 !important; }
+[data-theme="light"] .border-white\/8     { border-color: #d1d5db !important; }
+[data-theme="light"] .border-white\/10    { border-color: #d1d5db !important; }
+[data-theme="light"] .border-white\/12    { border-color: #d1d5db !important; }
+[data-theme="light"] .border-white\/20    { border-color: #cbd5e1 !important; }
+[data-theme="light"] .border-slate-700\/50 { border-color: #d1d5db !important; }
+
+/* — Inputs y selects — */
+[data-theme="light"] input,
+[data-theme="light"] select,
+[data-theme="light"] textarea {
+  background-color: #f8fafc !important;
+  color: #0f172a !important;
+  border-color: #d1d5db !important;
+}
+[data-theme="light"] input::placeholder,
+[data-theme="light"] textarea::placeholder { color: #94a3b8 !important; }
+[data-theme="light"] select option         { background-color: #ffffff; color: #0f172a; }
+
+/* — Badges coloreados — */
+[data-theme="light"] .bg-indigo-500\/10   { background-color: rgba(79,70,229,0.10) !important; }
+[data-theme="light"] .bg-indigo-500\/20   { background-color: rgba(79,70,229,0.15) !important; }
+[data-theme="light"] .bg-blue-500\/10     { background-color: rgba(29,78,216,0.10) !important; }
+[data-theme="light"] .bg-green-500\/10    { background-color: rgba(22,163,74,0.10) !important; }
+[data-theme="light"] .bg-green-500\/20    { background-color: rgba(22,163,74,0.15) !important; }
+[data-theme="light"] .bg-green-400\/10    { background-color: rgba(22,163,74,0.10) !important; }
+[data-theme="light"] .bg-emerald-500\/10  { background-color: rgba(5,150,105,0.10) !important; }
+[data-theme="light"] .bg-yellow-400\/10   { background-color: rgba(180,83,9,0.10)  !important; }
+[data-theme="light"] .bg-red-400\/10      { background-color: rgba(220,38,38,0.10) !important; }
+[data-theme="light"] .bg-red-500\/10      { background-color: rgba(220,38,38,0.10) !important; }
+[data-theme="light"] .bg-orange-400\/10   { background-color: rgba(194,65,12,0.10) !important; }
+[data-theme="light"] .bg-purple-400\/10   { background-color: rgba(124,58,237,0.10)!important; }
+
+/* — Títulos h1/h2/h3 de páginas — */
+[data-theme="light"] h1.text-white,
+[data-theme="light"] h2.text-white,
+[data-theme="light"] h3.text-white { color: #0f172a !important; }
+
+/* — Tabla header — */
+[data-theme="light"] .uppercase.tracking-wider { color: #475569 !important; }
+
+/* — Botones con bg-gradient — */
+[data-theme="light"] .bg-gradient-to-r { box-shadow: 0 2px 8px rgba(99,102,241,0.25); }
+
+/* — Stat cards coloreadas (Total, Pendientes, Atrasados, Completos) — */
+[data-theme="light"] .bg-blue-400\/10,
+[data-theme="light"] .bg-blue-900\/40,
+[data-theme="light"] .bg-blue-900\/50  { background-color: #dbeafe !important; border-color: #93c5fd !important; }
+
+[data-theme="light"] .border-blue-400\/20 { border-color: #bfdbfe !important; }
+
+[data-theme="light"] .bg-yellow-400\/10,
+[data-theme="light"] .bg-yellow-900\/40,
+[data-theme="light"] .bg-yellow-900\/50 { background-color: #fef3c7 !important; border-color: #fcd34d !important; }
+
+[data-theme="light"] .border-yellow-400\/20 { border-color: #fde68a !important; }
+
+[data-theme="light"] .bg-red-400\/10,
+[data-theme="light"] .bg-red-900\/40,
+[data-theme="light"] .bg-red-900\/50   { background-color: #fee2e2 !important; border-color: #fca5a5 !important; }
+
+[data-theme="light"] .border-red-400\/20 { border-color: #fecaca !important; }
+
+[data-theme="light"] .bg-green-400\/10,
+[data-theme="light"] .bg-green-900\/40,
+[data-theme="light"] .bg-green-900\/50 { background-color: #dcfce7 !important; border-color: #86efac !important; }
+
+[data-theme="light"] .border-green-400\/20 { border-color: #bbf7d0 !important; }
+
+/* — Textos en stat cards coloreadas — */
+[data-theme="light"] .text-blue-300    { color: #1e40af !important; }
+[data-theme="light"] .text-yellow-300  { color: #92400e !important; }
+[data-theme="light"] .text-red-300     { color: #991b1b !important; }
+[data-theme="light"] .text-green-300   { color: #15803d !important; }
+[data-theme="light"] .text-blue-400    { color: #1e40af !important; }
+[data-theme="light"] .text-yellow-400  { color: #92400e !important; }
+[data-theme="light"] .text-red-400     { color: #b91c1c !important; }
+[data-theme="light"] .text-green-400   { color: #15803d !important; }
+
+/* — Hover texto blanco — */
+[data-theme="light"] .hover\:text-white:hover { color: #0f172a !important; }
+
+/* — Filas de tabla: nombres de código y cliente — */
+[data-theme="light"] p.text-white,
+[data-theme="light"] span.text-white  { color: #0f172a !important; }
+[data-theme="light"] .text-gray-300   { color: #1e293b !important; }
+[data-theme="light"] .text-gray-400   { color: #1e293b !important; }
+[data-theme="light"] .text-gray-500   { color: #475569 !important; }
+
+/* — Fondo de filas alternadas de tabla — */
+[data-theme="light"] .hover\:bg-white\/5:hover  { background-color: #f8fafc !important; }
+
+/* — Semáforos: asegurar visibilidad — */
+[data-theme="light"] .bg-green-500    { background-color: #16a34a !important; }
+[data-theme="light"] .bg-yellow-500   { background-color: #d97706 !important; }
+[data-theme="light"] .bg-red-500      { background-color: #dc2626 !important; }
+[data-theme="light"] .bg-gray-500     { background-color: #9ca3af !important; }
+
+/* — Modal y overlays — */
+[data-theme="light"] .bg-slate-900\/95 { background-color: rgba(255,255,255,0.97) !important; }
+[data-theme="light"] .bg-slate-900\/98 { background-color: rgba(255,255,255,0.99) !important; }
+[data-theme="light"] .bg-slate-900    { background-color: #ffffff !important; }
+[data-theme="light"] .bg-slate-800    { background-color: #f8fafc !important; }
+[data-theme="light"] .bg-slate-700    { background-color: #e2e8f0 !important; }
+
+/* — Inputs dentro de modales — */
+[data-theme="light"] .bg-white\/5.border { 
+  background-color: #f8fafc !important;
+  border-color: #d1d5db !important;
+}
+
+[data-theme="light"] .bg-\[\#111827\] {
+  background-color: #ffffff !important;
+}
+
+/* =============================================
+   TRANSICIÓN DE PÁGINA (estilo Pronto Team Manager)
+   Fade-in + Scale + Blur, 400ms ease-out
+   ============================================= */
+@keyframes page-enter {
+  0% {
+    opacity: 0;
+    transform: translateY(10px) scale(0.99);
+    filter: blur(4px);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+    filter: blur(0);
+  }
+}
+
+.page-transition {
+  animation: page-enter 0.4s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+  will-change: transform, opacity, filter;
+}
+
+/* =============================================
+   BARRA DE PROGRESO (refresco silencioso)
+   ============================================= */
+@keyframes shimmer {
+  0%   { background-position:  200% center; }
+  100% { background-position: -200% center; }
+}
+
+/* =============================================
+   FADE-IN PARA ELEMENTOS DE LISTA
+   ============================================= */
+@keyframes fade-in {
+  from { opacity: 0; transform: translateY(-4px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+.animate-fade-in {
+  animation: fade-in 0.3s ease-out forwards;
+}
