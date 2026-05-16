@@ -11,6 +11,13 @@ export const metadata: Metadata = {
   description: 'Sistema de control y trazabilidad documental para Packing Santa Catalina. Gestión de lotes, temperaturas y despachos.',
   keywords: ['packing', 'santa catalina', 'trazabilidad', 'documentos', 'lotes', 'despachos'],
   robots: 'noindex, nofollow',
+  manifest: '/manifest.json',
+  themeColor: '#059669',
+  appleWebApp: {
+    capable: true,
+    statusBarStyle: 'default',
+    title: 'Packing SC',
+  },
 }
 
 export default function RootLayout({
@@ -25,6 +32,17 @@ export default function RootLayout({
         <script
           dangerouslySetInnerHTML={{
             __html: `(function(){try{var t=localStorage.getItem('sc-theme');document.documentElement.setAttribute('data-theme',t||'dark')}catch(e){}})()`,
+          }}
+        />
+        <script
+          dangerouslySetInnerHTML={{
+            __html: `
+              if ('serviceWorker' in navigator) {
+                window.addEventListener('load', function() {
+                  navigator.serviceWorker.register('/sw.js');
+                });
+              }
+            `,
           }}
         />
       </head>
