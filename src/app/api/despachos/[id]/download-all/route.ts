@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/lib/supabase-admin'
-import * as archiver from 'archiver'
+import JSZip from 'jszip'
 
 export async function GET(
   _request: Request,
@@ -61,57 +61,20 @@ export async function GET(
       return NextResponse.json({ error: 'No se pudieron recuperar los archivos' }, { status: 500 })
     }
 
-    const chunks: any[] = []
-    let archiverFunc: any = null;
-    
-    if (typeof archiver === 'function') {
-      archiverFunc = archiver;
-    } else if (archiver && typeof (archiver as any).default === 'function') {
-      archiverFunc = (archiver as any).default;
-    } else if (archiver && typeof (archiver as any).create === 'function') {
-      archiverFunc = (archiver as any).create;
-    } else if (archiver && (archiver as any).default && typeof (archiver as any).default.create === 'function') {
-      archiverFunc = (archiver as any).default.create;
-    } else {
-      // Fallback dinámico total
-      try {
-        const dynamicArchiver = require('archiver');
-        if (typeof dynamicArchiver === 'function') {
-          archiverFunc = dynamicArchiver;
-        } else if (dynamicArchiver && typeof dynamicArchiver.create === 'function') {
-          archiverFunc = dynamicArchiver.create;
-        } else if (dynamicArchiver && typeof dynamicArchiver.default === 'function') {
-          archiverFunc = dynamicArchiver.default;
-        } else if (dynamicArchiver && dynamicArchiver.default && typeof dynamicArchiver.default.create === 'function') {
-          archiverFunc = dynamicArchiver.default.create;
-        }
-      } catch (e) {
-        console.error('Error en fallback dinámico de archiver:', e);
-      }
-    }
-
-    if (typeof archiverFunc !== 'function') {
-      throw new Error('Archiver no pudo ser resuelto como función. Objeto recibido: ' + JSON.stringify(archiver));
-    }
-    const archive = archiverFunc('zip', { zlib: { level: 5 } })
-
-    archive.on('data', (chunk: any) => chunks.push(chunk))
-    
-    const zipFinished = new Promise((resolve, reject) => {
-      archive.on('end', resolve)
-      archive.on('error', reject)
-    })
+    // 3. Crear el ZIP en memoria usando JSZip
+    const zip = new JSZip()
 
     for (const file of filesToZip) {
-      archive.append(file.buffer, { name: file.name })
+      zip.file(file.name, file.buffer)
     }
 
-    await archive.finalize()
-    await zipFinished
+    const finalBuffer = await zip.generateAsync({
+      type: 'nodebuffer',
+      compression: 'DEFLATE',
+      compressionOptions: { level: 5 }
+    })
 
-    const finalBuffer = Buffer.concat(chunks)
-
-    return new NextResponse(finalBuffer, {
+    return new NextResponse(finalBuffer as any, {
       headers: {
         'Content-Type': 'application/zip',
         'Content-Disposition': `attachment; filename="Despacho_${dispatch.dispatch_code || dispatch.internal_code}_Documentos.zip"`,
