@@ -400,7 +400,7 @@ export default function DocumentScannerModal({
       <div className="relative z-10 w-full h-full flex flex-col pointer-events-none">
         
         {/* HEADER (No flexiona, ocupa su espacio) */}
-        <div className="flex-none bg-gradient-to-b from-black/80 to-transparent p-5 pt-8 flex items-start justify-between pointer-events-auto">
+        <div className="relative z-20 flex-none bg-gradient-to-b from-black/80 to-transparent p-5 pt-8 flex items-start justify-between pointer-events-auto">
           <div>
             <h3 className="font-bold text-sm flex items-center gap-2">
               <Sparkles className="text-emerald-400 w-4 h-4 animate-pulse" />
@@ -485,7 +485,7 @@ export default function DocumentScannerModal({
 
         {/* FOOTER BOTONERA (No flexiona, ocupa su espacio inferior) */}
         {useLiveCamera && stream && (
-          <div className="flex-none bg-gradient-to-t from-black/90 via-black/60 to-transparent px-6 pb-10 pt-12 flex items-center justify-center gap-3 pointer-events-auto">
+          <div className="relative z-20 flex-none bg-gradient-to-t from-black/90 via-black/60 to-transparent px-6 pb-10 pt-12 flex items-center justify-center gap-3 pointer-events-auto">
             <div
               role="button"
               onClick={() => {
