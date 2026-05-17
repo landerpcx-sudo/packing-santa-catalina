@@ -259,7 +259,20 @@ export default function DocumentScannerModal({
     // Pintar solo la región recortada
     canvas.width = cropW
     canvas.height = cropH
-    ctx.drawImage(video, cropX, cropY, cropW, cropH, 0, 0, cropW, cropH)
+    
+    // Rellenar de blanco por seguridad
+    ctx.fillStyle = '#ffffff'
+    ctx.fillRect(0, 0, cropW, cropH)
+
+    // Usar la versión de 5 argumentos de drawImage (video, dx, dy, dw, dh).
+    // Esto evita excepciones de "IndexSizeError" cuando el navegador devuelve 
+    // videoWidth/videoHeight del sensor crudo pero rota visualmente el fotograma.
+    const drawX = -boxLeft * scale
+    const drawY = -boxTop * scale
+    const drawW = renderedWidth * scale
+    const drawH = renderedHeight * scale
+    
+    ctx.drawImage(video, drawX, drawY, drawW, drawH)
 
     // Filtro tipo escáner para mejorar el contraste del texto
     const imageData = ctx.getImageData(0, 0, cropW, cropH)
