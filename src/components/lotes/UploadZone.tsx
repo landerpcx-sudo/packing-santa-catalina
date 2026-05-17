@@ -4,6 +4,7 @@ import { useState, useCallback, useRef } from 'react'
 import { useDropzone } from 'react-dropzone'
 import imageCompression from 'browser-image-compression'
 import { Upload, FileText, Image, X, CheckCircle, AlertCircle, Loader2, ExternalLink, Camera } from 'lucide-react'
+import DocumentScannerModal from '@/components/layout/DocumentScannerModal'
 
 interface UploadZoneProps {
   lotId: string
@@ -33,6 +34,7 @@ export default function UploadZone({
   const [message, setMessage] = useState('')
   const [driveUrl, setDriveUrl] = useState('')
   const [fileName, setFileName] = useState('')
+  const [isScannerOpen, setIsScannerOpen] = useState(false)
   
   const nativeCameraInputRef = useRef<HTMLInputElement>(null)
 
@@ -149,12 +151,12 @@ export default function UploadZone({
           onClick={(e) => {
             e.preventDefault();
             e.stopPropagation();
-            nativeCameraInputRef.current?.click();
+            setIsScannerOpen(true);
           }}
           className="w-full flex items-center justify-center gap-2 px-4 py-3 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white font-bold text-xs uppercase tracking-widest rounded-2xl transition-all shadow-lg shadow-emerald-950/20 group/scan border border-emerald-500/20 active:scale-[0.98]"
         >
           <Camera className="w-4 h-4 group-hover/scan:scale-110 transition-transform text-emerald-200" />
-          📷 Iniciar Cámara del Teléfono
+          📷 Iniciar Escáner de Documento
         </button>
       )}
 
@@ -264,6 +266,16 @@ export default function UploadZone({
           )}
         </div>
       </div>
+
+      <DocumentScannerModal
+        isOpen={isScannerOpen}
+        onClose={() => setIsScannerOpen(false)}
+        onScanComplete={(scannedFile) => {
+          onDrop([scannedFile]);
+        }}
+        documentLabel={documentLabel}
+        lotCodeOrDispatchId={lotCode}
+      />
     </div>
   )
 }
