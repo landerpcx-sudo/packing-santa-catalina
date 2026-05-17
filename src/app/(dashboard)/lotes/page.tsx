@@ -222,11 +222,11 @@ export default function LotesPage() {
       <div className="bg-white/3 border border-white/8 rounded-2xl overflow-hidden">
         {/* Header de tabla */}
         <div className="grid grid-cols-12 px-5 py-3 border-b border-white/8 text-gray-500 text-xs font-medium uppercase tracking-wider">
-          <div className="col-span-3">Lote</div>
+          <div className="col-span-7 sm:col-span-5 md:col-span-4 lg:col-span-3">Lote</div>
           <div className="col-span-2 hidden md:block">Cliente</div>
           <div className="col-span-2 hidden lg:block">Especie</div>
-          <div className="col-span-2">Semáforo</div>
-          <div className="col-span-2 hidden sm:block">Estado</div>
+          <div className="col-span-4 sm:col-span-3 md:col-span-3 lg:col-span-2">Semáforo</div>
+          <div className="col-span-3 hidden sm:block md:col-span-2">Estado</div>
           <div className="col-span-1 text-right">Drive</div>
         </div>
 
@@ -265,7 +265,7 @@ export default function LotesPage() {
                 className="grid grid-cols-12 px-5 py-4 border-b border-white/5 hover:bg-white/3 transition-all group items-center cursor-pointer"
               >
                 {/* Código + Nombre */}
-                <div className="col-span-3">
+                <div className="col-span-7 sm:col-span-5 md:col-span-4 lg:col-span-3">
                   <div className="flex items-center gap-2">
                     <div className={`w-1.5 h-8 rounded-full flex-shrink-0 ${overdue ? 'bg-red-500' : 'bg-green-500/40'}`} />
                     <div>
@@ -294,7 +294,7 @@ export default function LotesPage() {
                 </div>
 
                 {/* Semáforo */}
-                <div className="col-span-2">
+                <div className="col-span-4 sm:col-span-3 md:col-span-3 lg:col-span-2">
                   <LotSemaphore lot={lot} />
                   {overdue && (
                     <p className="text-red-400 text-[10px] mt-1">
@@ -304,7 +304,7 @@ export default function LotesPage() {
                 </div>
 
                 {/* Estado General */}
-                <div className="col-span-2 hidden sm:block">
+                <div className="col-span-3 hidden sm:block md:col-span-2">
                   <StatusBadge status={lot.overall_status} />
                 </div>
 
