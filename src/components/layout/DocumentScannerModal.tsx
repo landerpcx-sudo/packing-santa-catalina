@@ -136,7 +136,13 @@ export default function DocumentScannerModal({
     }
   }, [isOpen, startLiveCamera, stopLiveCamera])
 
-  if (!isOpen) return null
+  const [mounted, setMounted] = useState(false)
+
+  useEffect(() => {
+    setMounted(true)
+  }, [])
+
+  if (!isOpen || !mounted) return null
 
   const triggerNativeCamera = () => {
     fileInputRef.current?.click()
@@ -353,7 +359,7 @@ export default function DocumentScannerModal({
     }, 50)
   }
 
-  return (
+  return createPortal(
     <div className="fixed inset-0 z-[99999] flex items-center justify-center bg-black overflow-hidden select-none touch-none">
       
       {/* 
@@ -495,6 +501,7 @@ export default function DocumentScannerModal({
       />
 
       <canvas ref={canvasRef} className="hidden" />
-    </div>
+    </div>,
+    document.body
   )
 }
