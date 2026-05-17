@@ -319,28 +319,28 @@ export default function DocumentScannerModal({
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-start justify-center p-3 bg-black/95 backdrop-blur-md overflow-y-auto">
-      <div className="relative w-full max-w-lg bg-[#0b0f19] border border-white/10 rounded-3xl overflow-hidden shadow-2xl flex flex-col my-auto max-h-[92vh]">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black sm:bg-black/90 sm:backdrop-blur-md overflow-hidden">
+      <div className="relative w-full h-full sm:h-auto sm:max-h-[92vh] sm:max-w-lg bg-[#0b0f19] sm:border sm:border-white/10 sm:rounded-3xl overflow-hidden shadow-2xl flex flex-col">
         {/* Header */}
-        <div className="flex items-center justify-between px-6 py-4 border-b border-white/5 bg-white/2">
+        <div className="flex items-center justify-between px-4 py-3 border-b border-white/5 bg-white/2 shrink-0">
           <div>
-            <h3 className="text-white font-bold text-base flex items-center gap-2">
-              <Sparkles className="text-emerald-400 w-5 h-5 animate-pulse" />
+            <h3 className="text-white font-bold text-sm flex items-center gap-2">
+              <Sparkles className="text-emerald-400 w-4 h-4 animate-pulse" />
               Escáner Móvil Inteligente
             </h3>
-            <p className="text-[10px] text-gray-500 font-bold uppercase tracking-widest mt-0.5">{documentLabel}</p>
+            <p className="text-[9px] text-gray-500 font-bold uppercase tracking-widest mt-0.5">{documentLabel}</p>
           </div>
           <button 
             disabled={processing}
             onClick={onClose} 
             className="p-1.5 hover:bg-white/5 text-gray-400 hover:text-white rounded-xl transition-all"
           >
-            <X size={20} />
+            <X size={18} />
           </button>
         </div>
 
         {/* Body */}
-        <div className="flex-1 overflow-y-auto p-5 space-y-4 flex flex-col justify-center min-h-[300px]">
+        <div className="flex-1 overflow-hidden p-4 flex flex-col justify-between min-h-0 bg-[#0d121f]">
           {/* Input de cámara del sistema (para fallback) */}
           <input 
             type="file" 
@@ -355,35 +355,37 @@ export default function DocumentScannerModal({
             /* PASO 1: Captura de Foto */
             useLiveCamera && stream ? (
               /* A. Cámara en vivo incrustada en la web */
-              <div className="flex-1 flex flex-col space-y-4 items-center justify-center">
-                <div className="relative w-full aspect-[3/4] max-h-[320px] bg-black rounded-2xl overflow-hidden border border-white/10 flex items-center justify-center shadow-lg shadow-black">
+              <div className="flex-1 flex flex-col justify-between min-h-0">
+                {/* Contenedor de Video Flexible */}
+                <div className="relative w-full flex-1 min-h-0 bg-black rounded-2xl overflow-hidden border border-white/10 flex items-center justify-center shadow-lg shadow-black">
                   <video 
                     ref={videoRef}
                     autoPlay 
                     playsInline 
                     muted 
-                    className="w-full h-full object-cover"
+                    className="absolute inset-0 w-full h-full object-cover"
                   />
                   {/* Grid de encuadre */}
                   <div className="absolute inset-4 border border-dashed border-emerald-400/40 rounded-xl pointer-events-none flex items-center justify-center">
                     <div className="w-[85%] h-[85%] border-2 border-emerald-400/60 rounded-lg flex items-center justify-center">
-                      <span className="text-[10px] bg-emerald-600/90 text-white font-black px-2 py-0.5 rounded uppercase tracking-wider">
+                      <span className="text-[10px] bg-emerald-600/95 text-white font-black px-2.5 py-1 rounded uppercase tracking-wider shadow-md">
                         Alinea el papel aquí
                       </span>
                     </div>
                   </div>
                 </div>
 
-                <div className="flex items-center gap-3 w-full">
+                {/* Botones de control inferiores */}
+                <div className="flex items-center gap-3 w-full pt-4 mt-auto shrink-0">
                   <button
                     onClick={() => {
                       stopLiveCamera()
                       setUseLiveCamera(false)
                       triggerNativeCamera()
                     }}
-                    className="flex-1 py-3 px-4 bg-white/5 hover:bg-white/10 text-gray-400 hover:text-white rounded-xl text-xs font-bold uppercase transition-all"
+                    className="flex-1 py-3 px-3 bg-white/5 hover:bg-white/10 text-gray-400 hover:text-white rounded-xl text-xs font-bold uppercase transition-all"
                   >
-                    Usar Cámara Externa
+                    Cámara Celu
                   </button>
                   <button
                     onClick={captureLiveFrame}
@@ -395,7 +397,7 @@ export default function DocumentScannerModal({
               </div>
             ) : (
               /* B. Fallback: Botón para tomar foto con cámara del sistema */
-              <div className="flex flex-col items-center justify-center py-10 text-center space-y-6">
+              <div className="flex flex-col items-center justify-center py-10 text-center space-y-6 shrink-0">
                 <div className="w-20 h-20 bg-emerald-500/10 border border-emerald-500/20 rounded-full flex items-center justify-center text-emerald-400 shadow-xl shadow-emerald-500/5 animate-pulse">
                   <Camera size={38} />
                 </div>
@@ -424,9 +426,9 @@ export default function DocumentScannerModal({
             )
           ) : (
             /* PASO 2: Herramientas de Edición */
-            <div className="flex-1 flex flex-col space-y-4">
-              {/* Contenedor de Previsualización Recortable */}
-              <div className="relative aspect-[3/4] max-h-[260px] mx-auto w-full border border-white/5 rounded-2xl overflow-hidden bg-black/40 flex items-center justify-center shadow-inner">
+            <div className="flex-1 flex flex-col justify-between min-h-0 space-y-3">
+              {/* Contenedor de Previsualización Recortable Flexible */}
+              <div className="relative flex-1 min-h-0 mx-auto w-full border border-white/5 rounded-2xl overflow-hidden bg-black/40 flex items-center justify-center shadow-inner">
                 <div 
                   className="relative w-full h-full transition-transform duration-300 flex items-center justify-center p-2"
                   style={{ transform: `rotate(${rotation}deg)` }}
@@ -455,75 +457,70 @@ export default function DocumentScannerModal({
                 </div>
               </div>
 
-              {/* Sliders táctiles */}
-              <div className="bg-[#131924] border border-white/5 rounded-2xl p-4 space-y-3">
-                <p className="text-[10px] font-black text-gray-500 uppercase tracking-widest mb-1">
+              {/* Sliders táctiles compactos */}
+              <div className="bg-[#131924] border border-white/5 rounded-2xl p-3 space-y-2 shrink-0">
+                <p className="text-[9px] font-black text-gray-500 uppercase tracking-widest mb-0.5">
                   Ajuste de Bordes (Quitar Mesa/Fondo)
                 </p>
-                <div className="grid grid-cols-2 gap-4">
-                  <div className="space-y-1">
-                    <div className="flex justify-between text-[9px] text-gray-400 font-bold uppercase">
-                      <span>Arriba</span>
-                      <span>{cropTop}%</span>
+                <div className="grid grid-cols-2 gap-2">
+                  <div className="space-y-0.5">
+                    <div className="flex justify-between text-[8px] text-gray-400 font-bold uppercase">
+                      <span>Arriba ({cropTop}%)</span>
                     </div>
                     <input 
                       type="range" min="0" max="45" value={cropTop} 
                       onChange={e => setCropTop(Number(e.target.value))}
-                      className="w-full accent-emerald-500 bg-white/5 h-1.5 rounded-lg appearance-none cursor-pointer"
+                      className="w-full accent-emerald-500 bg-white/5 h-1 rounded-lg appearance-none cursor-pointer"
                     />
                   </div>
-                  <div className="space-y-1">
-                    <div className="flex justify-between text-[9px] text-gray-400 font-bold uppercase">
-                      <span>Abajo</span>
-                      <span>{cropBottom}%</span>
+                  <div className="space-y-0.5">
+                    <div className="flex justify-between text-[8px] text-gray-400 font-bold uppercase">
+                      <span>Abajo ({cropBottom}%)</span>
                     </div>
                     <input 
                       type="range" min="0" max="45" value={cropBottom} 
                       onChange={e => setCropBottom(Number(e.target.value))}
-                      className="w-full accent-emerald-500 bg-white/5 h-1.5 rounded-lg appearance-none cursor-pointer"
+                      className="w-full accent-emerald-500 bg-white/5 h-1 rounded-lg appearance-none cursor-pointer"
                     />
                   </div>
-                  <div className="space-y-1">
-                    <div className="flex justify-between text-[9px] text-gray-400 font-bold uppercase">
-                      <span>Izquierda</span>
-                      <span>{cropLeft}%</span>
+                  <div className="space-y-0.5">
+                    <div className="flex justify-between text-[8px] text-gray-400 font-bold uppercase">
+                      <span>Izquierda ({cropLeft}%)</span>
                     </div>
                     <input 
                       type="range" min="0" max="45" value={cropLeft} 
                       onChange={e => setCropLeft(Number(e.target.value))}
-                      className="w-full accent-emerald-500 bg-white/5 h-1.5 rounded-lg appearance-none cursor-pointer"
+                      className="w-full accent-emerald-500 bg-white/5 h-1 rounded-lg appearance-none cursor-pointer"
                     />
                   </div>
-                  <div className="space-y-1">
-                    <div className="flex justify-between text-[9px] text-gray-400 font-bold uppercase">
-                      <span>Derecha</span>
-                      <span>{cropRight}%</span>
+                  <div className="space-y-0.5">
+                    <div className="flex justify-between text-[8px] text-gray-400 font-bold uppercase">
+                      <span>Derecha ({cropRight}%)</span>
                     </div>
                     <input 
                       type="range" min="0" max="45" value={cropRight} 
                       onChange={e => setCropRight(Number(e.target.value))}
-                      className="w-full accent-emerald-500 bg-white/5 h-1.5 rounded-lg appearance-none cursor-pointer"
+                      className="w-full accent-emerald-500 bg-white/5 h-1 rounded-lg appearance-none cursor-pointer"
                     />
                   </div>
                 </div>
               </div>
 
               {/* Botones de Control de Filtros y Rotación */}
-              <div className="flex items-center justify-between gap-3">
+              <div className="flex items-center justify-between gap-2 shrink-0">
                 <button
                   onClick={rotateImage}
-                  className="px-4 py-3 bg-white/5 hover:bg-white/10 text-white rounded-xl text-xs font-bold uppercase tracking-wider transition-all flex items-center gap-2 border border-white/5 shrink-0"
-                  title="Rotar Imagen"
+                  className="px-3 py-2.5 bg-white/5 hover:bg-white/10 text-white rounded-xl text-[10px] font-bold uppercase tracking-wider transition-all flex items-center gap-1.5 border border-white/5 shrink-0"
                 >
-                  <RotateCw size={14} /> Rotar 90°
+                  <RotateCw size={12} /> Rotar 90°
                 </button>
 
-                <div className="flex bg-white/5 p-1 rounded-xl border border-white/5 flex-1 justify-around">
+                <div className="flex bg-white/5 p-0.5 rounded-xl border border-white/5 flex-1 justify-around">
                   {(['color', 'grayscale', 'scan'] as FilterType[]).map((f) => (
                     <button
                       key={f}
                       onClick={() => setFilter(f)}
-                      className={`px-3 py-2 text-[10px] font-black uppercase tracking-wider rounded-lg transition-all flex-1 text-center
+                      className={`px-2 py-2 text-[9px] font-black uppercase tracking-wider rounded-lg transition-all flex-1 text-center
                         ${filter === f 
                           ? 'bg-emerald-600/20 text-emerald-400 border border-emerald-500/20 shadow-sm' 
                           : 'text-gray-400 hover:text-white'
@@ -537,9 +534,9 @@ export default function DocumentScannerModal({
               </div>
 
               {/* Ahorro de peso */}
-              <div className="bg-emerald-500/5 border border-emerald-500/10 rounded-2xl px-4 py-3 text-[10px] text-emerald-400/90 font-bold flex items-center justify-between uppercase tracking-wider">
-                <span className="flex items-center gap-1.5">
-                  <Sparkles size={12} className="animate-pulse" />
+              <div className="bg-emerald-500/5 border border-emerald-500/10 rounded-2xl px-4 py-2 text-[9px] text-emerald-400/90 font-bold flex items-center justify-between uppercase tracking-wider shrink-0">
+                <span className="flex items-center gap-1">
+                  <Sparkles size={10} className="animate-pulse" />
                   Peso Original: {formatMB(originalSize)}
                 </span>
                 <span>→</span>
@@ -551,7 +548,7 @@ export default function DocumentScannerModal({
 
         {/* Footer */}
         {imageSrc && (
-          <div className="px-6 py-4 border-t border-white/5 bg-white/2 flex items-center justify-between gap-4">
+          <div className="px-4 py-3.5 border-t border-white/5 bg-white/2 flex items-center justify-between gap-3 shrink-0">
             <button
               disabled={processing}
               onClick={() => {
