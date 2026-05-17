@@ -471,11 +471,10 @@ export default function DocumentScannerModal({
               <div className="absolute -bottom-1 -right-1 w-8 h-8 border-b-4 border-r-4 border-emerald-500 rounded-br-2xl" />
               
               <span 
-                className="text-[10px] text-white font-black px-4 py-2 rounded-full uppercase tracking-widest border border-emerald-400/30 backdrop-blur-sm absolute -bottom-4"
+                className="text-[10px] text-white font-black px-4 py-2 rounded-full uppercase tracking-widest border border-green-400/30 backdrop-blur-sm absolute -bottom-4"
                 style={{
-                  backgroundColor: '#10b981',
-                  boxShadow: '0 4px 14px 0 rgba(16, 185, 129, 0.39)',
-                  opacity: 1
+                  backgroundColor: '#22c55e',
+                  boxShadow: '0 4px 14px 0 rgba(34, 197, 94, 0.4)'
                 }}
               >
                 Alinea Hoja Carta
@@ -505,12 +504,11 @@ export default function DocumentScannerModal({
                 if (processing) return
                 captureLiveFrame()
               }}
-              className={`flex-1 py-4 px-6 rounded-xl text-xs font-black uppercase tracking-widest shadow-xl flex items-center justify-center gap-2 border border-emerald-400/30 transition-all cursor-pointer ${processing ? 'opacity-50 pointer-events-none' : ''}`}
+              className={`flex-1 py-4 px-6 rounded-xl text-xs font-black uppercase tracking-widest shadow-xl flex items-center justify-center gap-2 border border-green-400/30 transition-all cursor-pointer ${processing ? 'opacity-50 pointer-events-none' : ''}`}
               style={{
-                backgroundColor: processing ? '#065f46' : '#10b981',
-                color: processing ? '#a7f3d0' : '#ffffff',
-                boxShadow: processing ? 'none' : '0 10px 25px -5px rgba(16, 185, 129, 0.4)',
-                opacity: 1
+                backgroundColor: processing ? '#166534' : '#22c55e', // green-800 : green-500
+                color: processing ? '#bbf7d0' : '#ffffff',
+                boxShadow: processing ? 'none' : '0 10px 25px -5px rgba(34, 197, 94, 0.5)'
               }}
             >
               {processing ? (
