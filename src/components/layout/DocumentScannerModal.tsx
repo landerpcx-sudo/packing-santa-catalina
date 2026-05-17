@@ -177,7 +177,7 @@ export default function DocumentScannerModal({
             setProcessing(false)
           },
           'image/webp',
-          0.65
+          0.90
         )
       }
       img.src = reader.result as string
@@ -274,26 +274,7 @@ export default function DocumentScannerModal({
     
     ctx.drawImage(video, drawX, drawY, drawW, drawH)
 
-    // Filtro tipo escáner para mejorar el contraste del texto
-    const imageData = ctx.getImageData(0, 0, cropW, cropH)
-    const data = imageData.data
-    for (let i = 0; i < data.length; i += 4) {
-      const r = data[i]
-      const g = data[i+1]
-      const b = data[i+2]
-      const gray = 0.299 * r + 0.587 * g + 0.114 * b
-      
-      let finalGray = gray
-      if (gray > 130) {
-        finalGray = Math.min(255, gray * 1.35)
-      } else {
-        finalGray = Math.max(0, gray * 0.65)
-      }
-      data[i] = finalGray
-      data[i+1] = finalGray
-      data[i+2] = finalGray
-    }
-    ctx.putImageData(imageData, 0, 0)
+    // Exportar directamente y cerrar
 
     // Exportar directamente y cerrar
     canvas.toBlob(
@@ -311,7 +292,7 @@ export default function DocumentScannerModal({
         setProcessing(false)
       },
       'image/webp',
-      0.65
+      0.90
     )
   }
 
