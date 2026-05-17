@@ -321,7 +321,18 @@ export default function TemperatureDetailPage({ params }: { params: Promise<{ id
                             </div>
                             <div className="flex items-center gap-2">
                                {doc.drive_file_url && (user?.role === 'admin' || user?.canViewDrive || !doc.storage_url) ? (
-                                 <button onClick={() => setPreviewFile({ isOpen: true, url: doc.drive_file_url!, name: doc.original_file_name })} className={`p-2.5 rounded-xl transition-all flex items-center gap-2 ${!doc.storage_url ? 'bg-amber-500/10 text-amber-500 border border-amber-500/20' : 'bg-blue-500/10 text-blue-400 hover:bg-blue-500 hover:text-white'}`} title={!doc.storage_url ? "Archivo Archivado en Drive" : "Ver en Google Drive"}>
+                                 <button 
+                                  onClick={() => {
+                                    const isImage = /\.(jpg|jpeg|png|gif|webp|bmp)$/i.test(doc.original_file_name)
+                                    setPreviewFile({ 
+                                      isOpen: true, 
+                                      url: (isImage && doc.storage_url) ? doc.storage_url : doc.drive_file_url!, 
+                                      name: doc.original_file_name 
+                                    })
+                                  }} 
+                                  className={`p-2.5 rounded-xl transition-all flex items-center gap-2 ${!doc.storage_url ? 'bg-amber-500/10 text-amber-500 border border-amber-500/20' : 'bg-blue-500/10 text-blue-400 hover:bg-blue-500 hover:text-white'}`} 
+                                  title={!doc.storage_url ? "Archivo Archivado en Drive" : "Ver en Google Drive"}
+                                >
                                     <ExternalLink size={16} />
                                     {!doc.storage_url && <span className="text-[10px] font-black uppercase tracking-widest">Drive</span>}
                                  </button>

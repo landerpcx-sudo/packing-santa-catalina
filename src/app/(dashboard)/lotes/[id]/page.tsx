@@ -307,7 +307,14 @@ export default function LoteDetailPage({ params }: { params: Promise<{ id: strin
                             )}
                           {doc.drive_file_url && (user?.role === 'admin' || user?.canViewDrive || !doc.storage_url) ? (
                             <button
-                              onClick={() => setPreviewFile({ isOpen: true, url: doc.drive_file_url!, name: doc.original_file_name })}
+                              onClick={() => {
+                                const isImage = /\.(jpg|jpeg|png|gif|webp|bmp)$/i.test(doc.original_file_name)
+                                setPreviewFile({ 
+                                  isOpen: true, 
+                                  url: (isImage && doc.storage_url) ? doc.storage_url : doc.drive_file_url!, 
+                                  name: doc.original_file_name 
+                                })
+                              }}
                               className={`${!doc.storage_url ? 'text-amber-400' : 'text-blue-400'} hover:opacity-80 flex-shrink-0 flex items-center gap-1`}
                               title={!doc.storage_url ? "Archivo Archivado en Drive" : "Ver en Google Drive"}
                             >

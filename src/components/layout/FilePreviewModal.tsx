@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
+import { createPortal } from 'react-dom'
 import { X, ExternalLink, Download, FileText, Loader2 } from 'lucide-react'
 
 interface FilePreviewModalProps {
@@ -11,7 +12,12 @@ interface FilePreviewModalProps {
 }
 
 export default function FilePreviewModal({ isOpen, onClose, fileUrl, fileName }: FilePreviewModalProps) {
+  const [mounted, setMounted] = useState(false)
   const [loading, setLoading] = useState(true)
+
+  useEffect(() => {
+    setMounted(true)
+  }, [])
 
   useEffect(() => {
     if (isOpen) {
@@ -19,7 +25,7 @@ export default function FilePreviewModal({ isOpen, onClose, fileUrl, fileName }:
     }
   }, [isOpen, fileUrl])
 
-  if (!isOpen) return null
+  if (!isOpen || !mounted) return null
 
   // Detectar tipo de archivo
   const isDriveUrl = fileUrl.includes('drive.google.com')
@@ -36,8 +42,8 @@ export default function FilePreviewModal({ isOpen, onClose, fileUrl, fileName }:
     }
   }
 
-  return (
-    <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-md flex items-center justify-center p-4 transition-all duration-300 animate-in fade-in">
+  return createPortal(
+    <div className="fixed inset-0 z-[9999] bg-black/80 backdrop-blur-md flex items-center justify-center p-4 transition-all duration-300 animate-in fade-in">
       <div className="bg-[#0f172a] border border-white/10 rounded-3xl w-full max-w-5xl h-[85vh] shadow-2xl flex flex-col overflow-hidden animate-in zoom-in-95 duration-200">
         
         {/* Header */}
@@ -124,6 +130,7 @@ export default function FilePreviewModal({ isOpen, onClose, fileUrl, fileName }:
           )}
         </div>
       </div>
-    </div>
+    </div>,
+    document.body
   )
 }

@@ -22,29 +22,15 @@ export default function DocumentScannerModal({
   lotCodeOrDispatchId,
 }: DocumentScannerModalProps) {
   const [mounted, setMounted] = useState(false)
-  const [imageSrc, setImageSrc] = useState<string | null>(null)
-  const [rotation, setRotation] = useState<number>(0)
-  const [filter, setFilter] = useState<FilterType>('scan')
-  
-  // Recorte (porcentajes de margen 0 a 45)
-  const [cropTop, setCropTop] = useState<number>(5)
-  const [cropBottom, setCropBottom] = useState<number>(5)
-  const [cropLeft, setCropLeft] = useState<number>(5)
-  const [cropRight, setCropRight] = useState<number>(5)
-
-  const [originalSize, setOriginalSize] = useState<number>(0)
-  const [processing, setProcessing] = useState<boolean>(false)
-
-  // Estados de la cámara en vivo
-  const [stream, setStream] = useState<MediaStream | null>(null)
-  const [useLiveCamera, setUseLiveCamera] = useState<boolean>(true)
-  const [cameraError, setCameraError] = useState<string | null>(null)
-
-  const fileInputRef = useRef<HTMLInputElement>(null)
-  const videoElementRef = useRef<HTMLVideoElement | null>(null)
-  const imageRef = useRef<HTMLImageElement>(null)
+  const videoElementRef = useRef<HTMLVideoElement>(null)
   const canvasRef = useRef<HTMLCanvasElement>(null)
+  const guideBoxRef = useRef<HTMLDivElement>(null)
+  const fileInputRef = useRef<HTMLInputElement>(null)
 
+  const [useLiveCamera, setUseLiveCamera] = useState(true)
+  const [stream, setStream] = useState<MediaStream | null>(null)
+  const [cameraError, setCameraError] = useState<string | null>(null)
+  const [processing, setProcessing] = useState(false)
   // Ref callback para el elemento de video - Garantiza la vinculación del stream inmediatamente al montarse el nodo en el DOM
   const videoRef = useCallback((node: HTMLVideoElement | null) => {
     if (node) {
@@ -108,13 +94,6 @@ export default function DocumentScannerModal({
       // Bloquear scroll de la página de fondo
       document.body.style.overflow = 'hidden'
 
-      setImageSrc(null)
-      setRotation(0)
-      setFilter('scan')
-      setCropTop(5)
-      setCropBottom(5)
-      setCropLeft(5)
-      setCropRight(5)
       setProcessing(false)
       setCameraError(null)
       setUseLiveCamera(true)
@@ -154,421 +133,272 @@ export default function DocumentScannerModal({
     if (!files || files.length === 0) return
 
     const file = files[0]
-    setOriginalSize(file.size)
+    setProcessing(true)
     
     const reader = new FileReader()
     reader.onload = () => {
-      setImageSrc(reader.result as string)
+      const img = new Image()
+      img.onload = () => {
+        // Comprimir y guardar inmediatamente
+        const maxDimension = 1600
+        let finalWidth = img.naturalWidth
+        let finalHeight = img.naturalHeight
+        
+        if (finalWidth > maxDimension || finalHeight > maxDimension) {
+          const ratio = finalWidth / finalHeight
+          if (ratio > 1) {
+            finalWidth = maxDimension
+            finalHeight = maxDimension / ratio
+          } else {
+            finalHeight = maxDimension
+            finalWidth = maxDimension * ratio
+          }
+        }
+        
+        const canvas = document.createElement('canvas')
+        canvas.width = finalWidth
+        canvas.height = finalHeight
+        const ctx = canvas.getContext('2d')!
+        ctx.fillStyle = '#ffffff'
+        ctx.fillRect(0, 0, finalWidth, finalHeight)
+        ctx.drawImage(img, 0, 0, finalWidth, finalHeight)
+
+        canvas.toBlob(
+          (blob) => {
+            if (blob) {
+              const cleanLabel = documentLabel.replace(/ \(.*\)/, '')
+              const fileName = `${cleanLabel} Escaneado ${lotCodeOrDispatchId}.webp`
+              const scannedFile = new File([blob], fileName, { type: 'image/webp' })
+              onScanComplete(scannedFile)
+              onClose()
+            } else {
+              alert('Error al procesar la imagen.')
+            }
+            setProcessing(false)
+          },
+          'image/webp',
+          0.65
+        )
+      }
+      img.src = reader.result as string
     }
     reader.readAsDataURL(file)
   }
 
-  // Capturar fotograma actual del video en vivo
+  // Capturar fotograma actual y recortar al tamaño Carta
   const captureLiveFrame = () => {
-    if (!videoElementRef.current || !canvasRef.current) return
+    if (!videoElementRef.current || !canvasRef.current || !guideBoxRef.current) return
     const video = videoElementRef.current
     const canvas = canvasRef.current
+    const guideBox = guideBoxRef.current
     const ctx = canvas.getContext('2d')
     if (!ctx) return
 
-    const videoWidth = video.videoWidth || 1280
-    const videoHeight = video.videoHeight || 720
-    
-    canvas.width = videoWidth
-    canvas.height = videoHeight
-
-    // Dibujar el cuadro actual en el canvas
-    ctx.drawImage(video, 0, 0, videoWidth, videoHeight)
-
-    // Detener la cámara para liberar recursos
-    stopLiveCamera()
-
-    const dataUrl = canvas.toDataURL('image/jpeg', 0.9)
-    setImageSrc(dataUrl)
-    setOriginalSize(dataUrl.length * 0.75) // Peso aproximado
-  }
-
-  const rotateImage = () => {
-    setRotation((prev) => (prev + 90) % 360)
-  }
-
-  // Procesar y recortar la imagen final
-  const handleSave = () => {
-    if (!imageSrc || !canvasRef.current) return
     setProcessing(true)
 
-    setTimeout(() => {
-      try {
-        const img = new Image()
-        img.onload = () => {
-          const canvas = canvasRef.current!
-          const ctx = canvas.getContext('2d')
-          if (!ctx) return
+    // Dimensiones originales del stream (sensor)
+    let actualVideoWidth = video.videoWidth
+    let actualVideoHeight = video.videoHeight
 
-          let origWidth = img.naturalWidth
-          let origHeight = img.naturalHeight
+    // Obtener dimensiones reales renderizadas en pantalla
+    const videoRect = video.getBoundingClientRect()
+    const guideRect = guideBox.getBoundingClientRect()
 
-          // Ajustar por rotación
-          const isRotated90or270 = rotation === 90 || rotation === 270
-          let targetWidth = isRotated90or270 ? origHeight : origWidth
-          let targetHeight = isRotated90or270 ? origWidth : origHeight
+    // FIX: Corrección para móviles donde el sensor de la cámara es landscape (ej. 1920x1080)
+    // pero el navegador lo rota visualmente a portrait sin actualizar videoWidth/Height en los metadatos.
+    // Si la pantalla es vertical (alto > ancho) y el video reporta ser horizontal (ancho > alto),
+    // asumimos que el navegador rotó el video visualmente y debemos invertir las variables.
+    const isPortraitScreen = videoRect.height > videoRect.width
+    const isLandscapeVideo = actualVideoWidth > actualVideoHeight
 
-          const leftPx = (cropLeft / 100) * targetWidth
-          const rightPx = (cropRight / 100) * targetWidth
-          const topPx = (cropTop / 100) * targetHeight
-          const bottomPx = (cropBottom / 100) * targetHeight
+    if (isPortraitScreen && isLandscapeVideo) {
+      actualVideoWidth = video.videoHeight
+      actualVideoHeight = video.videoWidth
+    }
 
-          const croppedWidth = targetWidth - leftPx - rightPx
-          const croppedHeight = targetHeight - topPx - bottomPx
+    // Calcular proporción visual del "object-fit: cover"
+    const videoRatio = actualVideoWidth / actualVideoHeight
+    const screenRatio = videoRect.width / videoRect.height
+    
+    let renderedWidth, renderedHeight, offsetX = 0, offsetY = 0
 
-          // Redimensionar para optimizar peso (máx 1600px en el lado más largo)
-          const maxDimension = 1600
-          let finalWidth = croppedWidth
-          let finalHeight = croppedHeight
+    if (screenRatio > videoRatio) {
+      // Pantalla es más ancha: video se expande a lo ancho y se recorta (desborda) arriba/abajo
+      renderedWidth = videoRect.width
+      renderedHeight = videoRect.width / videoRatio
+      offsetY = (renderedHeight - videoRect.height) / 2
+    } else {
+      // Pantalla es más alta: video se expande a lo alto y se recorta (desborda) izq/der
+      renderedHeight = videoRect.height
+      renderedWidth = videoRect.height * videoRatio
+      offsetX = (renderedWidth - videoRect.width) / 2
+    }
 
-          if (croppedWidth > maxDimension || croppedHeight > maxDimension) {
-            const ratio = croppedWidth / croppedHeight
-            if (ratio > 1) {
-              finalWidth = maxDimension
-              finalHeight = maxDimension / ratio
-            } else {
-              finalHeight = maxDimension
-              finalWidth = maxDimension * ratio
-            }
-          }
+    // Calcular las coordenadas del recuadro *estrictamente relativas* al contenedor de video,
+    // por si el video no estuviera perfectamente en el 0,0 de la ventana.
+    const relativeBoxLeft = guideRect.left - videoRect.left
+    const relativeBoxTop = guideRect.top - videoRect.top
 
-          canvas.width = finalWidth
-          canvas.height = finalHeight
+    // Mapear coordenadas del recuadro a las dimensiones "renderizadas y desbordadas" del video
+    const boxLeft = relativeBoxLeft + offsetX
+    const boxTop = relativeBoxTop + offsetY
+    const boxWidth = guideRect.width
+    const boxHeight = guideRect.height
 
-          // Lienzo en blanco
-          ctx.fillStyle = '#ffffff'
-          ctx.fillRect(0, 0, finalWidth, finalHeight)
+    // Escalar los píxeles desde las dimensiones renderizadas a los píxeles originales reales del video
+    const scale = actualVideoWidth / renderedWidth
+    
+    const cropX = boxLeft * scale
+    const cropY = boxTop * scale
+    const cropW = boxWidth * scale
+    const cropH = boxHeight * scale
 
-          // Canvas temporal para aplicar rotación y recortes en alta definición
-          const tempCanvas = document.createElement('canvas')
-          tempCanvas.width = targetWidth
-          tempCanvas.height = targetHeight
-          const tempCtx = tempCanvas.getContext('2d')!
+    // Detener la cámara
+    stopLiveCamera()
 
-          tempCtx.translate(targetWidth / 2, targetHeight / 2)
-          tempCtx.rotate((rotation * Math.PI) / 180)
-          tempCtx.drawImage(img, -origWidth / 2, -origHeight / 2, origWidth, origHeight)
+    // Pintar solo la región recortada
+    canvas.width = cropW
+    canvas.height = cropH
+    ctx.drawImage(video, cropX, cropY, cropW, cropH, 0, 0, cropW, cropH)
 
-          // Pintar la porción recortada en el canvas final escalado
-          ctx.drawImage(
-            tempCanvas,
-            leftPx, topPx, croppedWidth, croppedHeight,
-            0, 0, finalWidth, finalHeight
-          )
-
-          // Filtro de Legibilidad
-          if (filter === 'grayscale' || filter === 'scan') {
-            const imageData = ctx.getImageData(0, 0, finalWidth, finalHeight)
-            const data = imageData.data
-
-            for (let i = 0; i < data.length; i += 4) {
-              const r = data[i]
-              const g = data[i+1]
-              const b = data[i+2]
-
-              const gray = 0.299 * r + 0.587 * g + 0.114 * b
-
-              if (filter === 'scan') {
-                // Algoritmo adaptativo para simular fotocopia nítida sin sombras
-                let finalGray = gray
-                if (gray > 130) {
-                  finalGray = Math.min(255, gray * 1.35)
-                } else {
-                  finalGray = Math.max(0, gray * 0.65)
-                }
-                data[i] = finalGray
-                data[i+1] = finalGray
-                data[i+2] = finalGray
-              } else {
-                data[i] = gray
-                data[i+1] = gray
-                data[i+2] = gray
-              }
-            }
-            ctx.putImageData(imageData, 0, 0)
-          }
-
-          // Exportar WebP liviano
-          canvas.toBlob(
-            (blob) => {
-              if (blob) {
-                const cleanLabel = documentLabel.replace(/ \(.*\)/, '')
-                const fileName = `${cleanLabel} Escaneado ${lotCodeOrDispatchId}.webp`
-                const scannedFile = new File([blob], fileName, { type: 'image/webp' })
-
-                onScanComplete(scannedFile)
-                onClose()
-              } else {
-                alert('Error al generar el archivo final.')
-              }
-              setProcessing(false)
-            },
-            'image/webp',
-            0.65
-          )
-        }
-        img.src = imageSrc
-      } catch (err) {
-        console.error(err)
-        alert('Ocurrió un error al procesar el escaneo.')
-        setProcessing(false)
+    // Filtro tipo escáner para mejorar el contraste del texto
+    const imageData = ctx.getImageData(0, 0, cropW, cropH)
+    const data = imageData.data
+    for (let i = 0; i < data.length; i += 4) {
+      const r = data[i]
+      const g = data[i+1]
+      const b = data[i+2]
+      const gray = 0.299 * r + 0.587 * g + 0.114 * b
+      
+      let finalGray = gray
+      if (gray > 130) {
+        finalGray = Math.min(255, gray * 1.35)
+      } else {
+        finalGray = Math.max(0, gray * 0.65)
       }
-    }, 100)
-  }
+      data[i] = finalGray
+      data[i+1] = finalGray
+      data[i+2] = finalGray
+    }
+    ctx.putImageData(imageData, 0, 0)
 
-  const formatMB = (bytes: number) => {
-    return `${(bytes / (1024 * 1024)).toFixed(2)} MB`
+    // Exportar directamente y cerrar
+    canvas.toBlob(
+      (blob) => {
+        if (blob) {
+          const cleanLabel = documentLabel.replace(/ \(.*\)/, '')
+          const fileName = `${cleanLabel} Escaneado ${lotCodeOrDispatchId}.webp`
+          const scannedFile = new File([blob], fileName, { type: 'image/webp' })
+
+          onScanComplete(scannedFile)
+          onClose()
+        } else {
+          alert('Error al generar el escaneo final.')
+        }
+        setProcessing(false)
+      },
+      'image/webp',
+      0.65
+    )
   }
 
   return createPortal(
     <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-black overflow-hidden select-none touch-none">
       
-      {/* -------------------- PASO 1: CAPTURA DE FOTO -------------------- */}
-      {!imageSrc && (
-        <>
-          {/* Cámara en vivo como fondo completo */}
-          {useLiveCamera && stream ? (
-            <video 
-              ref={videoRef}
-              autoPlay 
-              playsInline 
-              muted 
-              className="absolute inset-0 w-full h-full object-cover z-0"
-            />
-          ) : (
-            /* Fallback en el centro si no hay stream */
-            <div className="absolute inset-0 flex flex-col items-center justify-center p-6 text-center bg-[#0d121f] space-y-6 z-0">
-              <div className="w-20 h-20 bg-emerald-500/10 border border-emerald-500/20 rounded-full flex items-center justify-center text-emerald-400 shadow-xl shadow-emerald-500/5 animate-pulse">
-                <Camera size={38} />
-              </div>
-              <div className="space-y-2">
-                <h4 className="text-white font-bold text-base">Escanear con Cámara del Sistema</h4>
-                <p className="text-xs text-gray-400 max-w-xs mx-auto">
-                  Toma una foto de tu reporte. Al regresar de la cámara, el sistema te permitirá recortar la mesa y contrastar el documento.
-                </p>
-              </div>
+      {/* -------------------- CAPTURA DE FOTO -------------------- */}
+      {/* Cámara en vivo como fondo completo */}
+      {useLiveCamera && stream ? (
+        <video 
+          ref={videoRef}
+          autoPlay 
+          playsInline 
+          muted 
+          className="absolute inset-0 w-full h-full object-cover z-0"
+        />
+      ) : (
+        /* Fallback en el centro si no hay stream */
+        <div className="absolute inset-0 flex flex-col items-center justify-center p-6 text-center bg-[#0d121f] space-y-6 z-0">
+          <div className="w-20 h-20 bg-emerald-500/10 border border-emerald-500/20 rounded-full flex items-center justify-center text-emerald-400 shadow-xl shadow-emerald-500/5 animate-pulse">
+            <Camera size={38} />
+          </div>
+          <div className="space-y-2">
+            <h4 className="text-white font-bold text-base">Escanear con Cámara del Sistema</h4>
+            <p className="text-xs text-gray-400 max-w-xs mx-auto">
+              Toma una foto de tu reporte. El sistema la procesará automáticamente.
+            </p>
+          </div>
 
-              {cameraError && (
-                <div className="flex items-start gap-2 max-w-xs mx-auto p-3 bg-amber-500/5 border border-amber-500/10 rounded-xl text-amber-400 text-[10px] font-bold text-left uppercase">
-                  <AlertCircle size={14} className="shrink-0" />
-                  <span>{cameraError}</span>
-                </div>
-              )}
-
-              <button
-                onClick={triggerNativeCamera}
-                className="w-full max-w-xs py-3.5 px-6 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl font-bold text-xs uppercase tracking-widest transition-all shadow-xl shadow-emerald-600/25 flex items-center justify-center gap-2 border border-emerald-500/20"
-              >
-                <Camera size={16} />
-                Abrir Cámara
-              </button>
+          {cameraError && (
+            <div className="flex items-start gap-2 max-w-xs mx-auto p-3 bg-amber-500/5 border border-amber-500/10 rounded-xl text-amber-400 text-[10px] font-bold text-left uppercase">
+              <AlertCircle size={14} className="shrink-0" />
+              <span>{cameraError}</span>
             </div>
           )}
 
-          {/* Grid de encuadre en el medio (solo si hay cámara en vivo) */}
-          {useLiveCamera && stream && (
-            <div className="absolute inset-0 flex items-center justify-center p-6 pointer-events-none z-10">
-              <div className="w-[88%] h-[68%] border-2 border-dashed border-emerald-400/55 rounded-2xl flex flex-col items-center justify-end pb-8">
-                <span className="text-[10px] bg-emerald-600/95 text-white font-black px-3 py-1 rounded-full uppercase tracking-wider shadow-lg border border-emerald-500/20 backdrop-blur-sm">
-                  Alinea el papel aquí
-                </span>
-              </div>
-            </div>
-          )}
-
-          {/* Botonera de control inferior flotante */}
-          {useLiveCamera && stream && (
-            <div className="absolute bottom-0 inset-x-0 bg-gradient-to-t from-black via-black/45 to-transparent p-6 z-20 flex items-center justify-center pb-8">
-              <div className="flex items-center gap-3 w-full max-w-sm">
-                <button
-                  onClick={() => {
-                    stopLiveCamera()
-                    setUseLiveCamera(false)
-                    triggerNativeCamera()
-                  }}
-                  className="flex-1 py-3 px-3 bg-white/10 hover:bg-white/20 text-white rounded-xl text-xs font-bold uppercase transition-all backdrop-blur-md border border-white/15 shadow-md"
-                >
-                  Cámara Celu
-                </button>
-                <button
-                  onClick={captureLiveFrame}
-                  className="flex-2 py-3.5 px-6 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl text-xs font-black uppercase tracking-widest shadow-lg shadow-emerald-600/40 flex items-center justify-center gap-2 border border-emerald-500/20"
-                >
-                  <Camera size={16} /> Capturar Foto
-                </button>
-              </div>
-            </div>
-          )}
-        </>
+          <button
+            onClick={triggerNativeCamera}
+            className="w-full max-w-xs py-3.5 px-6 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl font-bold text-xs uppercase tracking-widest transition-all shadow-xl shadow-emerald-600/25 flex items-center justify-center gap-2 border border-emerald-500/20"
+          >
+            <Camera size={16} />
+            Abrir Cámara
+          </button>
+        </div>
       )}
 
-      {/* -------------------- PASO 2: HERRAMIENTAS DE EDICIÓN -------------------- */}
-      {imageSrc && (
-        <>
-          {/* Fondo para la edición */}
-          <div className="absolute inset-0 bg-[#070b13] z-0" />
+      {/* Grid de encuadre (Tamaño Carta) en el medio (solo si hay cámara en vivo) */}
+      {useLiveCamera && stream && (
+        <div className="absolute inset-0 flex items-center justify-center p-4 pointer-events-none z-10 pb-[100px]">
+          <div 
+            ref={guideBoxRef}
+            className="w-full max-w-sm aspect-[8.5/11] max-h-[75vh] border-2 border-dashed border-emerald-400/80 bg-emerald-400/5 rounded-xl flex flex-col items-center justify-center relative shadow-[0_0_0_4000px_rgba(0,0,0,0.65)]"
+          >
+            <div className="absolute inset-0 border border-emerald-500/30 rounded-xl" />
+            {/* Esquinas */}
+            <div className="absolute -top-1 -left-1 w-6 h-6 border-t-4 border-l-4 border-emerald-500 rounded-tl-xl" />
+            <div className="absolute -top-1 -right-1 w-6 h-6 border-t-4 border-r-4 border-emerald-500 rounded-tr-xl" />
+            <div className="absolute -bottom-1 -left-1 w-6 h-6 border-b-4 border-l-4 border-emerald-500 rounded-bl-xl" />
+            <div className="absolute -bottom-1 -right-1 w-6 h-6 border-b-4 border-r-4 border-emerald-500 rounded-br-xl" />
+            
+            <span className="text-[10px] bg-emerald-600/95 text-white font-black px-3 py-1.5 rounded-full uppercase tracking-widest shadow-lg border border-emerald-500/20 backdrop-blur-sm absolute bottom-8">
+              Alinea Hoja Carta
+            </span>
+          </div>
+        </div>
+      )}
 
-          {/* Contenedor de Previsualización Recortable en el Centro */}
-          <div className="absolute inset-0 flex items-center justify-center p-4 z-10 pb-[280px] pt-[75px]">
-            <div 
-              className="relative w-full h-full transition-transform duration-300 flex items-center justify-center"
-              style={{ transform: `rotate(${rotation}deg)` }}
+      {/* Botonera de control inferior flotante */}
+      {useLiveCamera && stream && (
+        <div className="absolute bottom-0 inset-x-0 bg-gradient-to-t from-black via-black/80 to-transparent p-6 z-20 flex items-center justify-center pb-8 pt-12">
+          <div className="flex items-center gap-3 w-full max-w-sm">
+            <button
+              disabled={processing}
+              onClick={() => {
+                stopLiveCamera()
+                setUseLiveCamera(false)
+                triggerNativeCamera()
+              }}
+              className="flex-1 py-3 px-3 bg-white/10 hover:bg-white/20 text-white rounded-xl text-xs font-bold uppercase transition-all backdrop-blur-md border border-white/15 shadow-md"
             >
-              <img 
-                ref={imageRef}
-                src={imageSrc} 
-                alt="Original" 
-                className="max-w-full max-h-full object-contain rounded-xl shadow-2xl border border-white/5"
-              />
-
-              {/* Máscara de recorte */}
-              <div 
-                className="absolute border-2 border-dashed border-emerald-400 bg-emerald-400/5 pointer-events-none rounded-lg"
-                style={{
-                  top: `${cropTop}%`,
-                  bottom: `${cropBottom}%`,
-                  left: `${cropLeft}%`,
-                  right: `${cropRight}%`
-                }}
-              >
-                <span className="absolute top-2 left-2 text-[9px] bg-emerald-600 text-white px-1.5 py-0.5 rounded-md font-black uppercase tracking-wider border border-emerald-500/20 shadow-md">
-                  Área Escaneada
-                </span>
-              </div>
-            </div>
+              Cámara Celu
+            </button>
+            <button
+              disabled={processing}
+              onClick={captureLiveFrame}
+              className="flex-2 py-3.5 px-6 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl text-xs font-black uppercase tracking-widest shadow-lg shadow-emerald-600/40 flex items-center justify-center gap-2 border border-emerald-500/20 disabled:opacity-50"
+            >
+              {processing ? (
+                <>
+                  <RefreshCw size={16} className="animate-spin" />
+                  Procesando
+                </>
+              ) : (
+                <>
+                  <Camera size={16} /> Capturar Foto
+                </>
+              )}
+            </button>
           </div>
-
-          {/* Panel de control de edición flotante inferior */}
-          <div className="absolute bottom-0 inset-x-0 bg-gradient-to-t from-black via-black/90 to-transparent p-4 pb-6 z-20 flex flex-col gap-3">
-            {/* Sliders táctiles */}
-            <div className="bg-[#131924]/95 border border-white/10 rounded-2xl p-3 space-y-2 backdrop-blur-md max-w-md mx-auto w-full shadow-xl">
-              <p className="text-[9px] font-black text-gray-400 uppercase tracking-widest mb-0.5 flex items-center gap-1.5">
-                <Sparkles size={11} className="text-emerald-400" />
-                Ajuste de Bordes (Quitar Mesa/Fondo)
-              </p>
-              <div className="grid grid-cols-2 gap-2">
-                <div className="space-y-0.5">
-                  <div className="flex justify-between text-[8px] text-gray-400 font-bold uppercase">
-                    <span>Arriba</span>
-                    <span>{cropTop}%</span>
-                  </div>
-                  <input 
-                    type="range" min="0" max="45" value={cropTop} 
-                    onChange={e => setCropTop(Number(e.target.value))}
-                    className="w-full accent-emerald-500 bg-white/10 h-1.5 rounded-lg appearance-none cursor-pointer"
-                  />
-                </div>
-                <div className="space-y-0.5">
-                  <div className="flex justify-between text-[8px] text-gray-400 font-bold uppercase">
-                    <span>Abajo</span>
-                    <span>{cropBottom}%</span>
-                  </div>
-                  <input 
-                    type="range" min="0" max="45" value={cropBottom} 
-                    onChange={e => setCropBottom(Number(e.target.value))}
-                    className="w-full accent-emerald-500 bg-white/10 h-1.5 rounded-lg appearance-none cursor-pointer"
-                  />
-                </div>
-                <div className="space-y-0.5">
-                  <div className="flex justify-between text-[8px] text-gray-400 font-bold uppercase">
-                    <span>Izquierda</span>
-                    <span>{cropLeft}%</span>
-                  </div>
-                  <input 
-                    type="range" min="0" max="45" value={cropLeft} 
-                    onChange={e => setCropLeft(Number(e.target.value))}
-                    className="w-full accent-emerald-500 bg-white/10 h-1.5 rounded-lg appearance-none cursor-pointer"
-                  />
-                </div>
-                <div className="space-y-0.5">
-                  <div className="flex justify-between text-[8px] text-gray-400 font-bold uppercase">
-                    <span>Derecha</span>
-                    <span>{cropRight}%</span>
-                  </div>
-                  <input 
-                    type="range" min="0" max="45" value={cropRight} 
-                    onChange={e => setCropRight(Number(e.target.value))}
-                    className="w-full accent-emerald-500 bg-white/10 h-1.5 rounded-lg appearance-none cursor-pointer"
-                  />
-                </div>
-              </div>
-            </div>
-
-            {/* Filtros y Rotación */}
-            <div className="flex items-center justify-between gap-2 max-w-md mx-auto w-full">
-              <button
-                onClick={rotateImage}
-                className="px-3.5 py-2.5 bg-white/10 hover:bg-white/20 text-white rounded-xl text-[10px] font-bold uppercase tracking-wider transition-all flex items-center gap-1.5 border border-white/10 shrink-0 backdrop-blur-md"
-              >
-                <RotateCw size={12} /> Rotar 90°
-              </button>
-
-              <div className="flex bg-white/10 p-0.5 rounded-xl border border-white/10 flex-1 justify-around backdrop-blur-md">
-                {(['color', 'grayscale', 'scan'] as FilterType[]).map((f) => (
-                  <button
-                    key={f}
-                    onClick={() => setFilter(f)}
-                    className={`px-2 py-2 text-[9px] font-black uppercase tracking-wider rounded-lg transition-all flex-1 text-center
-                      ${filter === f 
-                        ? 'bg-emerald-600/35 text-emerald-300 border border-emerald-500/30 shadow-sm' 
-                        : 'text-gray-300 hover:text-white'
-                      }
-                    `}
-                  >
-                    {f === 'color' ? 'Original' : f === 'grayscale' ? 'Grises' : 'Escáner'}
-                  </button>
-                ))}
-              </div>
-            </div>
-
-            {/* Ahorro de peso */}
-            <div className="bg-emerald-500/10 border border-emerald-500/25 rounded-2xl px-4 py-2 text-[9px] text-emerald-300 font-bold flex items-center justify-between uppercase tracking-wider shrink-0 max-w-md mx-auto w-full backdrop-blur-sm shadow-md">
-              <span className="flex items-center gap-1">
-                <Sparkles size={11} className="animate-pulse text-emerald-400" />
-                Original: {formatMB(originalSize)}
-              </span>
-              <span>→</span>
-              <span>Estimado WebP: ~200 KB (Ahorro ~96%)</span>
-            </div>
-
-            {/* Botones definitivos de guardar o cancelar */}
-            <div className="flex items-center justify-between gap-3 pt-2 max-w-md mx-auto w-full border-t border-white/10">
-              <button
-                disabled={processing}
-                onClick={() => {
-                  setImageSrc(null)
-                  startLiveCamera()
-                }}
-                className="px-4 py-3 border border-white/20 text-gray-300 hover:text-white rounded-xl text-xs font-bold uppercase tracking-wider transition-all flex items-center gap-1.5 backdrop-blur-md"
-              >
-                <Undo size={14} /> Re-tomar
-              </button>
-
-              <button
-                disabled={processing}
-                onClick={handleSave}
-                className="px-6 py-3 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl text-xs font-bold uppercase tracking-widest transition-all shadow-lg shadow-emerald-600/30 flex items-center gap-2 disabled:opacity-50 border border-emerald-500/20"
-              >
-                {processing ? (
-                  <>
-                    <RefreshCw size={14} className="animate-spin" />
-                    Escaneando...
-                  </>
-                ) : (
-                  <>
-                    <Check size={14} />
-                    Usar Escaneo
-                  </>
-                )}
-              </button>
-            </div>
-          </div>
-        </>
+        </div>
       )}
 
       {/* -------------------- ELEMENTOS COMUNES FLOTANTES (HEADER) -------------------- */}
