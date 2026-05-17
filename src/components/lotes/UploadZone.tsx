@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useCallback, useRef } from 'react'
+import { useState, useCallback } from 'react'
 import { useDropzone } from 'react-dropzone'
 import imageCompression from 'browser-image-compression'
 import { Upload, FileText, Image, X, CheckCircle, AlertCircle, Loader2, ExternalLink, Camera } from 'lucide-react'
@@ -35,9 +35,6 @@ export default function UploadZone({
   const [driveUrl, setDriveUrl] = useState('')
   const [fileName, setFileName] = useState('')
   const [isScannerOpen, setIsScannerOpen] = useState(false)
-  const [scannerImage, setScannerImage] = useState<string | null>(null)
-  
-  const nativeCameraInputRef = useRef<HTMLInputElement>(null)
 
   const onDrop = useCallback(
     async (acceptedFiles: File[]) => {
@@ -104,7 +101,7 @@ export default function UploadZone({
         setDriveUrl(json.data?.drive_file_url || '')
         onUploadSuccess()
 
-        // Reset después de 5 segundos
+        // Reset después de 6 segundos
         setTimeout(() => {
           setState('idle')
           setFileName('')
@@ -147,48 +144,18 @@ export default function UploadZone({
     <div className="space-y-3">
       {/* Botón de Escáner Integrado - FUERA del dropzone para que no interfiera con los clicks normales */}
       {state === 'idle' && Object.keys(accept).some(mime => mime.startsWith('image/') || mime === 'image/*') && (
-        <>
-          <label
-            htmlFor={`camera-input-${documentType}`}
-            className="w-full flex items-center justify-center gap-2 px-4 py-3 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white font-bold text-xs uppercase tracking-widest rounded-2xl transition-all shadow-lg shadow-emerald-950/20 group/scan border border-emerald-500/20 active:scale-[0.98] cursor-pointer text-center"
-          >
-            <Camera className="w-4 h-4 group-hover/scan:scale-110 transition-transform text-emerald-200" />
-            📷 Iniciar Escáner de Documento
-          </label>
-          
-          <input
-            id={`camera-input-${documentType}`}
-            type="file"
-            accept="image/*"
-            capture="environment"
-            className="hidden"
-            onChange={async (e) => {
-              const files = e.target.files;
-              if (files && files.length > 0) {
-                const file = files[0];
-                
-                let processedFile = file;
-                // Si la imagen es muy grande, la comprimimos a un tamaño razonable en un hilo separado
-                if (file.type.startsWith('image/') && file.size > 1.5 * 1024 * 1024) {
-                  try {
-                    const options = {
-                      maxSizeMB: 1.0,
-                      maxWidthOrHeight: 1600,
-                      useWebWorker: true
-                    };
-                    processedFile = await imageCompression(file, options);
-                  } catch (err) {
-                    console.error("Error pre-compressing photo", err);
-                  }
-                }
-                
-                const objectUrl = URL.createObjectURL(processedFile);
-                setScannerImage(objectUrl);
-                setIsScannerOpen(true);
-              }
-            }}
-          />
-        </>
+        <button
+          type="button"
+          onClick={(e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            setIsScannerOpen(true);
+          }}
+          className="w-full flex items-center justify-center gap-2 px-4 py-3 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white font-bold text-xs uppercase tracking-widest rounded-2xl transition-all shadow-lg shadow-emerald-950/20 group/scan border border-emerald-500/20 active:scale-[0.98]"
+        >
+          <Camera className="w-4 h-4 group-hover/scan:scale-110 transition-transform text-emerald-200" />
+          📷 Iniciar Escáner de Documento Móvil
+        </button>
       )}
 
       <div
@@ -285,19 +252,12 @@ export default function UploadZone({
 
       <DocumentScannerModal
         isOpen={isScannerOpen}
-        onClose={() => {
-          setIsScannerOpen(false);
-          if (scannerImage) {
-            URL.revokeObjectURL(scannerImage);
-          }
-          setScannerImage(null);
-        }}
+        onClose={() => setIsScannerOpen(false)}
         onScanComplete={(scannedFile) => {
           onDrop([scannedFile]);
         }}
         documentLabel={documentLabel}
         lotCodeOrDispatchId={lotCode}
-        initialImage={scannerImage}
       />
     </div>
   )
