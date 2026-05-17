@@ -30,12 +30,10 @@ export default function DocumentScannerModal({
   const [cameraError, setCameraError] = useState<string | null>(null)
   const [processing, setProcessing] = useState(false)
 
-  // Referencias mutables para evitar race conditions y memory leaks
   const streamRef = useRef<MediaStream | null>(null)
   const isRequestingRef = useRef<boolean>(false)
   const isMountedRef = useRef<boolean>(true)
 
-  // Montar componente para Portal seguro y control de ciclo de vida
   useEffect(() => {
     setMounted(true)
     isMountedRef.current = true
@@ -44,7 +42,6 @@ export default function DocumentScannerModal({
     }
   }, [])
 
-  // Detener la transmisión de la cámara de forma segura
   const stopLiveCamera = useCallback(() => {
     if (streamRef.current) {
       streamRef.current.getTracks().forEach(track => track.stop())
@@ -53,27 +50,23 @@ export default function DocumentScannerModal({
     setStream(null)
   }, [])
 
-  // Iniciar la transmisión de video de la cámara trasera
   const startLiveCamera = useCallback(async () => {
-    // Bloqueo de concurrencia: Evita que Strict Mode o múltiples clics ejecuten getUserMedia en paralelo (lo cual congela navegadores móviles)
     if (isRequestingRef.current) return
-    if (streamRef.current) return // Si ya hay cámara activa, no hacer nada
+    if (streamRef.current) return
 
     isRequestingRef.current = true
     setCameraError(null)
 
     try {
-      // Intento 1: Cámara trasera en resolución ideal (Como en el commit original a5956e5 que funcionaba perfecto)
       const mediaStream = await navigator.mediaDevices.getUserMedia({
         video: {
-          facingMode: 'environment', // Forzar cámara trasera
+          facingMode: 'environment',
           width: { ideal: 1920 },
           height: { ideal: 1080 }
         },
         audio: false
       })
 
-      // Validar si el componente sigue vivo antes de aplicar el stream
       if (!isMountedRef.current) {
         mediaStream.getTracks().forEach(track => track.stop())
         isRequestingRef.current = false
@@ -84,19 +77,16 @@ export default function DocumentScannerModal({
       setStream(mediaStream)
       setUseLiveCamera(true)
 
-      // Asignar al DOM (el tag <video> está siempre presente, solo transparente)
       if (videoElementRef.current) {
         videoElementRef.current.srcObject = mediaStream
         videoElementRef.current.play().catch(e => {
-          console.warn("La reproducción del video requiere interacción en algunos navegadores:", e)
+          console.warn("Auto-play warning:", e)
         })
       }
     } catch (err) {
       if (!isMountedRef.current) return
-      console.warn("Fallo el intento de cámara ideal, probando fallback básico:", err)
       
       try {
-        // Intento 2: Fallback básico por si el celular no soporta las resoluciones ideales
         const fallbackStream = await navigator.mediaDevices.getUserMedia({
           video: { facingMode: 'environment' },
           audio: false
@@ -118,29 +108,25 @@ export default function DocumentScannerModal({
         }
       } catch (fallbackErr) {
         if (!isMountedRef.current) return
-        console.error('Todos los intentos de activar la cámara WebRTC en vivo fallaron:', fallbackErr)
-        setCameraError('No pudimos iniciar el escáner WebRTC con las líneas punteadas. Puedes usar tu cámara nativa.')
+        setCameraError('No pudimos iniciar el escáner WebRTC. Puedes usar tu cámara nativa.')
         setUseLiveCamera(false)
       }
     } finally {
-      // Liberar el candado
       isRequestingRef.current = false
     }
   }, [])
 
-  // Control del ciclo de vida de la apertura y cierre
   useEffect(() => {
     if (isOpen) {
       document.body.style.overflow = 'hidden'
       setProcessing(false)
       setCameraError(null)
       setUseLiveCamera(true)
-      
       startLiveCamera()
     } else {
       document.body.style.overflow = ''
       stopLiveCamera()
-      isRequestingRef.current = false // Liberar candado por si se cerró durante la petición
+      isRequestingRef.current = false
     }
 
     return () => {
@@ -152,73 +138,101 @@ export default function DocumentScannerModal({
 
   if (!isOpen || !mounted) return null
 
-  // Lanzar el selector de archivos / cámara nativa del sistema
   const triggerNativeCamera = () => {
     fileInputRef.current?.click()
   }
 
-  // Procesar archivo de la cámara nativa del sistema utilizando ObjectURL
+  // Decodificación asíncrona para evitar que la pestaña se congele en celulares al cargar fotos pesadas de la cámara nativa
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = e.target.files
     if (!files || files.length === 0) return
 
     const file = files[0]
     setProcessing(true)
-    
-    const objectUrl = URL.createObjectURL(file)
-    const img = new Image()
-    img.onload = () => {
-      // Comprimir a una resolución de 1200px para evitar cierres en celulares con poca RAM
-      const maxDimension = 1200
-      let finalWidth = img.naturalWidth
-      let finalHeight = img.naturalHeight
-      
-      if (finalWidth > maxDimension || finalHeight > maxDimension) {
-        const ratio = finalWidth / finalHeight
-        if (ratio > 1) {
-          finalWidth = maxDimension
-          finalHeight = maxDimension / ratio
-        } else {
-          finalHeight = maxDimension
-          finalWidth = maxDimension * ratio
-        }
-      }
-      
-      const canvas = document.createElement('canvas')
-      canvas.width = finalWidth
-      canvas.height = finalHeight
-      const ctx = canvas.getContext('2d')!
-      ctx.fillStyle = '#ffffff'
-      ctx.fillRect(0, 0, finalWidth, finalHeight)
-      ctx.drawImage(img, 0, 0, finalWidth, finalHeight)
 
-      canvas.toBlob(
-        (blob) => {
-          if (blob) {
-            const cleanLabel = documentLabel.replace(/ \(.*\)/, '')
-            const fileName = `${cleanLabel} Escaneado ${lotCodeOrDispatchId}.webp`
-            const scannedFile = new File([blob], fileName, { type: 'image/webp' })
-            onScanComplete(scannedFile)
-            onClose()
+    // Dar tiempo al DOM para mostrar el spinner "Procesando" antes de bloquear el hilo
+    setTimeout(async () => {
+      try {
+        let imgWidth = 0
+        let imgHeight = 0
+        let drawable: CanvasImageSource | null = null
+        let objectUrl = ''
+
+        // Intentar usar decodificador nativo asíncrono (No bloquea la pestaña)
+        if ('createImageBitmap' in window) {
+          const bmp = await createImageBitmap(file)
+          imgWidth = bmp.width
+          imgHeight = bmp.height
+          drawable = bmp
+        } else {
+          // Fallback síncrono si el navegador no soporta createImageBitmap
+          objectUrl = URL.createObjectURL(file)
+          await new Promise((resolve, reject) => {
+            const img = new Image()
+            img.onload = () => {
+              imgWidth = img.naturalWidth
+              imgHeight = img.naturalHeight
+              drawable = img
+              resolve(null)
+            }
+            img.onerror = reject
+            img.src = objectUrl
+          })
+        }
+
+        if (!drawable) throw new Error("No se pudo procesar")
+
+        const maxDimension = 1200
+        let finalWidth = imgWidth
+        let finalHeight = imgHeight
+        
+        if (finalWidth > maxDimension || finalHeight > maxDimension) {
+          const ratio = finalWidth / finalHeight
+          if (ratio > 1) {
+            finalWidth = maxDimension
+            finalHeight = maxDimension / ratio
           } else {
-            alert('Error al procesar la imagen.')
+            finalHeight = maxDimension
+            finalWidth = maxDimension * ratio
           }
-          setProcessing(false)
-          URL.revokeObjectURL(objectUrl)
-        },
-        'image/webp',
-        0.80
-      )
-    }
-    img.onerror = () => {
-      alert('Error al cargar la imagen.')
-      setProcessing(false)
-      URL.revokeObjectURL(objectUrl)
-    }
-    img.src = objectUrl
+        }
+        
+        const canvas = document.createElement('canvas')
+        canvas.width = finalWidth
+        canvas.height = finalHeight
+        const ctx = canvas.getContext('2d')
+        if (ctx) {
+          ctx.fillStyle = '#ffffff'
+          ctx.fillRect(0, 0, finalWidth, finalHeight)
+          ctx.drawImage(drawable, 0, 0, finalWidth, finalHeight)
+        }
+
+        canvas.toBlob(
+          (blob) => {
+            if (blob) {
+              const cleanLabel = documentLabel.replace(/ \(.*\)/, '')
+              const fileName = `${cleanLabel} Escaneado ${lotCodeOrDispatchId}.webp`
+              const scannedFile = new File([blob], fileName, { type: 'image/webp' })
+              onScanComplete(scannedFile)
+              onClose()
+            } else {
+              alert('Error al generar el escaneo final.')
+            }
+            setProcessing(false)
+            if (objectUrl) URL.revokeObjectURL(objectUrl)
+            if (drawable && 'close' in drawable && typeof drawable.close === 'function') drawable.close()
+          },
+          'image/webp',
+          0.80
+        )
+      } catch (err) {
+        console.error(err)
+        alert('Error al cargar la imagen. Intenta de nuevo.')
+        setProcessing(false)
+      }
+    }, 50) // 50ms es suficiente para que el navegador pinte el estado processing=true
   }
 
-  // Capturar fotograma actual y recortar al tamaño Carta
   const captureLiveFrame = () => {
     const video = videoElementRef.current
     const canvas = canvasRef.current
@@ -227,128 +241,125 @@ export default function DocumentScannerModal({
     const ctx = canvas.getContext('2d')
     if (!ctx) return
 
-    // Dimensiones originales del stream (sensor)
     let actualVideoWidth = video.videoWidth
     let actualVideoHeight = video.videoHeight
 
     if (!actualVideoWidth || !actualVideoHeight) {
-      alert("Espera un segundo a que la cámara enfoque correctamente.")
+      alert("Espera a que la cámara enfoque correctamente.")
       return
     }
 
     setProcessing(true)
 
-    // Dimensiones renderizadas en pantalla
-    const videoRect = video.getBoundingClientRect()
-    const guideRect = guideBox.getBoundingClientRect()
+    // Detener asíncronamente para que no trabe el render del "procesando"
+    setTimeout(() => {
+      const videoRect = video.getBoundingClientRect()
+      const guideRect = guideBox.getBoundingClientRect()
 
-    const isPortraitScreen = videoRect.height > videoRect.width
-    const isLandscapeVideo = actualVideoWidth > actualVideoHeight
+      const isPortraitScreen = videoRect.height > videoRect.width
+      const isLandscapeVideo = actualVideoWidth > actualVideoHeight
 
-    if (isPortraitScreen && isLandscapeVideo) {
-      actualVideoWidth = video.videoHeight
-      actualVideoHeight = video.videoWidth
-    }
-
-    // Calcular proporción visual del "object-fit: cover"
-    const videoRatio = actualVideoWidth / actualVideoHeight
-    const screenRatio = videoRect.width / videoRect.height
-    
-    let renderedWidth, renderedHeight, offsetX = 0, offsetY = 0
-
-    if (screenRatio > videoRatio) {
-      renderedWidth = videoRect.width
-      renderedHeight = videoRect.width / videoRatio
-      offsetY = (renderedHeight - videoRect.height) / 2
-    } else {
-      renderedHeight = videoRect.height
-      renderedWidth = videoRect.height * videoRatio
-      offsetX = (renderedWidth - videoRect.width) / 2
-    }
-
-    const relativeBoxLeft = guideRect.left - videoRect.left
-    const relativeBoxTop = guideRect.top - videoRect.top
-
-    const boxLeft = relativeBoxLeft + offsetX
-    const boxTop = relativeBoxTop + offsetY
-    const boxWidth = guideRect.width
-    const boxHeight = guideRect.height
-
-    const scaleValue = actualVideoWidth / renderedWidth
-    
-    const cropX = boxLeft * scaleValue
-    const cropY = boxTop * scaleValue
-    const cropW = boxWidth * scaleValue
-    const cropH = boxHeight * scaleValue
-
-    // 1. Crear canvas temporal de alta resolución para el recorte
-    const tempCanvas = document.createElement('canvas')
-    tempCanvas.width = cropW
-    tempCanvas.height = cropH
-    const tempCtx = tempCanvas.getContext('2d')
-    if (tempCtx) {
-      tempCtx.fillStyle = '#ffffff'
-      tempCtx.fillRect(0, 0, cropW, cropH)
-      
-      const drawX = -boxLeft * scaleValue
-      const drawY = -boxTop * scaleValue
-      const drawW = renderedWidth * scaleValue
-      const drawH = renderedHeight * scaleValue
-      tempCtx.drawImage(video, drawX, drawY, drawW, drawH)
-    }
-
-    // Detener la cámara DESPUÉS de dibujar en el canvas para evitar fotogramas negros
-    stopLiveCamera()
-
-    // 2. Redimensionar al canvas final (máximo 1200px para ser ultraligero)
-    const maxDimension = 1200
-    let finalW = cropW
-    let finalH = cropH
-    
-    if (cropW > maxDimension || cropH > maxDimension) {
-      const ratio = cropW / cropH
-      if (ratio > 1) {
-        finalW = maxDimension
-        finalH = maxDimension / ratio
-      } else {
-        finalH = maxDimension
-        finalW = maxDimension * ratio
+      if (isPortraitScreen && isLandscapeVideo) {
+        actualVideoWidth = video.videoHeight
+        actualVideoHeight = video.videoWidth
       }
-    }
 
-    canvas.width = finalW
-    canvas.height = finalH
-    
-    ctx.fillStyle = '#ffffff'
-    ctx.fillRect(0, 0, finalW, finalH)
-    ctx.drawImage(tempCanvas, 0, 0, cropW, cropH, 0, 0, finalW, finalH)
+      const videoRatio = actualVideoWidth / actualVideoHeight
+      const screenRatio = videoRect.width / videoRect.height
+      
+      let renderedWidth, renderedHeight, offsetX = 0, offsetY = 0
 
-    // Exportar directamente y cerrar
-    canvas.toBlob(
-      (blob) => {
-        if (blob) {
-          const cleanLabel = documentLabel.replace(/ \(.*\)/, '')
-          const fileName = `${cleanLabel} Escaneado ${lotCodeOrDispatchId}.webp`
-          const scannedFile = new File([blob], fileName, { type: 'image/webp' })
+      if (screenRatio > videoRatio) {
+        renderedWidth = videoRect.width
+        renderedHeight = videoRect.width / videoRatio
+        offsetY = (renderedHeight - videoRect.height) / 2
+      } else {
+        renderedHeight = videoRect.height
+        renderedWidth = videoRect.height * videoRatio
+        offsetX = (renderedWidth - videoRect.width) / 2
+      }
 
-          onScanComplete(scannedFile)
-          onClose()
+      const relativeBoxLeft = guideRect.left - videoRect.left
+      const relativeBoxTop = guideRect.top - videoRect.top
+
+      const boxLeft = relativeBoxLeft + offsetX
+      const boxTop = relativeBoxTop + offsetY
+      const boxWidth = guideRect.width
+      const boxHeight = guideRect.height
+
+      const scaleValue = actualVideoWidth / renderedWidth
+      
+      const cropX = boxLeft * scaleValue
+      const cropY = boxTop * scaleValue
+      const cropW = boxWidth * scaleValue
+      const cropH = boxHeight * scaleValue
+
+      const tempCanvas = document.createElement('canvas')
+      tempCanvas.width = cropW
+      tempCanvas.height = cropH
+      const tempCtx = tempCanvas.getContext('2d')
+      if (tempCtx) {
+        tempCtx.fillStyle = '#ffffff'
+        tempCtx.fillRect(0, 0, cropW, cropH)
+        
+        const drawX = -boxLeft * scaleValue
+        const drawY = -boxTop * scaleValue
+        const drawW = renderedWidth * scaleValue
+        const drawH = renderedHeight * scaleValue
+        tempCtx.drawImage(video, drawX, drawY, drawW, drawH)
+      }
+
+      stopLiveCamera()
+
+      const maxDimension = 1200
+      let finalW = cropW
+      let finalH = cropH
+      
+      if (cropW > maxDimension || cropH > maxDimension) {
+        const ratio = cropW / cropH
+        if (ratio > 1) {
+          finalW = maxDimension
+          finalH = maxDimension / ratio
         } else {
-          alert('Error al generar el escaneo final.')
+          finalH = maxDimension
+          finalW = maxDimension * ratio
         }
-        setProcessing(false)
-      },
-      'image/webp',
-      0.80 
-    )
+      }
+
+      canvas.width = finalW
+      canvas.height = finalH
+      
+      ctx.fillStyle = '#ffffff'
+      ctx.fillRect(0, 0, finalW, finalH)
+      ctx.drawImage(tempCanvas, 0, 0, cropW, cropH, 0, 0, finalW, finalH)
+
+      canvas.toBlob(
+        (blob) => {
+          if (blob) {
+            const cleanLabel = documentLabel.replace(/ \(.*\)/, '')
+            const fileName = `${cleanLabel} Escaneado ${lotCodeOrDispatchId}.webp`
+            const scannedFile = new File([blob], fileName, { type: 'image/webp' })
+
+            onScanComplete(scannedFile)
+            onClose()
+          } else {
+            alert('Error al generar el escaneo final.')
+          }
+          setProcessing(false)
+        },
+        'image/webp',
+        0.80 
+      )
+    }, 50)
   }
 
   return createPortal(
     <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-black overflow-hidden select-none touch-none">
       
-      {/* -------------------- CAPTURA DE FOTO -------------------- */}
-      {/* Cámara en vivo como fondo completo. 
-          Se elimina "hidden" para asegurar compatibilidad en iOS Safari y se reemplaza con pointer-events-none y opacity-0 
+      {/* 
+        ELIMINADO el opacity-0 y hidden.
+        iOS Safari pausa y congela por completo los streams WebRTC si la etiqueta de video no es visible. 
+        Ahora el video es 100% visible siempre, permitiendo que la cámara cargue sin ser saboteada por el SO.
       */}
       <video 
         ref={videoElementRef}
@@ -360,14 +371,20 @@ export default function DocumentScannerModal({
             console.warn("Auto-play requirió intervención:", err)
           })
         }}
-        className={`absolute inset-0 w-full h-full object-cover z-0 transition-opacity duration-300 ${
-          useLiveCamera && stream ? 'opacity-100' : 'opacity-0 pointer-events-none'
-        }`}
+        className="absolute inset-0 w-full h-full object-cover z-0"
       />
 
-      {/* Fallback en el centro si no hay stream o falló WebRTC */}
-      {(!useLiveCamera || !stream) && (
-        <div className="absolute inset-0 flex flex-col items-center justify-center p-6 text-center bg-[#0d121f] space-y-6 z-0">
+      {/* Pantalla de Carga sobrepuesta mientras carga la cámara en vivo */}
+      {useLiveCamera && !stream && (
+        <div className="absolute inset-0 flex flex-col items-center justify-center bg-black z-10 space-y-4">
+          <RefreshCw className="w-8 h-8 text-emerald-500 animate-spin" />
+          <p className="text-white font-bold text-sm">Encendiendo Cámara...</p>
+        </div>
+      )}
+
+      {/* Fallback en el centro si falló WebRTC */}
+      {(!useLiveCamera || (!stream && cameraError)) && (
+        <div className="absolute inset-0 flex flex-col items-center justify-center p-6 text-center bg-[#0d121f] space-y-6 z-10">
           <div className="w-20 h-20 bg-emerald-500/10 border border-emerald-500/20 rounded-full flex items-center justify-center text-emerald-400 shadow-xl shadow-emerald-500/5 animate-pulse">
             <Camera size={38} />
           </div>
@@ -395,7 +412,7 @@ export default function DocumentScannerModal({
         </div>
       )}
 
-      {/* Grid de encuadre (Tamaño Carta) en el medio (solo si hay cámara en vivo) */}
+      {/* Grid de encuadre (Tamaño Carta) */}
       {useLiveCamera && stream && (
         <div className="absolute inset-0 flex items-center justify-center p-4 pointer-events-none z-10 pb-[100px]">
           <div 
@@ -403,7 +420,6 @@ export default function DocumentScannerModal({
             className="w-full max-w-sm aspect-[8.5/11] max-h-[75vh] border-2 border-dashed border-emerald-400/80 bg-emerald-400/5 rounded-xl flex flex-col items-center justify-center relative shadow-[0_0_0_4000px_rgba(0,0,0,0.65)]"
           >
             <div className="absolute inset-0 border border-emerald-500/30 rounded-xl" />
-            {/* Esquinas */}
             <div className="absolute -top-1 -left-1 w-6 h-6 border-t-4 border-l-4 border-emerald-500 rounded-tl-xl" />
             <div className="absolute -top-1 -right-1 w-6 h-6 border-t-4 border-r-4 border-emerald-500 rounded-tr-xl" />
             <div className="absolute -bottom-1 -left-1 w-6 h-6 border-b-4 border-l-4 border-emerald-500 rounded-bl-xl" />
@@ -451,7 +467,7 @@ export default function DocumentScannerModal({
         </div>
       )}
 
-      {/* -------------------- ELEMENTOS COMUNES FLOTANTES (HEADER) -------------------- */}
+      {/* HEADER */}
       <div className="absolute top-0 inset-x-0 bg-gradient-to-b from-black via-black/45 to-transparent p-5 z-30 flex items-center justify-between pointer-events-auto">
         <div>
           <h3 className="text-white font-bold text-sm flex items-center gap-2">
@@ -462,13 +478,13 @@ export default function DocumentScannerModal({
         </div>
         <button 
           onClick={onClose} 
-          className="p-2 bg-white/10 hover:bg-white/20 text-white rounded-full transition-all backdrop-blur-md border border-white/10"
+          className="p-2 bg-white/10 hover:bg-white/20 text-white rounded-full transition-all backdrop-blur-md border border-white/10 disabled:opacity-50"
+          disabled={processing}
         >
           <X size={18} />
         </button>
       </div>
 
-      {/* Input de cámara oculto */}
       <input 
         type="file" 
         ref={fileInputRef}
@@ -478,7 +494,6 @@ export default function DocumentScannerModal({
         className="hidden"
       />
 
-      {/* Canvas de procesamiento oculto */}
       <canvas ref={canvasRef} className="hidden" />
     </div>,
     document.body
