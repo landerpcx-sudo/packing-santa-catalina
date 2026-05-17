@@ -29,6 +29,7 @@ export default function DocumentScannerModal({
 
   const [useLiveCamera, setUseLiveCamera] = useState(true)
   const [stream, setStream] = useState<MediaStream | null>(null)
+  const streamRef = useRef<MediaStream | null>(null)
   const [cameraError, setCameraError] = useState<string | null>(null)
   const [processing, setProcessing] = useState(false)
   // Ref callback para el elemento de video - Garantiza la vinculación del stream inmediatamente al montarse el nodo en el DOM
@@ -49,29 +50,38 @@ export default function DocumentScannerModal({
 
   // Detener la transmisión de la cámara
   const stopLiveCamera = useCallback(() => {
+    if (streamRef.current) {
+      streamRef.current.getTracks().forEach(track => track.stop())
+      streamRef.current = null
+    }
     if (stream) {
       stream.getTracks().forEach(track => track.stop())
-      setStream(null)
     }
+    setStream(null)
   }, [stream])
 
   // Iniciar la transmisión de video de la cámara trasera
   const startLiveCamera = useCallback(async () => {
     try {
       // Detener cualquier stream anterior
+      if (streamRef.current) {
+        streamRef.current.getTracks().forEach(track => track.stop())
+        streamRef.current = null
+      }
       if (stream) {
         stream.getTracks().forEach(track => track.stop())
       }
       
       const mediaStream = await navigator.mediaDevices.getUserMedia({
         video: {
-          facingMode: 'environment', // Forzar cámara trasera del celular
-          width: { ideal: 1920 },
-          height: { ideal: 1080 }
+          facingMode: { ideal: 'environment' }, // Forzar cámara trasera idealmente
+          width: { ideal: 1280 },  // 1280 es más seguro y compatible en móviles que 1920
+          height: { ideal: 720 }
         },
         audio: false
       })
 
+      streamRef.current = mediaStream
       setStream(mediaStream)
       setCameraError(null)
       setUseLiveCamera(true)
@@ -109,11 +119,12 @@ export default function DocumentScannerModal({
     return () => {
       document.body.style.overflow = ''
       // Detener cámara en desmontaje
-      if (stream) {
-        stream.getTracks().forEach(track => track.stop())
+      if (streamRef.current) {
+        streamRef.current.getTracks().forEach(track => track.stop())
+        streamRef.current = null
       }
     }
-  }, [isOpen])
+  }, [isOpen, startLiveCamera, stopLiveCamera])
 
   // Montar componente para Portal seguro
   useEffect(() => {
