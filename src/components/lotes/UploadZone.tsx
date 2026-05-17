@@ -3,7 +3,8 @@
 import { useState, useCallback } from 'react'
 import { useDropzone } from 'react-dropzone'
 import imageCompression from 'browser-image-compression'
-import { Upload, FileText, Image, X, CheckCircle, AlertCircle, Loader2, ExternalLink } from 'lucide-react'
+import { Upload, FileText, Image, X, CheckCircle, AlertCircle, Loader2, ExternalLink, Camera } from 'lucide-react'
+import DocumentScannerModal from '@/components/layout/DocumentScannerModal'
 
 interface UploadZoneProps {
   lotId: string
@@ -33,6 +34,7 @@ export default function UploadZone({
   const [message, setMessage] = useState('')
   const [driveUrl, setDriveUrl] = useState('')
   const [fileName, setFileName] = useState('')
+  const [isScannerOpen, setIsScannerOpen] = useState(false)
 
   const onDrop = useCallback(
     async (acceptedFiles: File[]) => {
@@ -139,96 +141,124 @@ export default function UploadZone({
     : 'bg-white/2 hover:bg-white/5'
 
   return (
-    <div
-      {...getRootProps()}
-      className={`
-        relative border-2 border-dashed rounded-2xl p-6 cursor-pointer transition-all duration-300
-        ${borderColor} ${bgColor}
-        ${state === 'uploading' ? 'cursor-not-allowed' : ''}
-      `}
-    >
-      <input {...getInputProps()} />
+    <div className="space-y-3">
+      {/* Botón de Escáner Integrado - FUERA del dropzone para que no interfiera con los clicks normales */}
+      {state === 'idle' && Object.keys(accept).some(mime => mime.startsWith('image/') || mime === 'image/*') && (
+        <button
+          type="button"
+          onClick={(e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            setIsScannerOpen(true);
+          }}
+          className="w-full flex items-center justify-center gap-2 px-4 py-3 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white font-bold text-xs uppercase tracking-widest rounded-2xl transition-all shadow-lg shadow-emerald-950/20 group/scan border border-emerald-500/20 active:scale-[0.98]"
+        >
+          <Camera className="w-4 h-4 group-hover/scan:scale-110 transition-transform text-emerald-200" />
+          📷 Iniciar Escáner de Documento Móvil
+        </button>
+      )}
 
-      <div className="flex flex-col items-center text-center gap-3">
-        {/* Icono de estado */}
-        {state === 'uploading' && (
-          <Loader2 className="w-10 h-10 text-blue-400 animate-spin" />
-        )}
-        {state === 'success' && (
-          <CheckCircle className="w-10 h-10 text-green-400" />
-        )}
-        {state === 'error' && (
-          <AlertCircle className="w-10 h-10 text-red-400" />
-        )}
-        {state === 'idle' && (
-          <div className={`w-10 h-10 rounded-xl flex items-center justify-center transition-colors
-            ${isDragActive ? 'bg-green-500/20 text-green-400' : 'bg-white/5 text-gray-400'}
-          `}>
-            {documentType.includes('photo') ? (
-              <Image className="w-6 h-6" />
-            ) : (
-              <FileText className="w-6 h-6" />
-            )}
-          </div>
-        )}
+      <div
+        {...getRootProps()}
+        className={`
+          relative border-2 border-dashed rounded-2xl p-6 cursor-pointer transition-all duration-300
+          ${borderColor} ${bgColor}
+          ${state === 'uploading' ? 'cursor-not-allowed' : ''}
+        `}
+      >
+        <input {...getInputProps()} />
 
-        {/* Texto principal */}
-        {state === 'idle' && (
-          <>
+        <div className="flex flex-col items-center text-center gap-3">
+          {/* Icono de estado */}
+          {state === 'uploading' && (
+            <Loader2 className="w-10 h-10 text-blue-400 animate-spin" />
+          )}
+          {state === 'success' && (
+            <CheckCircle className="w-10 h-10 text-green-400" />
+          )}
+          {state === 'error' && (
+            <AlertCircle className="w-10 h-10 text-red-400" />
+          )}
+          {state === 'idle' && (
+            <div className={`w-10 h-10 rounded-xl flex items-center justify-center transition-colors
+              ${isDragActive ? 'bg-green-500/20 text-green-400' : 'bg-white/5 text-gray-400'}
+            `}>
+              {documentType.includes('photo') ? (
+                <Image className="w-6 h-6" />
+              ) : (
+                <FileText className="w-6 h-6" />
+              )}
+            </div>
+          )}
+
+          {/* Texto principal */}
+          {state === 'idle' && (
+            <>
+              <div>
+                <p className="text-white/80 font-medium text-sm">
+                  {isDragActive ? 'Suelta el archivo aquí' : `Subir ${documentLabel}`}
+                </p>
+                <p className="text-gray-500 text-xs mt-1">
+                  Arrastra el archivo o <span className="text-green-400">haz clic para seleccionar</span>
+                </p>
+              </div>
+              <div className="flex items-center gap-2">
+                {Object.keys(accept).map((mime) => (
+                  <span key={mime} className="bg-white/5 border border-white/10 rounded-full px-2 py-0.5 text-gray-500 text-xs">
+                    {accept[mime].join(', ')}
+                  </span>
+                ))}
+              </div>
+            </>
+          )}
+
+          {state === 'uploading' && (
             <div>
-              <p className="text-white/80 font-medium text-sm">
-                {isDragActive ? 'Suelta el archivo aquí' : `Subir ${documentLabel}`}
-              </p>
-              <p className="text-gray-500 text-xs mt-1">
-                Arrastra el archivo o <span className="text-green-400">haz clic para seleccionar</span>
-              </p>
+              <p className="text-blue-400 font-medium text-sm">{message}</p>
+              {fileName && (
+                <p className="text-gray-500 text-xs mt-1 truncate max-w-xs">{fileName}</p>
+              )}
             </div>
-            <div className="flex items-center gap-2">
-              {Object.keys(accept).map((mime) => (
-                <span key={mime} className="bg-white/5 border border-white/10 rounded-full px-2 py-0.5 text-gray-500 text-xs">
-                  {accept[mime].join(', ')}
-                </span>
-              ))}
+          )}
+
+          {state === 'success' && (
+            <div className="space-y-1">
+              <p className="text-green-400 font-semibold text-sm">{message}</p>
+              {fileName && (
+                <p className="text-gray-400 text-xs truncate max-w-xs">{fileName}</p>
+              )}
+              {driveUrl && (
+                <a
+                  href={driveUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  onClick={(e) => e.stopPropagation()}
+                  className="inline-flex items-center gap-1 text-blue-400 hover:text-blue-300 text-xs underline mt-1"
+                >
+                  Ver en Drive <ExternalLink className="w-3 h-3" />
+                </a>
+              )}
             </div>
-          </>
-        )}
+          )}
 
-        {state === 'uploading' && (
-          <div>
-            <p className="text-blue-400 font-medium text-sm">{message}</p>
-            {fileName && (
-              <p className="text-gray-500 text-xs mt-1 truncate max-w-xs">{fileName}</p>
-            )}
-          </div>
-        )}
-
-        {state === 'success' && (
-          <div className="space-y-1">
-            <p className="text-green-400 font-semibold text-sm">{message}</p>
-            {fileName && (
-              <p className="text-gray-400 text-xs truncate max-w-xs">{fileName}</p>
-            )}
-            {driveUrl && (
-              <a
-                href={driveUrl}
-                target="_blank"
-                rel="noopener noreferrer"
-                onClick={(e) => e.stopPropagation()}
-                className="inline-flex items-center gap-1 text-blue-400 hover:text-blue-300 text-xs underline mt-1"
-              >
-                Ver en Drive <ExternalLink className="w-3 h-3" />
-              </a>
-            )}
-          </div>
-        )}
-
-        {state === 'error' && (
-          <div className="space-y-1">
-            <p className="text-red-400 font-medium text-sm">{message}</p>
-            <p className="text-gray-500 text-xs">Haz clic para intentar de nuevo</p>
-          </div>
-        )}
+          {state === 'error' && (
+            <div className="space-y-1">
+              <p className="text-red-400 font-medium text-sm">{message}</p>
+              <p className="text-gray-500 text-xs">Haz clic para intentar de nuevo</p>
+            </div>
+          )}
+        </div>
       </div>
+
+      <DocumentScannerModal
+        isOpen={isScannerOpen}
+        onClose={() => setIsScannerOpen(false)}
+        onScanComplete={(scannedFile) => {
+          onDrop([scannedFile]);
+        }}
+        documentLabel={documentLabel}
+        lotCodeOrDispatchId={lotCode}
+      />
     </div>
   )
 }

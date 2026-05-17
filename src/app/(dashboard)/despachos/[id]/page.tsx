@@ -13,6 +13,7 @@ import PalletUploadZone from '@/components/despachos/PalletUploadZone'
 import UploadZone from '@/components/lotes/UploadZone' // General UploadZone
 import NewDispatchModal from '@/components/despachos/NewDispatchModal'
 import InlineValidation from '@/components/lotes/InlineValidation'
+import FilePreviewModal from '@/components/layout/FilePreviewModal'
 
 interface DispatchDocument {
   id: string
@@ -66,6 +67,7 @@ export default function DispatchDetailPage({ params }: { params: Promise<{ id: s
   const [valModal, setValModal] = useState<{ isOpen: boolean; docId: string; docName: string; tableName: string } | null>(null)
   const [validatingDocId, setValidatingDocId] = useState<string | null>(null)
   const [showEditModal, setShowEditModal] = useState(false)
+  const [previewFile, setPreviewFile] = useState<{ isOpen: boolean; url: string; name: string } | null>(null)
 
   const fetchDispatch = useCallback(async (silent = false) => {
     if (!silent) setLoading(true)
@@ -325,14 +327,14 @@ export default function DispatchDetailPage({ params }: { params: Promise<{ id: s
                       <span className={`text-sm flex-1 truncate ${isLatest ? 'text-indigo-100 font-medium' : 'text-gray-300'}`}>{doc.original_file_name}</span>
                       <div className="flex items-center gap-2">
                         {doc.drive_file_url && (user?.role === 'admin' || user?.canViewDrive || !doc.storage_url) ? (
-                          <a href={doc.drive_file_url} target="_blank" rel="noopener noreferrer" className={`${!doc.storage_url ? 'text-amber-400' : 'text-indigo-400'} p-1 hover:bg-white/5 rounded flex items-center gap-1`} title={!doc.storage_url ? "Archivo Archivado en Drive" : "Ver en Google Drive"}>
+                          <button onClick={() => setPreviewFile({ isOpen: true, url: doc.drive_file_url!, name: doc.original_file_name })} className={`${!doc.storage_url ? 'text-amber-400' : 'text-indigo-400'} p-1 hover:bg-white/5 rounded flex items-center gap-1`} title={!doc.storage_url ? "Archivo Archivado en Drive" : "Ver en Google Drive"}>
                             <Eye className="w-4 h-4" />
                             {!doc.storage_url && <span className="text-[10px] font-bold">DRIVE</span>}
-                          </a>
+                          </button>
                         ) : doc.storage_url ? (
-                          <a href={doc.storage_url} target="_blank" rel="noopener noreferrer" className="text-gray-400 p-1 hover:bg-white/5 rounded" title="Ver en Supabase">
+                          <button onClick={() => setPreviewFile({ isOpen: true, url: doc.storage_url!, name: doc.original_file_name })} className="text-gray-400 p-1 hover:bg-white/5 rounded" title="Ver en Supabase">
                             <Eye className="w-4 h-4" />
-                          </a>
+                          </button>
                         ) : (
                           <span className="text-gray-600 p-1"><XCircle className="w-4 h-4" /></span>
                         )}
@@ -425,14 +427,14 @@ export default function DispatchDetailPage({ params }: { params: Promise<{ id: s
                   </div>
                   <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
                     {doc.drive_file_url && (user?.role === 'admin' || user?.canViewDrive || !doc.storage_url) ? (
-                      <a href={doc.drive_file_url} target="_blank" rel="noopener noreferrer" className={`${!doc.storage_url ? 'text-amber-400' : 'text-indigo-400'} p-1 hover:bg-white/10 rounded flex items-center gap-1`} title={!doc.storage_url ? "Archivo Archivado en Drive" : "Ver en Google Drive"}>
+                      <button onClick={() => setPreviewFile({ isOpen: true, url: doc.drive_file_url!, name: doc.original_file_name })} className={`${!doc.storage_url ? 'text-amber-400' : 'text-indigo-400'} p-1 hover:bg-white/10 rounded flex items-center gap-1`} title={!doc.storage_url ? "Archivo Archivado en Drive" : "Ver en Google Drive"}>
                         <Eye className="w-3.5 h-3.5" />
                         {!doc.storage_url && <span className="text-[9px] font-bold">DRIVE</span>}
-                      </a>
+                      </button>
                     ) : doc.storage_url ? (
-                      <a href={doc.storage_url} target="_blank" rel="noopener noreferrer" className="text-gray-400 p-1 hover:bg-white/10 rounded" title="Ver en Supabase">
+                      <button onClick={() => setPreviewFile({ isOpen: true, url: doc.storage_url!, name: doc.original_file_name })} className="text-gray-400 p-1 hover:bg-white/10 rounded" title="Ver en Supabase">
                         <Eye className="w-3.5 h-3.5" />
-                      </a>
+                      </button>
                     ) : (
                       <span className="text-gray-600 p-1"><XCircle className="w-3.5 h-3.5" /></span>
                     )}
@@ -476,14 +478,14 @@ export default function DispatchDetailPage({ params }: { params: Promise<{ id: s
                   </div>
                   <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
                     {doc.drive_file_url && (user?.role === 'admin' || user?.canViewDrive || !doc.storage_url) ? (
-                      <a href={doc.drive_file_url} target="_blank" rel="noopener noreferrer" className={`${!doc.storage_url ? 'text-amber-400' : 'text-indigo-400'} p-1 hover:bg-white/10 rounded flex items-center gap-1`} title={!doc.storage_url ? "Archivo Archivado en Drive" : "Ver en Google Drive"}>
+                      <button onClick={() => setPreviewFile({ isOpen: true, url: doc.drive_file_url!, name: doc.original_file_name })} className={`${!doc.storage_url ? 'text-amber-400' : 'text-indigo-400'} p-1 hover:bg-white/10 rounded flex items-center gap-1`} title={!doc.storage_url ? "Archivo Archivado en Drive" : "Ver en Google Drive"}>
                         <Eye className="w-3.5 h-3.5" />
                         {!doc.storage_url && <span className="text-[9px] font-bold">DRIVE</span>}
-                      </a>
+                      </button>
                     ) : doc.storage_url ? (
-                      <a href={doc.storage_url} target="_blank" rel="noopener noreferrer" className="text-gray-400 p-1 hover:bg-white/10 rounded" title="Ver en Supabase">
+                      <button onClick={() => setPreviewFile({ isOpen: true, url: doc.storage_url!, name: doc.original_file_name })} className="text-gray-400 p-1 hover:bg-white/10 rounded" title="Ver en Supabase">
                         <Eye className="w-3.5 h-3.5" />
-                      </a>
+                      </button>
                     ) : (
                       <span className="text-gray-600 p-1"><XCircle className="w-3.5 h-3.5" /></span>
                     )}
@@ -527,14 +529,14 @@ export default function DispatchDetailPage({ params }: { params: Promise<{ id: s
                   </div>
                   <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
                     {doc.drive_file_url && (user?.role === 'admin' || user?.canViewDrive || !doc.storage_url) ? (
-                      <a href={doc.drive_file_url} target="_blank" rel="noopener noreferrer" className={`${!doc.storage_url ? 'text-amber-400' : 'text-indigo-400'} p-1 hover:bg-white/10 rounded flex items-center gap-1`} title={!doc.storage_url ? "Archivo Archivado en Drive" : "Ver en Google Drive"}>
+                      <button onClick={() => setPreviewFile({ isOpen: true, url: doc.drive_file_url!, name: doc.original_file_name })} className={`${!doc.storage_url ? 'text-amber-400' : 'text-indigo-400'} p-1 hover:bg-white/10 rounded flex items-center gap-1`} title={!doc.storage_url ? "Archivo Archivado en Drive" : "Ver en Google Drive"}>
                         <Eye className="w-3.5 h-3.5" />
                         {!doc.storage_url && <span className="text-[9px] font-bold">DRIVE</span>}
-                      </a>
+                      </button>
                     ) : doc.storage_url ? (
-                      <a href={doc.storage_url} target="_blank" rel="noopener noreferrer" className="text-gray-400 p-1 hover:bg-white/10 rounded" title="Ver en Supabase">
+                      <button onClick={() => setPreviewFile({ isOpen: true, url: doc.storage_url!, name: doc.original_file_name })} className="text-gray-400 p-1 hover:bg-white/10 rounded" title="Ver en Supabase">
                         <Eye className="w-3.5 h-3.5" />
-                      </a>
+                      </button>
                     ) : (
                       <span className="text-gray-600 p-1"><XCircle className="w-3.5 h-3.5" /></span>
                     )}
@@ -569,6 +571,13 @@ export default function DispatchDetailPage({ params }: { params: Promise<{ id: s
           onSuccess={() => fetchDispatch(true)}
         />
       )}
+
+      <FilePreviewModal
+        isOpen={previewFile?.isOpen || false}
+        onClose={() => setPreviewFile(null)}
+        fileUrl={previewFile?.url || ''}
+        fileName={previewFile?.name || ''}
+      />
     </div>
   )
 }

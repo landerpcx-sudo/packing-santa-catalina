@@ -232,9 +232,35 @@ export default function LotesPage() {
 
         {/* Filas */}
         {loading ? (
-          <div className="flex items-center justify-center py-16 gap-3 text-gray-500">
-            <RefreshCw className="w-5 h-5 animate-spin" />
-            <span>Cargando lotes...</span>
+          <div className="space-y-0.5">
+            {[1, 2, 3, 4, 5].map((i) => (
+              <div key={i} className="grid grid-cols-12 px-5 py-4 border-b border-white/5 items-center animate-pulse">
+                <div className="col-span-7 sm:col-span-5 md:col-span-4 lg:col-span-3 flex items-center gap-3">
+                  <div className="w-9 h-9 rounded-xl bg-white/5" />
+                  <div className="space-y-1.5 flex-1 min-w-0">
+                    <div className="h-4 bg-white/5 rounded w-3/4" />
+                    <div className="h-3 bg-white/5 rounded w-1/2" />
+                  </div>
+                </div>
+                <div className="col-span-2 hidden md:block">
+                  <div className="h-4 bg-white/5 rounded w-2/3" />
+                </div>
+                <div className="col-span-2 hidden lg:block">
+                  <div className="h-4 bg-white/5 rounded w-1/3" />
+                </div>
+                <div className="col-span-4 sm:col-span-3 md:col-span-3 lg:col-span-2 flex items-center gap-2">
+                  <div className="w-5 h-5 rounded-full bg-white/5" />
+                  <div className="w-5 h-5 rounded-full bg-white/5" />
+                  <div className="w-5 h-5 rounded-full bg-white/5" />
+                </div>
+                <div className="col-span-3 hidden sm:block md:col-span-2">
+                  <div className="h-6 bg-white/5 rounded-full w-20" />
+                </div>
+                <div className="col-span-1 flex justify-end">
+                  <div className="w-8 h-8 rounded-lg bg-white/5" />
+                </div>
+              </div>
+            ))}
           </div>
         ) : lots.length === 0 ? (
           <div className="flex flex-col items-center justify-center py-16 gap-4 text-center px-6">

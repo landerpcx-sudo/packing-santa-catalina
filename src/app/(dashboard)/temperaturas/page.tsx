@@ -360,7 +360,9 @@ export default function TemperaturasPage() {
            <p className="text-[10px] font-bold text-gray-500 uppercase tracking-widest mb-1 flex items-center gap-1.5">
              <Calendar size={12} /> Hoy ({formatDateShort(today)})
            </p>
-            {reports.some(r => r.report_date === today) ? (
+            {loading ? (
+              <div className="h-7 w-24 rounded-lg bg-white/5 animate-pulse mt-2" />
+            ) : reports.some(r => r.report_date === today) ? (
               <div className="flex items-center gap-2 text-emerald-400 font-bold text-xl mt-2">
                 <CheckCircle size={20} /> Registrado
               </div>
@@ -382,23 +384,35 @@ export default function TemperaturasPage() {
            <p className="text-[10px] font-bold text-gray-500 uppercase tracking-widest mb-1 flex items-center gap-1.5">
              <RefreshCw size={12} /> Total Histórico
            </p>
-           <p className="text-3xl font-black text-white mt-1">{total}</p>
+           {loading ? (
+             <div className="h-8 w-12 rounded-lg bg-white/5 animate-pulse mt-1" />
+           ) : (
+             <p className="text-3xl font-black text-white mt-1">{total}</p>
+           )}
         </div>
         <div className="bg-[#0f172a] border border-white/10 rounded-2xl p-5">
            <p className="text-[10px] font-bold text-gray-500 uppercase tracking-widest mb-1 flex items-center gap-1.5">
              <FolderOpen size={12} /> Con Archivos
            </p>
-           <p className="text-3xl font-black text-white mt-1">
-             {reports.filter(r => r.status === 'uploaded' || r.status === 'validated').length}
-           </p>
+           {loading ? (
+             <div className="h-8 w-12 rounded-lg bg-white/5 animate-pulse mt-1" />
+           ) : (
+             <p className="text-3xl font-black text-white mt-1">
+               {reports.filter(r => r.status === 'uploaded' || r.status === 'validated').length}
+             </p>
+           )}
         </div>
         <div className="bg-[#0f172a] border border-white/10 rounded-2xl p-5">
            <p className="text-[10px] font-bold text-gray-500 uppercase tracking-widest mb-1 flex items-center gap-1.5">
              <Clock size={12} /> Último Registro
            </p>
-           <p className="text-xl font-bold text-indigo-400 mt-2 truncate">
-             {reports[0] ? formatDateShort(reports[0].report_date) : '—'}
-           </p>
+           {loading ? (
+             <div className="h-7 w-24 rounded-lg bg-white/5 animate-pulse mt-2" />
+           ) : (
+             <p className="text-xl font-bold text-indigo-400 mt-2 truncate">
+               {reports[0] ? formatDateShort(reports[0].report_date) : '—'}
+             </p>
+           )}
         </div>
       </div>
 
@@ -445,7 +459,14 @@ export default function TemperaturasPage() {
               ))}
             </div>
             <div className="grid grid-cols-7 border-collapse">
-              {getCalendarDays().map((day, idx) => {
+              {loading ? (
+                Array.from({ length: 35 }).map((_, i) => (
+                  <div key={i} className="h-28 border-r border-b border-white/5 bg-white/[0.01] animate-pulse p-3 flex flex-col justify-between">
+                    <div className="h-4 bg-white/5 rounded w-6" />
+                    <div className="h-8 bg-white/5 rounded-xl w-full mt-2" />
+                  </div>
+                ))
+              ) : getCalendarDays().map((day, idx) => {
                 if (!day) return <div key={`empty-${idx}`} className="h-28 border-r border-b border-white/5 bg-black/10 last:border-r-0" />
                 
                 const isToday = day.date === today
@@ -540,7 +561,21 @@ export default function TemperaturasPage() {
               </tr>
             </thead>
             <tbody className="divide-y divide-white/5">
-              {reports.map((report) => {
+              {loading ? (
+                [1, 2, 3, 4, 5].map(i => (
+                  <tr key={i} className="animate-pulse">
+                    <td className="px-6 py-4"><div className="h-4 bg-white/5 rounded w-24" /></td>
+                    <td className="px-6 py-4"><div className="h-4 bg-white/5 rounded w-16" /></td>
+                    <td className="px-6 py-4"><div className="h-6 bg-white/5 rounded-lg w-16" /></td>
+                    <td className="px-6 py-4">
+                      <div className="h-4 bg-white/5 rounded w-24 mb-1" />
+                      <div className="h-3 bg-white/5 rounded w-16" />
+                    </td>
+                    <td className="px-6 py-4"><div className="h-4 bg-white/5 rounded w-20" /></td>
+                    <td className="px-6 py-4 text-right"><div className="h-5 bg-white/5 rounded-full w-5 ml-auto" /></td>
+                  </tr>
+                ))
+              ) : reports.map((report) => {
                 const isToday = report.report_date === today
                 return (
                   <tr 

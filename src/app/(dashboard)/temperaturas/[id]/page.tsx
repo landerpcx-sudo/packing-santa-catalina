@@ -10,6 +10,7 @@ import {
   Calendar, User, Cloud, Upload, Edit3, Save, Download,
   History, Info
 } from 'lucide-react'
+import FilePreviewModal from '@/components/layout/FilePreviewModal'
 
 interface TempDocument {
   id: string
@@ -124,6 +125,7 @@ export default function TemperatureDetailPage({ params }: { params: Promise<{ id
   const [editingTemp, setEditingTemp] = useState(false)
   const [tempValue, setTempValue] = useState('')
   const [saving, setSaving] = useState(false)
+  const [previewFile, setPreviewFile] = useState<{ isOpen: boolean; url: string; name: string } | null>(null)
 
   const fetchReport = useCallback(async () => {
     setLoading(true)
@@ -319,14 +321,14 @@ export default function TemperatureDetailPage({ params }: { params: Promise<{ id
                             </div>
                             <div className="flex items-center gap-2">
                                {doc.drive_file_url && (user?.role === 'admin' || user?.canViewDrive || !doc.storage_url) ? (
-                                 <a href={doc.drive_file_url} target="_blank" rel="noopener noreferrer" className={`p-2.5 rounded-xl transition-all flex items-center gap-2 ${!doc.storage_url ? 'bg-amber-500/10 text-amber-500 border border-amber-500/20' : 'bg-blue-500/10 text-blue-400 hover:bg-blue-500 hover:text-white'}`} title={!doc.storage_url ? "Archivo Archivado en Drive" : "Ver en Google Drive"}>
+                                 <button onClick={() => setPreviewFile({ isOpen: true, url: doc.drive_file_url!, name: doc.original_file_name })} className={`p-2.5 rounded-xl transition-all flex items-center gap-2 ${!doc.storage_url ? 'bg-amber-500/10 text-amber-500 border border-amber-500/20' : 'bg-blue-500/10 text-blue-400 hover:bg-blue-500 hover:text-white'}`} title={!doc.storage_url ? "Archivo Archivado en Drive" : "Ver en Google Drive"}>
                                     <ExternalLink size={16} />
                                     {!doc.storage_url && <span className="text-[10px] font-black uppercase tracking-widest">Drive</span>}
-                                 </a>
+                                 </button>
                                ) : doc.storage_url ? (
-                                 <a href={doc.storage_url} target="_blank" rel="noopener noreferrer" className="p-2.5 bg-gray-500/10 text-gray-400 rounded-xl hover:bg-white hover:text-black transition-all" title="Ver en Supabase">
-                                    <Download size={16} />
-                                 </a>
+                                 <button onClick={() => setPreviewFile({ isOpen: true, url: doc.storage_url!, name: doc.original_file_name })} className="p-2.5 bg-gray-500/10 text-gray-400 rounded-xl hover:bg-white hover:text-black transition-all" title="Ver en Supabase">
+                                    <ExternalLink size={16} />
+                                 </button>
                                ) : (
                                  <div className="p-2.5 text-gray-700">
                                    <XCircle size={20} />
@@ -420,6 +422,13 @@ export default function TemperatureDetailPage({ params }: { params: Promise<{ id
            </div>
         </div>
       </div>
+
+      <FilePreviewModal
+        isOpen={previewFile?.isOpen || false}
+        onClose={() => setPreviewFile(null)}
+        fileUrl={previewFile?.url || ''}
+        fileName={previewFile?.name || ''}
+      />
     </div>
   )
 }

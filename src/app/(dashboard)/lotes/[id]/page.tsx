@@ -13,6 +13,7 @@ import UploadZone from '@/components/lotes/UploadZone'
 import NewLotModal from '@/components/lotes/NewLotModal'
 import InlineValidation from '@/components/lotes/InlineValidation'
 import ValidationModal from '@/components/lotes/ValidationModal'
+import FilePreviewModal from '@/components/layout/FilePreviewModal'
 
 interface Lot {
   id: string
@@ -99,6 +100,7 @@ export default function LoteDetailPage({ params }: { params: Promise<{ id: strin
   const [valModal, setValModal] = useState<{isOpen: boolean, docId: string, docName: string, tableName: string} | null>(null)
   const [validatingDocId, setValidatingDocId] = useState<string | null>(null)
   const [showEditModal, setShowEditModal] = useState(false)
+  const [previewFile, setPreviewFile] = useState<{ isOpen: boolean; url: string; name: string } | null>(null)
 
   const checkDriveConnection = async () => {
     try {
@@ -304,26 +306,22 @@ export default function LoteDetailPage({ params }: { params: Promise<{ id: strin
                               </span>
                             )}
                           {doc.drive_file_url && (user?.role === 'admin' || user?.canViewDrive || !doc.storage_url) ? (
-                            <a
-                              href={doc.drive_file_url}
-                              target="_blank"
-                              rel="noopener noreferrer"
+                            <button
+                              onClick={() => setPreviewFile({ isOpen: true, url: doc.drive_file_url!, name: doc.original_file_name })}
                               className={`${!doc.storage_url ? 'text-amber-400' : 'text-blue-400'} hover:opacity-80 flex-shrink-0 flex items-center gap-1`}
                               title={!doc.storage_url ? "Archivo Archivado en Drive" : "Ver en Google Drive"}
                             >
                               <Eye className="w-4 h-4" />
                               {!doc.storage_url && <span className="text-[10px] font-bold">DRIVE</span>}
-                            </a>
+                            </button>
                           ) : doc.storage_url ? (
-                            <a
-                              href={doc.storage_url}
-                              target="_blank"
-                              rel="noopener noreferrer"
+                            <button
+                              onClick={() => setPreviewFile({ isOpen: true, url: doc.storage_url!, name: doc.original_file_name })}
                               className="text-gray-400 hover:text-white flex-shrink-0"
                               title="Ver en Visor Alternativo (Supabase)"
                             >
                               <Eye className="w-4 h-4" />
-                            </a>
+                            </button>
                           ) : (
                             <div className="text-gray-600 flex items-center gap-1" title="Archivo no disponible en este momento">
                               <XCircle className="w-4 h-4" />
@@ -430,6 +428,13 @@ export default function LoteDetailPage({ params }: { params: Promise<{ id: strin
           onSuccess={() => fetchLot(true)} 
         />
       )}
+
+      <FilePreviewModal
+        isOpen={previewFile?.isOpen || false}
+        onClose={() => setPreviewFile(null)}
+        fileUrl={previewFile?.url || ''}
+        fileName={previewFile?.name || ''}
+      />
     </div>
   )
 }

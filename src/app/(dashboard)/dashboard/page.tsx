@@ -34,30 +34,29 @@ function StatCard({
 }) {
   return (
     <div
-      className="rounded-2xl p-5 flex items-start gap-4 transition-all duration-200"
+      className="rounded-3xl p-6 flex items-start gap-5 transition-all duration-300 hover:scale-[1.03] hover:-translate-y-1 hover:shadow-2xl hover:shadow-indigo-500/5 backdrop-blur-md cursor-pointer group"
       style={{
         backgroundColor: 'var(--bg-card)',
         border: '1px solid var(--border)',
       }}
     >
       <div
-        className={`p-3 rounded-xl flex-shrink-0 ${accent} bg-opacity-10`}
+        className={`p-3 rounded-2xl flex-shrink-0 ${accent} bg-opacity-10 transition-transform duration-300 group-hover:scale-110`}
         style={{ backgroundColor: 'var(--bg-badge)' }}
       >
-        <Icon size={20} className={accent} />
+        <Icon size={24} className={accent} />
       </div>
       <div className="min-w-0">
-        <p className="text-sm font-medium" style={{ color: 'var(--text-secondary)' }}>{title}</p>
+        <p className="text-xs font-bold uppercase tracking-wider" style={{ color: 'var(--text-secondary)' }}>{title}</p>
         {loading ? (
           <div
-            className="h-7 w-12 rounded animate-pulse mt-1"
-            style={{ backgroundColor: 'var(--border)' }}
+            className="h-8 w-16 rounded-xl animate-pulse mt-2 bg-white/10"
           />
         ) : (
-          <p className={`text-2xl font-bold mt-0.5 ${accent}`}>{value}</p>
+          <p className={`text-3xl font-black mt-1 tracking-tight ${accent}`}>{value}</p>
         )}
         {subtitle && (
-          <p className="text-xs mt-0.5" style={{ color: 'var(--text-muted)' }}>{subtitle}</p>
+          <p className="text-[11px] font-medium mt-1" style={{ color: 'var(--text-muted)' }}>{subtitle}</p>
         )}
       </div>
     </div>
