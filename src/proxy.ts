@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { verifyToken } from '@/lib/auth'
 
 // Rutas que NO requieren autenticación
-const PUBLIC_PATHS = ['/login', '/api/auth/login', '/api/auth/google']
+const PUBLIC_PATHS = ['/login', '/api/auth/login', '/api/auth/google', '/sw.js', '/manifest.json']
 
 export async function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl
