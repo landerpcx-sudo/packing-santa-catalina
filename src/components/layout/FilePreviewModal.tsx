@@ -22,7 +22,8 @@ export default function FilePreviewModal({ isOpen, onClose, fileUrl, fileName }:
   if (!isOpen) return null
 
   // Detectar tipo de archivo
-  const isImage = /\.(jpg|jpeg|png|gif|webp|bmp)$/i.test(fileName) || fileUrl.includes('image')
+  const isDriveUrl = fileUrl.includes('drive.google.com')
+  const isImage = (/\.(jpg|jpeg|png|gif|webp|bmp)$/i.test(fileName) || fileUrl.includes('image')) && !isDriveUrl
   const isPdf = /\.pdf$/i.test(fileName) || fileUrl.includes('.pdf')
 
   // Transformar URL de Google Drive para permitir vista previa embebida en iframe
@@ -92,7 +93,7 @@ export default function FilePreviewModal({ isOpen, onClose, fileUrl, fileName }:
               onError={() => setLoading(false)}
               className="max-w-full max-h-full object-contain rounded-2xl shadow-xl transition-transform"
             />
-          ) : (isPdf || fileUrl.includes('drive.google.com')) ? (
+          ) : (isPdf || isDriveUrl) ? (
             <iframe
               src={previewUrl}
               className="w-full h-full border-0 rounded-2xl bg-white shadow-xl"
