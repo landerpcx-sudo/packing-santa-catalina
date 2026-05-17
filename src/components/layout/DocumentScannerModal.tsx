@@ -91,8 +91,9 @@ export default function DocumentScannerModal({
         videoElementRef.current.srcObject = mediaStream
         videoElementRef.current.play().catch(e => console.warn(e))
       }
-    } catch (err) {
+    } catch (err: any) {
       console.warn('La cámara en vivo falló o no está soportada:', err)
+      alert('Error detallado de cámara WebRTC: ' + (err.message || err.toString()));
       setCameraError('No se pudo activar la cámara interna en vivo. Usaremos la cámara nativa de tu teléfono.')
       setUseLiveCamera(false)
     }
@@ -108,6 +109,7 @@ export default function DocumentScannerModal({
       setCameraError(null)
       setUseLiveCamera(true)
 
+      alert('Modal montado con éxito. Iniciando stream de cámara...');
       // Iniciar cámara en vivo
       startLiveCamera()
     } else {
