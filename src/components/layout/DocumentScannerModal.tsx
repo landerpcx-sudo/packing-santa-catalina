@@ -1,6 +1,6 @@
 'use client'
 
-import React, { useState, useRef, useEffect } from 'react'
+import React, { useState, useRef, useEffect, useCallback } from 'react'
 import { Camera, X, RotateCw, Check, Undo, Image as ImageIcon, Sparkles, RefreshCw, AlertCircle } from 'lucide-react'
 
 interface DocumentScannerModalProps {
@@ -39,13 +39,73 @@ export default function DocumentScannerModal({
   const [cameraError, setCameraError] = useState<string | null>(null)
 
   const fileInputRef = useRef<HTMLInputElement>(null)
-  const videoRef = useRef<HTMLVideoElement>(null)
+  const videoElementRef = useRef<HTMLVideoElement | null>(null)
   const imageRef = useRef<HTMLImageElement>(null)
   const canvasRef = useRef<HTMLCanvasElement>(null)
 
-  // Control del ciclo de vida del modal
+  // Ref callback para el elemento de video - Garantiza la vinculación del stream inmediatamente al montarse el nodo en el DOM
+  const videoRef = useCallback((node: HTMLVideoElement | null) => {
+    if (node) {
+      videoElementRef.current = node
+      if (stream) {
+        node.srcObject = stream
+        // Forzar la reproducción inmediata del streaming en navegadores móviles
+        node.play().catch(err => {
+          console.warn("Fallo al forzar reproducción de video:", err)
+        })
+      }
+    } else {
+      videoElementRef.current = null
+    }
+  }, [stream])
+
+  // Detener la transmisión de la cámara
+  const stopLiveCamera = useCallback(() => {
+    if (stream) {
+      stream.getTracks().forEach(track => track.stop())
+      setStream(null)
+    }
+  }, [stream])
+
+  // Iniciar la transmisión de video de la cámara trasera
+  const startLiveCamera = useCallback(async () => {
+    try {
+      // Detener cualquier stream anterior
+      if (stream) {
+        stream.getTracks().forEach(track => track.stop())
+      }
+      
+      const mediaStream = await navigator.mediaDevices.getUserMedia({
+        video: {
+          facingMode: 'environment', // Forzar cámara trasera del celular
+          width: { ideal: 1920 },
+          height: { ideal: 1080 }
+        },
+        audio: false
+      })
+
+      setStream(mediaStream)
+      setCameraError(null)
+      setUseLiveCamera(true)
+
+      // Vinculación de seguridad si el nodo ya existe en el DOM
+      if (videoElementRef.current) {
+        videoElementRef.current.srcObject = mediaStream
+        videoElementRef.current.play().catch(e => console.warn(e))
+      }
+    } catch (err) {
+      console.warn('La cámara en vivo falló o no está soportada:', err)
+      setCameraError('No se pudo activar la cámara interna en vivo. Usaremos la cámara nativa de tu teléfono.')
+      setUseLiveCamera(false)
+    }
+  }, [stream])
+
+  // Control del ciclo de vida del modal y bloqueo de scroll
   useEffect(() => {
     if (isOpen) {
+      // Bloquear scroll de la página de fondo
+      document.body.style.overflow = 'hidden'
+
       setImageSrc(null)
       setRotation(0)
       setFilter('scan')
@@ -60,51 +120,19 @@ export default function DocumentScannerModal({
       // Iniciar cámara en vivo
       startLiveCamera()
     } else {
-      // Detener stream al cerrar
+      // Restaurar scroll
+      document.body.style.overflow = ''
       stopLiveCamera()
     }
 
     return () => {
-      stopLiveCamera()
+      document.body.style.overflow = ''
+      // Detener cámara en desmontaje
+      if (stream) {
+        stream.getTracks().forEach(track => track.stop())
+      }
     }
   }, [isOpen])
-
-  // Detener la transmisión de la cámara
-  const stopLiveCamera = () => {
-    if (stream) {
-      stream.getTracks().forEach(track => track.stop())
-      setStream(null)
-    }
-  }
-
-  // Iniciar la transmisión de video de la cámara trasera
-  const startLiveCamera = async () => {
-    try {
-      stopLiveCamera()
-      
-      const mediaStream = await navigator.mediaDevices.getUserMedia({
-        video: {
-          facingMode: 'environment', // Forzar cámara trasera
-          width: { ideal: 1920 },
-          height: { ideal: 1080 }
-        },
-        audio: false
-      })
-
-      setStream(mediaStream)
-      setCameraError(null)
-      setUseLiveCamera(true)
-
-      // Asignar al elemento de video
-      if (videoRef.current) {
-        videoRef.current.srcObject = mediaStream
-      }
-    } catch (err) {
-      console.warn('La cámara en vivo falló o no está soportada:', err)
-      setCameraError('No se pudo activar la cámara interna en vivo. Usaremos la cámara nativa de tu teléfono.')
-      setUseLiveCamera(false)
-    }
-  }
 
   if (!isOpen) return null
 
@@ -130,8 +158,8 @@ export default function DocumentScannerModal({
 
   // Capturar fotograma actual del video en vivo
   const captureLiveFrame = () => {
-    if (!videoRef.current || !canvasRef.current) return
-    const video = videoRef.current
+    if (!videoElementRef.current || !canvasRef.current) return
+    const video = videoElementRef.current
     const canvas = canvasRef.current
     const ctx = canvas.getContext('2d')
     if (!ctx) return
@@ -150,7 +178,7 @@ export default function DocumentScannerModal({
 
     const dataUrl = canvas.toDataURL('image/jpeg', 0.9)
     setImageSrc(dataUrl)
-    setOriginalSize(dataUrl.length * 0.75) // Cálculo aproximado del peso de la imagen base64
+    setOriginalSize(dataUrl.length * 0.75) // Peso aproximado
   }
 
   const rotateImage = () => {
@@ -291,8 +319,8 @@ export default function DocumentScannerModal({
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/90 backdrop-blur-md">
-      <div className="relative w-full max-w-lg bg-[#0b0f19] border border-white/10 rounded-3xl overflow-hidden shadow-2xl flex flex-col max-h-[95vh]">
+    <div className="fixed inset-0 z-50 flex items-start justify-center p-3 bg-black/95 backdrop-blur-md overflow-y-auto">
+      <div className="relative w-full max-w-lg bg-[#0b0f19] border border-white/10 rounded-3xl overflow-hidden shadow-2xl flex flex-col my-auto max-h-[92vh]">
         {/* Header */}
         <div className="flex items-center justify-between px-6 py-4 border-b border-white/5 bg-white/2">
           <div>
@@ -312,7 +340,7 @@ export default function DocumentScannerModal({
         </div>
 
         {/* Body */}
-        <div className="flex-1 overflow-y-auto p-5 space-y-4 flex flex-col justify-center min-h-[350px]">
+        <div className="flex-1 overflow-y-auto p-5 space-y-4 flex flex-col justify-center min-h-[300px]">
           {/* Input de cámara del sistema (para fallback) */}
           <input 
             type="file" 
@@ -328,7 +356,7 @@ export default function DocumentScannerModal({
             useLiveCamera && stream ? (
               /* A. Cámara en vivo incrustada en la web */
               <div className="flex-1 flex flex-col space-y-4 items-center justify-center">
-                <div className="relative w-full aspect-[3/4] max-h-[380px] bg-black rounded-2xl overflow-hidden border border-white/10 flex items-center justify-center shadow-lg shadow-black">
+                <div className="relative w-full aspect-[3/4] max-h-[320px] bg-black rounded-2xl overflow-hidden border border-white/10 flex items-center justify-center shadow-lg shadow-black">
                   <video 
                     ref={videoRef}
                     autoPlay 
@@ -398,7 +426,7 @@ export default function DocumentScannerModal({
             /* PASO 2: Herramientas de Edición */
             <div className="flex-1 flex flex-col space-y-4">
               {/* Contenedor de Previsualización Recortable */}
-              <div className="relative aspect-[3/4] max-h-[320px] mx-auto w-full border border-white/5 rounded-2xl overflow-hidden bg-black/40 flex items-center justify-center shadow-inner">
+              <div className="relative aspect-[3/4] max-h-[260px] mx-auto w-full border border-white/5 rounded-2xl overflow-hidden bg-black/40 flex items-center justify-center shadow-inner">
                 <div 
                   className="relative w-full h-full transition-transform duration-300 flex items-center justify-center p-2"
                   style={{ transform: `rotate(${rotation}deg)` }}
