@@ -30,6 +30,8 @@ export default function DocumentScannerModal({
   const [useLiveCamera, setUseLiveCamera] = useState(true)
   const [stream, setStream] = useState<MediaStream | null>(null)
   const streamRef = useRef<MediaStream | null>(null) // Para evitar cierres obsoletos en la limpieza de efectos
+  const activeRequestIdRef = useRef<number>(0) // Evitar condiciones de carrera y dobles arranques concurrentes
+  
   const [cameraError, setCameraError] = useState<string | null>(null)
   const [processing, setProcessing] = useState(false)
 
@@ -48,10 +50,12 @@ export default function DocumentScannerModal({
     setStream(null)
   }, [])
 
-  // Iniciar la transmisión de video de la cámara trasera
+  // Iniciar la transmisión de video de la cámara trasera de forma ultra-segura
   const startLiveCamera = useCallback(async () => {
+    const requestId = ++activeRequestIdRef.current
+    
     try {
-      // Detener cualquier stream anterior primero
+      // Detener cualquier stream anterior
       if (streamRef.current) {
         streamRef.current.getTracks().forEach(track => track.stop())
         streamRef.current = null
@@ -60,19 +64,21 @@ export default function DocumentScannerModal({
       let mediaStream: MediaStream
       
       try {
-        // Intento 1: Cámara trasera en resolución Full HD ideal
+        // Intento 1: Cámara trasera ideal Full HD
         mediaStream = await navigator.mediaDevices.getUserMedia({
           video: {
-            facingMode: 'environment', // Forzar cámara trasera del celular
+            facingMode: 'environment',
             width: { ideal: 1920 },
             height: { ideal: 1080 }
           },
           audio: false
         })
       } catch (firstErr) {
+        if (requestId !== activeRequestIdRef.current) return
+        
         console.warn("Fallo primer intento WebRTC con resolución alta, probando resolución básica:", firstErr)
         try {
-          // Intento 2: Cámara trasera en resolución estándar del sistema
+          // Intento 2: Cámara trasera resolución básica del sistema
           mediaStream = await navigator.mediaDevices.getUserMedia({
             video: {
               facingMode: 'environment'
@@ -80,8 +86,10 @@ export default function DocumentScannerModal({
             audio: false
           })
         } catch (secondErr) {
+          if (requestId !== activeRequestIdRef.current) return
+          
           console.warn("Fallo segundo intento WebRTC con facingMode, probando cámara genérica:", secondErr)
-          // Intento 3: Cualquier cámara de video disponible en el dispositivo
+          // Intento 3: Cualquier cámara de video disponible
           mediaStream = await navigator.mediaDevices.getUserMedia({
             video: true,
             audio: false
@@ -89,11 +97,17 @@ export default function DocumentScannerModal({
         }
       }
 
+      // Validar si este request sigue siendo el último activo antes de continuar
+      if (requestId !== activeRequestIdRef.current) {
+        mediaStream.getTracks().forEach(track => track.stop())
+        return
+      }
+
       updateStream(mediaStream)
       setCameraError(null)
       setUseLiveCamera(true)
 
-      // Vinculación directa al elemento de video (siempre presente en el DOM)
+      // Vinculación directa al elemento de video (siempre persistente en el DOM)
       if (videoElementRef.current) {
         videoElementRef.current.srcObject = mediaStream
         videoElementRef.current.play().catch(e => {
@@ -101,6 +115,7 @@ export default function DocumentScannerModal({
         })
       }
     } catch (err) {
+      if (requestId !== activeRequestIdRef.current) return
       console.error('Todos los intentos de activar la cámara WebRTC en vivo fallaron:', err)
       setCameraError('No pudimos iniciar el escáner WebRTC en vivo. Puedes pulsar "Abrir Cámara" para escanear con la cámara del celular.')
       setUseLiveCamera(false)
@@ -127,6 +142,8 @@ export default function DocumentScannerModal({
 
     return () => {
       document.body.style.overflow = ''
+      // Invalidar peticiones de cámara en vuelo
+      activeRequestIdRef.current++
       // Detener cámara en desmontaje utilizando la referencia mutable segura
       if (streamRef.current) {
         streamRef.current.getTracks().forEach(track => track.stop())
@@ -147,7 +164,7 @@ export default function DocumentScannerModal({
     fileInputRef.current?.click()
   }
 
-  // Procesar archivo de la cámara nativa del sistema
+  // Procesar archivo de la cámara nativa del sistema utilizando ObjectURL (cero consumo de RAM)
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = e.target.files
     if (!files || files.length === 0) return
@@ -155,54 +172,57 @@ export default function DocumentScannerModal({
     const file = files[0]
     setProcessing(true)
     
-    const reader = new FileReader()
-    reader.onload = () => {
-      const img = new Image()
-      img.onload = () => {
-        // Comprimir y guardar inmediatamente
-        const maxDimension = 1600
-        let finalWidth = img.naturalWidth
-        let finalHeight = img.naturalHeight
-        
-        if (finalWidth > maxDimension || finalHeight > maxDimension) {
-          const ratio = finalWidth / finalHeight
-          if (ratio > 1) {
-            finalWidth = maxDimension
-            finalHeight = maxDimension / ratio
-          } else {
-            finalHeight = maxDimension
-            finalWidth = maxDimension * ratio
-          }
+    const objectUrl = URL.createObjectURL(file)
+    const img = new Image()
+    img.onload = () => {
+      // Comprimir a una resolución legible y súper liviana (máximo 1200px)
+      const maxDimension = 1200
+      let finalWidth = img.naturalWidth
+      let finalHeight = img.naturalHeight
+      
+      if (finalWidth > maxDimension || finalHeight > maxDimension) {
+        const ratio = finalWidth / finalHeight
+        if (ratio > 1) {
+          finalWidth = maxDimension
+          finalHeight = maxDimension / ratio
+        } else {
+          finalHeight = maxDimension
+          finalWidth = maxDimension * ratio
         }
-        
-        const canvas = document.createElement('canvas')
-        canvas.width = finalWidth
-        canvas.height = finalHeight
-        const ctx = canvas.getContext('2d')!
-        ctx.fillStyle = '#ffffff'
-        ctx.fillRect(0, 0, finalWidth, finalHeight)
-        ctx.drawImage(img, 0, 0, finalWidth, finalHeight)
-
-        canvas.toBlob(
-          (blob) => {
-            if (blob) {
-              const cleanLabel = documentLabel.replace(/ \(.*\)/, '')
-              const fileName = `${cleanLabel} Escaneado ${lotCodeOrDispatchId}.webp`
-              const scannedFile = new File([blob], fileName, { type: 'image/webp' })
-              onScanComplete(scannedFile)
-              onClose()
-            } else {
-              alert('Error al procesar la imagen.')
-            }
-            setProcessing(false)
-          },
-          'image/webp',
-          0.90
-        )
       }
-      img.src = reader.result as string
+      
+      const canvas = document.createElement('canvas')
+      canvas.width = finalWidth
+      canvas.height = finalHeight
+      const ctx = canvas.getContext('2d')!
+      ctx.fillStyle = '#ffffff'
+      ctx.fillRect(0, 0, finalWidth, finalHeight)
+      ctx.drawImage(img, 0, 0, finalWidth, finalHeight)
+
+      canvas.toBlob(
+        (blob) => {
+          if (blob) {
+            const cleanLabel = documentLabel.replace(/ \(.*\)/, '')
+            const fileName = `${cleanLabel} Escaneado ${lotCodeOrDispatchId}.webp`
+            const scannedFile = new File([blob], fileName, { type: 'image/webp' })
+            onScanComplete(scannedFile)
+            onClose()
+          } else {
+            alert('Error al procesar la imagen.')
+          }
+          setProcessing(false)
+          URL.revokeObjectURL(objectUrl) // Liberar memoria de inmediato
+        },
+        'image/webp',
+        0.80 // Calidad óptima para conservar nitidez y peso pluma
+      )
     }
-    reader.readAsDataURL(file)
+    img.onerror = () => {
+      alert('Error al cargar la imagen.')
+      setProcessing(false)
+      URL.revokeObjectURL(objectUrl)
+    }
+    img.src = objectUrl
   }
 
   // Capturar fotograma actual y recortar al tamaño Carta
@@ -224,10 +244,6 @@ export default function DocumentScannerModal({
     const videoRect = video.getBoundingClientRect()
     const guideRect = guideBox.getBoundingClientRect()
 
-    // FIX: Corrección para móviles donde el sensor de la cámara es landscape (ej. 1920x1080)
-    // pero el navegador lo rota visualmente a portrait sin actualizar videoWidth/Height en los metadatos.
-    // Si la pantalla es vertical (alto > ancho) y el video reporta ser horizontal (ancho > alto),
-    // asumimos que el navegador rotó el video visualmente y debemos invertir las variables.
     const isPortraitScreen = videoRect.height > videoRect.width
     const isLandscapeVideo = actualVideoWidth > actualVideoHeight
 
@@ -243,29 +259,23 @@ export default function DocumentScannerModal({
     let renderedWidth, renderedHeight, offsetX = 0, offsetY = 0
 
     if (screenRatio > videoRatio) {
-      // Pantalla es más ancha: video se expande a lo ancho y se recorta (desborda) arriba/abajo
       renderedWidth = videoRect.width
       renderedHeight = videoRect.width / videoRatio
       offsetY = (renderedHeight - videoRect.height) / 2
     } else {
-      // Pantalla es más alta: video se expande a lo alto y se recorta (desborda) izq/der
       renderedHeight = videoRect.height
       renderedWidth = videoRect.height * videoRatio
       offsetX = (renderedWidth - videoRect.width) / 2
     }
 
-    // Calcular las coordenadas del recuadro *estrictamente relativas* al contenedor de video,
-    // por si el video no estuviera perfectamente en el 0,0 de la ventana.
     const relativeBoxLeft = guideRect.left - videoRect.left
     const relativeBoxTop = guideRect.top - videoRect.top
 
-    // Mapear coordenadas del recuadro a las dimensiones "renderizadas y desbordadas" del video
     const boxLeft = relativeBoxLeft + offsetX
     const boxTop = relativeBoxTop + offsetY
     const boxWidth = guideRect.width
     const boxHeight = guideRect.height
 
-    // Escalar los píxeles desde las dimensiones renderizadas a los píxeles originales reales del video
     const scaleValue = actualVideoWidth / renderedWidth
     
     const cropX = boxLeft * scaleValue
@@ -273,26 +283,47 @@ export default function DocumentScannerModal({
     const cropW = boxWidth * scaleValue
     const cropH = boxHeight * scaleValue
 
-    // Detener la cámara de inmediato para ahorrar batería e hilos
+    // Detener la cámara al instante para ahorrar batería y no colgar hilos
     stopLiveCamera()
 
-    // Pintar solo la región recortada
-    canvas.width = cropW
-    canvas.height = cropH
-    
-    // Rellenar de blanco por seguridad
-    ctx.fillStyle = '#ffffff'
-    ctx.fillRect(0, 0, cropW, cropH)
+    // 1. Crear canvas temporal de alta resolución para el recorte
+    const tempCanvas = document.createElement('canvas')
+    tempCanvas.width = cropW
+    tempCanvas.height = cropH
+    const tempCtx = tempCanvas.getContext('2d')
+    if (tempCtx) {
+      tempCtx.fillStyle = '#ffffff'
+      tempCtx.fillRect(0, 0, cropW, cropH)
+      
+      const drawX = -boxLeft * scaleValue
+      const drawY = -boxTop * scaleValue
+      const drawW = renderedWidth * scaleValue
+      const drawH = renderedHeight * scaleValue
+      tempCtx.drawImage(video, drawX, drawY, drawW, drawH)
+    }
 
-    // Usar la versión de 5 argumentos de drawImage (video, dx, dy, dw, dh).
-    // Esto evita excepciones de "IndexSizeError" cuando el navegador devuelve 
-    // videoWidth/videoHeight del sensor crudo pero rota visualmente el fotograma.
-    const drawX = -boxLeft * scaleValue
-    const drawY = -boxTop * scaleValue
-    const drawW = renderedWidth * scaleValue
-    const drawH = renderedHeight * scaleValue
+    // 2. Redimensionar al canvas final de tamaño ultra optimizado y nitidez óptima (máximo 1200px)
+    const maxDimension = 1200
+    let finalW = cropW
+    let finalH = cropH
     
-    ctx.drawImage(video, drawX, drawY, drawW, drawH)
+    if (cropW > maxDimension || cropH > maxDimension) {
+      const ratio = cropW / cropH
+      if (ratio > 1) {
+        finalW = maxDimension
+        finalH = maxDimension / ratio
+      } else {
+        finalH = maxDimension
+        finalW = maxDimension * ratio
+      }
+    }
+
+    canvas.width = finalW
+    canvas.height = finalH
+    
+    ctx.fillStyle = '#ffffff'
+    ctx.fillRect(0, 0, finalW, finalH)
+    ctx.drawImage(tempCanvas, 0, 0, cropW, cropH, 0, 0, finalW, finalH)
 
     // Exportar directamente y cerrar
     canvas.toBlob(
@@ -310,7 +341,7 @@ export default function DocumentScannerModal({
         setProcessing(false)
       },
       'image/webp',
-      0.90
+      0.80 // 80% es el punto dulce para web (documento nítido y ultraligero)
     )
   }
 
