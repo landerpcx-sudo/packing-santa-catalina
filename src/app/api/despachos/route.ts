@@ -4,21 +4,27 @@ import { supabaseAdmin } from '@/lib/supabase-admin'
 import { createFolder } from '@/lib/drive'
 
 export async function GET(request: Request) {
-  const { searchParams } = new URL(request.url)
+  const searchParams = new URL(request.url).searchParams
   const page = parseInt(searchParams.get('page') || '1')
   const limit = parseInt(searchParams.get('limit') || '50')
   const status = searchParams.get('status') || ''
   const search = searchParams.get('search') || ''
-  const from = (page - 1) * limit
+  const dateFrom = searchParams.get('from') || ''
+  const dateTo = searchParams.get('to') || ''
+  
+  const offset = (page - 1) * limit
 
   let query = supabaseAdmin
     .from('dispatches')
     .select('*', { count: 'exact' })
     .order('created_at', { ascending: false })
-    .range(from, from + limit - 1)
+    .range(offset, offset + limit - 1)
 
   if (status) query = query.eq('overall_status', status)
   if (search) query = query.or(`internal_code.ilike.%${search}%,client.ilike.%${search}%,destination.ilike.%${search}%`)
+  
+  if (dateFrom) query = query.gte('created_at', `${dateFrom}T00:00:00Z`)
+  if (dateTo) query = query.lte('created_at', `${dateTo}T23:59:59Z`)
 
   const { data, error, count } = await query
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })

@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState, useCallback } from 'react'
+import React, { useEffect, useState, useCallback } from 'react'
 import {
   Truck, Plus, Search, Filter, ExternalLink,
   Clock, CheckCircle, AlertCircle, XCircle, BarChart3,
@@ -55,12 +55,17 @@ export default function DespachosPage() {
   const router = useRouter()
   const [search, setSearch] = useState('')
   const [filterStatus, setFilterStatus] = useState('')
+  const [dateFrom, setDateFrom] = useState('')
+  const [dateTo, setDateTo] = useState('')
+  const searchRef = React.useRef<ReturnType<typeof setTimeout> | null>(null)
 
-  const fetchDispatches = useCallback(async () => {
+  const fetchDispatches = useCallback(async (searchValue = search, statusValue = filterStatus, from = dateFrom, to = dateTo) => {
     setLoading(true)
     const params = new URLSearchParams({ limit: '50' })
-    if (search) params.set('search', search)
-    if (filterStatus) params.set('status', filterStatus)
+    if (searchValue) params.set('search', searchValue)
+    if (statusValue) params.set('status', statusValue)
+    if (from) params.set('from', from)
+    if (to) params.set('to', to)
 
     const res = await fetch(`/api/despachos?${params}`)
     if (res.ok) {
@@ -74,6 +79,19 @@ export default function DespachosPage() {
   useEffect(() => {
     fetchDispatches()
   }, [fetchDispatches])
+
+  // Debounce para el campo de búsqueda
+  const handleSearchChange = (value: string) => {
+    setSearch(value)
+    if (searchRef.current) clearTimeout(searchRef.current)
+    searchRef.current = setTimeout(() => fetchDispatches(value, filterStatus, dateFrom, dateTo), 350)
+  }
+
+  // Filtro de estado: disparo inmediato
+  const handleStatusChange = (value: string) => {
+    setFilterStatus(value)
+    fetchDispatches(search, value, dateFrom, dateTo)
+  }
 
   // Semáforo de 3 etapas: Pack List / Pata Pata / Termógrafos
   const DispatchSemaphore = ({ dispatch }: { dispatch: Dispatch }) => {
@@ -136,7 +154,7 @@ export default function DespachosPage() {
         </div>
         <div className="flex items-center gap-3">
           <button
-            onClick={fetchDispatches}
+            onClick={() => fetchDispatches()}
             className="p-2.5 rounded-xl border border-white/10 text-gray-400 hover:text-white hover:bg-white/5 transition-all"
             title="Actualizar"
           >
@@ -175,7 +193,7 @@ export default function DespachosPage() {
             type="text"
             placeholder="Buscar por código, cliente o destino..."
             value={search}
-            onChange={(e) => setSearch(e.target.value)}
+            onChange={(e) => handleSearchChange(e.target.value)}
             className="w-full bg-white/5 border border-white/10 rounded-xl pl-10 pr-4 py-2.5 text-white placeholder-gray-500 text-sm focus:outline-none focus:border-indigo-400/50 transition-all"
           />
         </div>
@@ -183,7 +201,7 @@ export default function DespachosPage() {
           <Filter className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-500" />
           <select
             value={filterStatus}
-            onChange={(e) => setFilterStatus(e.target.value)}
+            onChange={(e) => handleStatusChange(e.target.value)}
             className="bg-white/5 border border-white/10 rounded-xl pl-10 pr-8 py-2.5 text-sm text-white focus:outline-none focus:border-indigo-400/50 transition-all appearance-none cursor-pointer"
           >
             <option value="" className="bg-[#111827]">Todos los estados</option>
@@ -193,6 +211,36 @@ export default function DespachosPage() {
             <option value="closed" className="bg-[#111827]">Cerrado</option>
           </select>
         </div>
+      </div>
+
+      {/* Filtro de rango de fechas (#24) */}
+      <div className="flex flex-wrap items-center gap-3">
+        <div className="flex items-center gap-2">
+          <span className="text-gray-500 text-xs font-bold uppercase tracking-wider whitespace-nowrap">Desde</span>
+          <input
+            type="date"
+            value={dateFrom}
+            onChange={(e) => { setDateFrom(e.target.value); fetchDispatches(search, filterStatus, e.target.value, dateTo) }}
+            className="bg-white/5 border border-white/10 rounded-xl px-3 py-2 text-sm text-white focus:outline-none focus:border-indigo-400/50 transition-all"
+          />
+        </div>
+        <div className="flex items-center gap-2">
+          <span className="text-gray-500 text-xs font-bold uppercase tracking-wider whitespace-nowrap">Hasta</span>
+          <input
+            type="date"
+            value={dateTo}
+            onChange={(e) => { setDateTo(e.target.value); fetchDispatches(search, filterStatus, dateFrom, e.target.value) }}
+            className="bg-white/5 border border-white/10 rounded-xl px-3 py-2 text-sm text-white focus:outline-none focus:border-indigo-400/50 transition-all"
+          />
+        </div>
+        {(dateFrom || dateTo) && (
+          <button
+            onClick={() => { setDateFrom(''); setDateTo(''); fetchDispatches(search, filterStatus, '', '') }}
+            className="px-3 py-2 text-xs text-gray-400 hover:text-red-400 border border-white/10 rounded-xl transition-all font-bold uppercase tracking-wider"
+          >
+            ✕ Limpiar fechas
+          </button>
+        )}
       </div>
 
       {/* Tabla de despachos */}
