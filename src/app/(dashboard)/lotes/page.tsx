@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState, useCallback } from 'react'
+import { useEffect, useState, useCallback, useMemo, useRef } from 'react'
 import {
   Package, Plus, Search, Filter, ExternalLink,
   Clock, CheckCircle, AlertCircle, XCircle, BarChart3,
@@ -117,11 +117,15 @@ export default function LotesPage() {
   const [search, setSearch] = useState('')
   const [filterStatus, setFilterStatus] = useState('')
 
-  const fetchLots = useCallback(async () => {
+  const searchRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+
+  const fetchLots = useCallback(async (searchValue?: string, statusValue?: string) => {
     setLoading(true)
     const params = new URLSearchParams({ limit: '50' })
-    if (search) params.set('search', search)
-    if (filterStatus) params.set('status', filterStatus)
+    const s = searchValue !== undefined ? searchValue : search
+    const f = statusValue !== undefined ? statusValue : filterStatus
+    if (s) params.set('search', s)
+    if (f) params.set('status', f)
 
     const res = await fetch(`/api/lotes?${params}`)
     if (res.ok) {
@@ -132,17 +136,30 @@ export default function LotesPage() {
     setLoading(false)
   }, [search, filterStatus])
 
+  // Debounce para el campo de búsqueda (Mejora #11)
+  const handleSearchChange = (value: string) => {
+    setSearch(value)
+    if (searchRef.current) clearTimeout(searchRef.current)
+    searchRef.current = setTimeout(() => fetchLots(value, filterStatus), 350)
+  }
+
+  // Filtro de estado: disparo inmediato
+  const handleStatusChange = (value: string) => {
+    setFilterStatus(value)
+    fetchLots(search, value)
+  }
+
   useEffect(() => {
     fetchLots()
   }, [fetchLots])
 
-  // Estadísticas rápidas
-  const stats = {
+  // Estadísticas rápidas con useMemo (Mejora #18)
+  const stats = useMemo(() => ({
     total: total,
-    pending: lots.filter(l => l.overall_status === 'pending').length,
-    late: lots.filter(l => l.overall_status === 'late').length,
-    complete: lots.filter(l => l.overall_status === 'complete' || l.overall_status === 'validated' || l.overall_status === 'closed').length,
-  }
+    pending:  lots.filter(l => l.overall_status === 'pending').length,
+    late:     lots.filter(l => l.overall_status === 'late').length,
+    complete: lots.filter(l => ['complete','validated','closed'].includes(l.overall_status)).length,
+  }), [lots, total])
 
   return (
     <div className="space-y-6">
@@ -159,7 +176,7 @@ export default function LotesPage() {
         </div>
         <div className="flex items-center gap-3">
           <button
-            onClick={fetchLots}
+            onClick={() => fetchLots()}
             className="p-2.5 rounded-xl border border-white/10 text-gray-400 hover:text-white hover:bg-white/5 transition-all"
             title="Actualizar"
           >
@@ -198,7 +215,7 @@ export default function LotesPage() {
             type="text"
             placeholder="Buscar por código, nombre o cliente..."
             value={search}
-            onChange={(e) => setSearch(e.target.value)}
+            onChange={(e) => handleSearchChange(e.target.value)}
             className="w-full bg-white/5 border border-white/10 rounded-xl pl-10 pr-4 py-2.5 text-white placeholder-gray-500 text-sm focus:outline-none focus:border-green-400/50 transition-all"
           />
         </div>
@@ -206,7 +223,7 @@ export default function LotesPage() {
           <Filter className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-500" />
           <select
             value={filterStatus}
-            onChange={(e) => setFilterStatus(e.target.value)}
+            onChange={(e) => handleStatusChange(e.target.value)}
             className="bg-white/5 border border-white/10 rounded-xl pl-10 pr-8 py-2.5 text-sm text-white focus:outline-none focus:border-green-400/50 transition-all appearance-none cursor-pointer"
           >
             <option value="" className="bg-[#111827]">Todos los estados</option>
@@ -282,13 +299,14 @@ export default function LotesPage() {
             </button>
           </div>
         ) : (
-          lots.map((lot) => {
+          <div className="row-stagger">
+          {lots.map((lot) => {
             const overdue = isOverdue(lot.reception_deadline, lot.reception_status)
             return (
               <div
                 key={lot.id}
                 onClick={() => router.push(`/lotes/${lot.id}`)}
-                className="grid grid-cols-12 px-5 py-4 border-b border-white/5 hover:bg-white/3 transition-all group items-center cursor-pointer"
+                className="row-hover-glow grid grid-cols-12 px-5 py-4 border-b border-white/5 transition-all group items-center cursor-pointer"
               >
                 {/* Código + Nombre */}
                 <div className="col-span-7 sm:col-span-5 md:col-span-4 lg:col-span-3">
@@ -340,7 +358,8 @@ export default function LotesPage() {
                 </div>
               </div>
             )
-          })
+          })}
+          </div>
         )}
       </div>
 

@@ -1,8 +1,11 @@
 import type { Metadata } from 'next'
 import { Inter } from 'next/font/google'
+import { Suspense } from 'react'
 import './globals.css'
 import { AuthProvider } from '@/context/AuthContext'
 import { ThemeProvider } from '@/context/ThemeContext'
+import { ToastProvider } from '@/components/layout/Toast'
+import NavigationEvents from '@/components/layout/NavigationEvents'
 
 const inter = Inter({ subsets: ['latin'] })
 
@@ -61,7 +64,12 @@ export default function RootLayout({
       <body className={inter.className}>
         <AuthProvider>
           <ThemeProvider>
-            {children}
+            <ToastProvider>
+              <Suspense fallback={null}>
+                <NavigationEvents />
+              </Suspense>
+              {children}
+            </ToastProvider>
           </ThemeProvider>
         </AuthProvider>
       </body>

@@ -3,7 +3,7 @@
 import { useAuth } from '@/context/AuthContext'
 import { ROLE_DISPLAY_NAMES, Role, STATE_COLORS, STATE_LABELS, DocumentState } from '@/lib/constants'
 import { useSearchParams } from 'next/navigation'
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useRef, useCallback } from 'react'
 import Link from 'next/link'
 import {
   Package,
@@ -21,7 +21,44 @@ import {
   ChevronRight,
 } from 'lucide-react'
 
-// ─── StatCard ───────────────────────────────────────────────────────────────
+// ─── Hook: Animación de conteo numérico (Mejora #5) ─────────────────────────
+function useCountUp(target: number | string, duration = 900): string {
+  const [display, setDisplay] = useState('0')
+  const frameRef = useRef<number | null>(null)
+
+  useEffect(() => {
+    const num = parseInt(String(target), 10)
+    if (isNaN(num) || String(target) === '—') {
+      setDisplay(String(target))
+      return
+    }
+    let startTime: number | null = null
+    const step = (timestamp: number) => {
+      if (!startTime) startTime = timestamp
+      const elapsed = timestamp - startTime
+      const progress = Math.min(elapsed / duration, 1)
+      // Ease-out cubic
+      const eased = 1 - Math.pow(1 - progress, 3)
+      setDisplay(Math.round(eased * num).toString())
+      if (progress < 1) frameRef.current = requestAnimationFrame(step)
+    }
+    frameRef.current = requestAnimationFrame(step)
+    return () => { if (frameRef.current) cancelAnimationFrame(frameRef.current) }
+  }, [target, duration])
+
+  return display
+}
+
+// Paleta de micro-gradientes por color de acento (Mejora #4)
+const ACCENT_GRADIENTS: Record<string, string> = {
+  'text-emerald-500': 'linear-gradient(135deg, rgba(16,185,129,0.06) 0%, transparent 60%)',
+  'text-amber-500':   'linear-gradient(135deg, rgba(245,158,11,0.06) 0%, transparent 60%)',
+  'text-red-500':     'linear-gradient(135deg, rgba(239,68,68,0.06) 0%, transparent 60%)',
+  'text-slate-500':   'linear-gradient(135deg, rgba(100,116,139,0.05) 0%, transparent 60%)',
+  'text-orange-500':  'linear-gradient(135deg, rgba(249,115,22,0.06) 0%, transparent 60%)',
+  'text-purple-500':  'linear-gradient(135deg, rgba(168,85,247,0.06) 0%, transparent 60%)',
+  'text-sky-500':     'linear-gradient(135deg, rgba(14,165,233,0.06) 0%, transparent 60%)',
+}
 function StatCard({
   title, value, subtitle, icon: Icon, accent, loading = false,
 }: {
@@ -29,15 +66,19 @@ function StatCard({
   value: number | string
   subtitle?: string
   icon: React.ElementType
-  accent: string   // clase Tailwind para el color del icono/valor, ej: "text-green-500"
+  accent: string
   loading?: boolean
 }) {
+  const animated = useCountUp(loading ? '—' : value)
+  const gradient = ACCENT_GRADIENTS[accent] || 'none'
+
   return (
     <div
       className="rounded-3xl p-6 flex items-start gap-5 transition-all duration-300 hover:scale-[1.03] hover:-translate-y-1 hover:shadow-2xl hover:shadow-indigo-500/5 backdrop-blur-md cursor-pointer group"
       style={{
         backgroundColor: 'var(--bg-card)',
         border: '1px solid var(--border)',
+        backgroundImage: gradient,
       }}
     >
       <div
@@ -49,11 +90,9 @@ function StatCard({
       <div className="min-w-0">
         <p className="text-xs font-bold uppercase tracking-wider" style={{ color: 'var(--text-secondary)' }}>{title}</p>
         {loading ? (
-          <div
-            className="h-8 w-16 rounded-xl animate-pulse mt-2 bg-white/10"
-          />
+          <div className="h-8 w-16 rounded-xl animate-pulse mt-2 bg-white/10" />
         ) : (
-          <p className={`text-3xl font-black mt-1 tracking-tight ${accent}`}>{value}</p>
+          <p className={`text-3xl font-black mt-1 tracking-tight tabular-nums ${accent}`}>{animated}</p>
         )}
         {subtitle && (
           <p className="text-[11px] font-medium mt-1" style={{ color: 'var(--text-muted)' }}>{subtitle}</p>
@@ -62,6 +101,7 @@ function StatCard({
     </div>
   )
 }
+
 
 // ─── SectionHeader ──────────────────────────────────────────────────────────
 function SectionHeader({ icon: Icon, label, accent }: { icon: React.ElementType; label: string; accent: string }) {
