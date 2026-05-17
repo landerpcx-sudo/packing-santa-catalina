@@ -206,7 +206,20 @@ export default function LoteDetailPage({ params }: { params: Promise<{ id: strin
             <div><h1 className="text-2xl font-bold text-white">{lot.display_name}</h1><p className="text-gray-400 text-sm">{lot.internal_code}</p></div>
           </div>
           <div className="flex items-center gap-2">
-            <a href={`/api/lotes/${lot.id}/download-all`} className="flex items-center gap-2 px-3 py-1.5 bg-blue-500/10 border border-blue-500/20 rounded-xl text-blue-400 hover:bg-blue-500/20 transition-all text-sm"><ExternalLink className="w-4 h-4" /> Descargar Todo</a>
+            {lot.drive_folder_url && (user?.role === 'admin' || user?.canViewDrive) && (
+              <a
+                href={lot.drive_folder_url}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="flex items-center gap-1.5 px-3 py-1.5 bg-white/5 border border-white/10 rounded-xl text-gray-300 hover:text-white text-sm transition-all"
+                title="Abrir carpeta en Google Drive"
+              >
+                <Cloud className="w-4 h-4 text-blue-400" />
+                Carpeta en Drive
+                <ExternalLink className="w-3 h-3" />
+              </a>
+            )}
+            <a href={`/api/lotes/${lot.id}/download-all`} className="flex items-center gap-2 px-3 py-1.5 bg-blue-500/10 border border-blue-500/20 rounded-xl text-blue-400 hover:bg-blue-500/20 transition-all text-sm"><Download className="w-4 h-4" /> Descargar Todo</a>
             {(lot.overall_status === 'complete' || lot.overall_status === 'validated') && user?.role === 'admin' && (
               <button onClick={handleCloseLot} className="flex items-center gap-1.5 px-3 py-1.5 bg-red-500/10 border border-red-500/30 rounded-xl text-red-400 hover:bg-red-500/20 text-sm font-medium transition-all"><Lock className="w-4 h-4" /> Cerrar Lote</button>
             )}
