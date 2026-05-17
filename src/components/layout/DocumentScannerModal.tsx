@@ -274,9 +274,41 @@ export default function DocumentScannerModal({
     
     ctx.drawImage(video, drawX, drawY, drawW, drawH)
 
-    // Exportar directamente y cerrar
+    // Compresión adaptativa según resolución (Mejora #15)
+    const megapixels = (cropW * cropH) / 1_000_000
+    const quality = megapixels > 3 ? 0.85 : megapixels < 1 ? 0.92 : 0.90
 
-    // Exportar directamente y cerrar
+    // Escalar si supera 2048px (legibilidad garantizada, peso reducido)
+    const MAX_PX = 2048
+    let finalW = cropW
+    let finalH = cropH
+    if (cropW > MAX_PX) {
+      finalW = MAX_PX
+      finalH = Math.round(cropH * (MAX_PX / cropW))
+      const scaledCanvas = document.createElement('canvas')
+      scaledCanvas.width  = finalW
+      scaledCanvas.height = finalH
+      const sc = scaledCanvas.getContext('2d')!
+      sc.drawImage(canvas, 0, 0, finalW, finalH)
+      scaledCanvas.toBlob(
+        (blob) => {
+          if (blob) {
+            const cleanLabel = documentLabel.replace(/ \(.*\)/, '')
+            const fileName = `${cleanLabel} Escaneado ${lotCodeOrDispatchId}.webp`
+            const scannedFile = new File([blob], fileName, { type: 'image/webp' })
+            onScanComplete(scannedFile)
+            onClose()
+          } else {
+            alert('Error al generar el escaneo final.')
+          }
+          setProcessing(false)
+        },
+        'image/webp',
+        quality
+      )
+      return
+    }
+
     canvas.toBlob(
       (blob) => {
         if (blob) {
@@ -292,7 +324,7 @@ export default function DocumentScannerModal({
         setProcessing(false)
       },
       'image/webp',
-      0.90
+      quality
     )
   }
 

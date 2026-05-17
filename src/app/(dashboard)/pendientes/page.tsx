@@ -19,10 +19,15 @@ import {
   Calendar,
   User,
   AlertCircle,
-  ArrowRight
+  ArrowRight,
+  MessageCircle,
+  Copy,
+  CheckCheck
 } from 'lucide-react'
 import Link from 'next/link'
 import ValidationModal from '@/components/lotes/ValidationModal'
+import { useToast } from '@/components/layout/Toast'
+import { useState as useStateWSP } from 'react'
 
 interface PendingData {
   lots: any[]
@@ -36,10 +41,50 @@ export default function PendientesPage() {
   const [loading, setLoading] = useState(true)
   const [activeTab, setActiveTab] = useState<'all' | 'lots' | 'dispatches'>('all')
   const [searchTerm, setSearchTerm] = useState('')
+  const [copied, setCopied] = useState(false)
+  const toast = useToast()
   
   // Modal state
   const [modalOpen, setModalOpen] = useState(false)
   const [selectedDoc, setSelectedDoc] = useState<{ id: string, name: string, table: string } | null>(null)
+
+  // ─── Generador de mensaje WhatsApp (#25 personalizado)
+  const buildWhatsAppMessage = () => {
+    const fechaHoy = new Date().toLocaleDateString('es-CL', { weekday: 'long', day: 'numeric', month: 'long' })
+    const pendLotes = data.lots.map(l => `  • Lote ${l.internal_code} (${l.client || 'sin cliente'})`).join('\n')
+    const pendDesp  = data.dispatches.map(d => `  • Despacho ${d.internal_code} (${d.client || 'sin cliente'})`).join('\n')
+
+    const partes: string[] = []
+    if (pendLotes) partes.push(`📦 *Lotes pendientes:*\n${pendLotes}`)
+    if (pendDesp)  partes.push(`🚚 *Despachos pendientes:*\n${pendDesp}`)
+
+    if (partes.length === 0) return null
+
+    return `👋 Hola equipo,
+
+Les escribo cord ialmente para recordarles que al día de hoy *${fechaHoy}* los siguientes documentos aún no han sido subidos al sistema de control documental de Packing Santa Catalina:
+
+${partes.join('\n\n')}
+
+Les agradecemos mucho si pueden subir sus reportes a la brevedad posible. Si tienen alguna dificultad o necesitan ayuda con la plataforma, no duden en consultarnos.
+
+¡Muchas gracias por su colaboración! 🙏`
+  }
+
+  const handleCopyWSP = () => {
+    const msg = buildWhatsAppMessage()
+    if (!msg) {
+      toast.success('¡Todo está al día! No hay pendientes para notificar 🎉')
+      return
+    }
+    navigator.clipboard.writeText(msg).then(() => {
+      setCopied(true)
+      toast.success('Mensaje copiado. ¡Pégalo en tu grupo de WhatsApp!')
+      setTimeout(() => setCopied(false), 3000)
+    }).catch(() => {
+      toast.error('No se pudo copiar. Intenta manualmente.')
+    })
+  }
 
   useEffect(() => {
     fetchPendientes()
@@ -89,6 +134,22 @@ export default function PendientesPage() {
         </div>
         
         <div className="flex items-center gap-3">
+          {/* Botón WhatsApp (#25 personalizado) */}
+          <button
+            onClick={handleCopyWSP}
+            disabled={loading}
+            className="flex items-center gap-2 px-4 py-2 rounded-xl font-bold text-sm transition-all duration-200 border disabled:opacity-40 disabled:cursor-not-allowed active:scale-95"
+            style={{
+              backgroundColor: copied ? 'rgba(34,197,94,0.15)' : 'rgba(37,211,102,0.12)',
+              borderColor: copied ? 'rgba(34,197,94,0.4)' : 'rgba(37,211,102,0.3)',
+              color: copied ? '#86efac' : '#4ade80',
+            }}
+            title="Copiar mensaje de recordatorio para WhatsApp"
+          >
+            {copied ? <CheckCheck className="w-4 h-4" /> : <MessageCircle className="w-4 h-4" />}
+            <span className="hidden sm:inline">{copied ? '¡Copiado!' : 'Recordatorio WSP'}</span>
+          </button>
+
           <div className="relative">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500 w-4 h-4" />
             <input 

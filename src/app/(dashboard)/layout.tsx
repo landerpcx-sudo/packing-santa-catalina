@@ -1,5 +1,6 @@
 import Sidebar from '@/components/layout/Sidebar'
 import PageWrapper from '@/components/layout/PageWrapper'
+import BottomNav from '@/components/layout/BottomNav'
 import { ReactNode } from 'react'
 
 export default function DashboardLayout({ children }: { children: ReactNode }) {
@@ -10,12 +11,13 @@ export default function DashboardLayout({ children }: { children: ReactNode }) {
     >
       <Sidebar />
       <main className="flex-1 min-w-0 lg:ml-0">
-        <div className="p-4 lg:p-8 pt-16 lg:pt-8">
+        <div className="p-4 lg:p-8 pt-16 lg:pt-8 pb-24 lg:pb-8">
           <PageWrapper>
             {children}
           </PageWrapper>
         </div>
       </main>
+      <BottomNav />
     </div>
   )
 }

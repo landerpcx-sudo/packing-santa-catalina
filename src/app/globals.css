@@ -1,6 +1,32 @@
 @import "tailwindcss";
 
 /* =============================================
+   TIPOGRAFÍA PREMIUM CON PESO VARIABLE (#1)
+   Font-display: optional evita el FOUT
+   ============================================= */
+@import url('https://fonts.googleapis.com/css2?family=Inter:ital,opsz,wght@0,14..32,100..900;1,14..32,100..900&display=optional');
+
+/* Ajustes globales de tipografía */
+*, *::before, *::after {
+  font-family: 'Inter', system-ui, -apple-system, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* Headings con tracking ajustado */
+h1, h2, h3, h4 {
+  letter-spacing: -0.025em;
+  font-feature-settings: "cv02", "cv03", "cv04", "cv11";
+}
+
+/* Números tabulares para tablas y stats */
+.tabular-nums {
+  font-variant-numeric: tabular-nums;
+  font-feature-settings: "tnum";
+}
+
+
+/* =============================================
    VARIABLES DE TEMA — MODO OSCURO (default)
    ============================================= */
 :root,

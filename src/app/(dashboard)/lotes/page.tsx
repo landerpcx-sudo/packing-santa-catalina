@@ -116,6 +116,8 @@ export default function LotesPage() {
   const router = useRouter()
   const [search, setSearch] = useState('')
   const [filterStatus, setFilterStatus] = useState('')
+  const [dateFrom, setDateFrom] = useState('')
+  const [dateTo, setDateTo] = useState('')
 
   const searchRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
@@ -126,6 +128,8 @@ export default function LotesPage() {
     const f = statusValue !== undefined ? statusValue : filterStatus
     if (s) params.set('search', s)
     if (f) params.set('status', f)
+    if (dateFrom) params.set('from', dateFrom)
+    if (dateTo)   params.set('to', dateTo)
 
     const res = await fetch(`/api/lotes?${params}`)
     if (res.ok) {
@@ -234,6 +238,37 @@ export default function LotesPage() {
           </select>
         </div>
       </div>
+
+      {/* Filtro de rango de fechas (#24) */}
+      <div className="flex flex-wrap items-center gap-3">
+        <div className="flex items-center gap-2">
+          <span className="text-gray-500 text-xs font-bold uppercase tracking-wider whitespace-nowrap">Desde</span>
+          <input
+            type="date"
+            value={dateFrom}
+            onChange={(e) => { setDateFrom(e.target.value); fetchLots(search, filterStatus) }}
+            className="bg-white/5 border border-white/10 rounded-xl px-3 py-2 text-sm text-white focus:outline-none focus:border-green-400/50 transition-all"
+          />
+        </div>
+        <div className="flex items-center gap-2">
+          <span className="text-gray-500 text-xs font-bold uppercase tracking-wider whitespace-nowrap">Hasta</span>
+          <input
+            type="date"
+            value={dateTo}
+            onChange={(e) => { setDateTo(e.target.value); fetchLots(search, filterStatus) }}
+            className="bg-white/5 border border-white/10 rounded-xl px-3 py-2 text-sm text-white focus:outline-none focus:border-green-400/50 transition-all"
+          />
+        </div>
+        {(dateFrom || dateTo) && (
+          <button
+            onClick={() => { setDateFrom(''); setDateTo(''); fetchLots() }}
+            className="px-3 py-2 text-xs text-gray-400 hover:text-red-400 border border-white/10 rounded-xl transition-all font-bold uppercase tracking-wider"
+          >
+            ✕ Limpiar fechas
+          </button>
+        )}
+      </div>
+
 
       {/* Tabla de lotes */}
       <div className="bg-white/3 border border-white/8 rounded-2xl overflow-hidden">

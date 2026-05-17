@@ -5,6 +5,8 @@ import { ROLE_DISPLAY_NAMES, Role, STATE_COLORS, STATE_LABELS, DocumentState } f
 import { useSearchParams } from 'next/navigation'
 import { useEffect, useState, useRef, useCallback } from 'react'
 import Link from 'next/link'
+import useSWR from 'swr'
+import { useToast } from '@/components/layout/Toast'
 import {
   Package,
   Thermometer,
@@ -125,102 +127,69 @@ export function StatusBadge({ state }: { state: string }) {
 }
 
 // ─── Dashboard Page ──────────────────────────────────────────────────────────
+const fetcher = (url: string) => fetch(url).then(r => r.json())
+
 export default function DashboardPage() {
   const { user } = useAuth()
+  const toast = useToast()
   const [googleConnected, setGoogleConnected] = useState(false)
 
-  const [lotesStats, setLotesStats] = useState({
-    total: '—', completos: '—', incompletos: '—', atrasados: '—',
-    recPending: '—', qualPending: '—', procPending: '—',
-  })
-  const [tempStats, setTempStats] = useState({
-    todayReportStatus: '—', total: '—', pendientes: '—', atrasados: '—',
-  })
-  const [despStats, setDespStats] = useState({
-    total: '—', pendientes: '—', atrasados: '—', completos: '—',
-  })
-  const [loading, setLoading] = useState(true)
+  // SWR con refresco silencioso cada 60s (Mejora #12)
+  const { data: lotesData,    isLoading: loadingLotes }  = useSWR('/api/lotes?limit=200',        fetcher, { refreshInterval: 60_000, dedupingInterval: 30_000 })
+  const { data: tempData,     isLoading: loadingTemp }   = useSWR('/api/temperaturas',            fetcher, { refreshInterval: 60_000, dedupingInterval: 30_000 })
+  const { data: despData,     isLoading: loadingDesp }   = useSWR('/api/despachos?limit=200',     fetcher, { refreshInterval: 60_000, dedupingInterval: 30_000 })
+  const { data: driveStatus }                            = useSWR('/api/settings/drive-status',   fetcher, { revalidateOnFocus: false })
+
+  const loading = loadingLotes || loadingTemp || loadingDesp
+
+  // Derivar estadísticas desde los datos SWR
+  const lotes = lotesData?.data ?? []
+  const temps = tempData?.data ?? []
+  const desps = despData?.data ?? []
+  const today = new Date().toISOString().split('T')[0]
+  const todayReport = temps.find((r: any) => r.report_date === today)
+
+  const lotesStats = {
+    total:       (lotesData?.total ?? lotes.length).toString(),
+    completos:   lotes.filter((l: any) => ['complete','validated','closed'].includes(l.overall_status)).length.toString(),
+    incompletos: lotes.filter((l: any) => ['uploaded','pending',undefined,null,''].includes(l.overall_status)).length.toString(),
+    atrasados:   lotes.filter((l: any) => l.overall_status === 'observed').length.toString(),
+    recPending:  lotes.filter((l: any) => l.reception_status === 'pending').length.toString(),
+    qualPending: lotes.filter((l: any) => l.quality_status === 'pending').length.toString(),
+    procPending: lotes.filter((l: any) => l.process_status === 'pending').length.toString(),
+  }
+  const tempStats = {
+    todayReportStatus: todayReport ? (todayReport.temperature_value ? `${todayReport.temperature_value}°C` : 'Subido') : 'Sin datos',
+    total:      (tempData?.total ?? temps.length).toString(),
+    pendientes: temps.filter((r: any) => r.status === 'pending').length.toString(),
+    atrasados:  temps.filter((r: any) => r.status === 'late' || r.status === 'observed').length.toString(),
+  }
+  const despStats = {
+    total:      (despData?.total ?? desps.length).toString(),
+    pendientes: desps.filter((d: any) => ['pending','uploaded','observed','late'].includes(d.overall_status)).length.toString(),
+    atrasados:  desps.filter((d: any) => d.overall_status === 'late').length.toString(),
+    completos:  desps.filter((d: any) => ['complete','closed'].includes(d.overall_status)).length.toString(),
+  }
 
   useEffect(() => {
-    async function fetchAll() {
-      try {
-        // Google Drive status
-        if (!googleConnected) {
-          const r = await fetch('/api/settings/drive-status')
-          if (r.ok) {
-            const d = await r.json()
-            if (d.connected) setGoogleConnected(true)
-          }
-        }
+    if (driveStatus?.connected) setGoogleConnected(true)
+  }, [driveStatus])
 
-        // Lotes
-        const lotesRes = await fetch('/api/lotes')
-        if (lotesRes.ok) {
-          const { data, total } = await lotesRes.json()
-          if (Array.isArray(data)) {
-            setLotesStats({
-              total:       (total ?? data.length).toString(),
-              completos:   data.filter((l: any) => l.overall_status === 'complete' || l.overall_status === 'validated' || l.overall_status === 'closed').length.toString(),
-              incompletos: data.filter((l: any) => ['uploaded','pending',undefined,null,''].includes(l.overall_status)).length.toString(),
-              atrasados:   data.filter((l: any) => l.overall_status === 'observed').length.toString(),
-              recPending:  data.filter((l: any) => l.reception_status === 'pending').length.toString(),
-              qualPending: data.filter((l: any) => l.quality_status === 'pending').length.toString(),
-              procPending: data.filter((l: any) => l.process_status === 'pending').length.toString(),
-            })
-          }
-        }
 
-        // Temperaturas
-        const tempRes = await fetch('/api/temperaturas')
-        if (tempRes.ok) {
-          const { data, total } = await tempRes.json()
-          if (Array.isArray(data)) {
-            const today = new Date().toISOString().split('T')[0]
-            const todayReport = data.find((r: any) => r.report_date === today)
-            setTempStats({
-              todayReportStatus: todayReport ? (todayReport.temperature_value ? `${todayReport.temperature_value}°C` : 'Subido') : 'Sin datos',
-              total:     (total ?? data.length).toString(),
-              pendientes: data.filter((r: any) => r.status === 'pending').length.toString(),
-              atrasados:  data.filter((r: any) => r.status === 'late' || r.status === 'observed').length.toString(),
-            })
-          }
-        }
 
-        // Despachos
-        const despRes = await fetch('/api/despachos?limit=200')
-        if (despRes.ok) {
-          const { data, total } = await despRes.json()
-          if (Array.isArray(data)) {
-            setDespStats({
-              total:      (total ?? data.length).toString(),
-              pendientes: data.filter((d: any) => ['pending','uploaded','observed','late'].includes(d.overall_status)).length.toString(),
-              atrasados:  data.filter((d: any) => d.overall_status === 'late').length.toString(),
-              completos:  data.filter((d: any) => d.overall_status === 'complete' || d.overall_status === 'closed').length.toString(),
-            })
-          }
-        }
-      } catch (err) {
-        console.error('Error cargando datos del dashboard:', err)
-      } finally {
-        setLoading(false)
-      }
-    }
-    fetchAll()
-  }, [googleConnected])
 
   useEffect(() => {
     const searchParams = new URLSearchParams(window.location.search)
-    const error = searchParams.get('google_error')
+    const error     = searchParams.get('google_error')
     const connected = searchParams.get('google_connected')
-    
     if (error) {
-      alert(`Error al conectar con Google Drive: ${decodeURIComponent(error)}`)
+      toast.error(`Error al conectar con Google Drive: ${decodeURIComponent(error)}`)
       window.history.replaceState({}, document.title, '/dashboard')
     } else if (connected === 'true') {
-      alert('¡Sincronización con Google Drive activada correctamente!')
+      toast.success('¡Sincronización con Google Drive activada correctamente!')
       window.history.replaceState({}, document.title, '/dashboard')
     }
-  }, [])
+  }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
   return (
     <div className="space-y-8">
