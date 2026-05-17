@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/lib/supabase-admin'
-const archiver = require('archiver')
+import * as archiver from 'archiver'
 
 export async function GET(
   _request: Request,
