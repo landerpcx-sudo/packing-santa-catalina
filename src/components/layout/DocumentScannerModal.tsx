@@ -24,7 +24,7 @@ export default function DocumentScannerModal({
   const [rotation, setRotation] = useState<number>(0)
   const [filter, setFilter] = useState<FilterType>('scan')
   
-  // Recorte (porcentajes de margen 0 a 50)
+  // Recorte (porcentajes de margen 0 a 45)
   const [cropTop, setCropTop] = useState<number>(5)
   const [cropBottom, setCropBottom] = useState<number>(5)
   const [cropLeft, setCropLeft] = useState<number>(5)
@@ -319,270 +319,280 @@ export default function DocumentScannerModal({
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black sm:bg-black/90 sm:backdrop-blur-md overflow-hidden">
-      <div className="relative w-full h-full sm:h-auto sm:max-h-[92vh] sm:max-w-lg bg-[#0b0f19] sm:border sm:border-white/10 sm:rounded-3xl overflow-hidden shadow-2xl flex flex-col">
-        {/* Header */}
-        <div className="flex items-center justify-between px-4 py-3 border-b border-white/5 bg-white/2 shrink-0">
-          <div>
-            <h3 className="text-white font-bold text-sm flex items-center gap-2">
-              <Sparkles className="text-emerald-400 w-4 h-4 animate-pulse" />
-              Escáner Móvil Inteligente
-            </h3>
-            <p className="text-[9px] text-gray-500 font-bold uppercase tracking-widest mt-0.5">{documentLabel}</p>
-          </div>
-          <button 
-            disabled={processing}
-            onClick={onClose} 
-            className="p-1.5 hover:bg-white/5 text-gray-400 hover:text-white rounded-xl transition-all"
-          >
-            <X size={18} />
-          </button>
-        </div>
-
-        {/* Body */}
-        <div className="flex-1 overflow-hidden p-4 flex flex-col justify-between min-h-0 bg-[#0d121f]">
-          {/* Input de cámara del sistema (para fallback) */}
-          <input 
-            type="file" 
-            ref={fileInputRef}
-            onChange={handleFileChange}
-            accept="image/*"
-            capture="environment"
-            className="hidden"
-          />
-
-          {!imageSrc ? (
-            /* PASO 1: Captura de Foto */
-            useLiveCamera && stream ? (
-              /* A. Cámara en vivo incrustada en la web */
-              <div className="flex-1 flex flex-col justify-between min-h-0">
-                {/* Contenedor de Video Flexible */}
-                <div className="relative w-full flex-1 min-h-0 bg-black rounded-2xl overflow-hidden border border-white/10 flex items-center justify-center shadow-lg shadow-black">
-                  <video 
-                    ref={videoRef}
-                    autoPlay 
-                    playsInline 
-                    muted 
-                    className="absolute inset-0 w-full h-full object-cover"
-                  />
-                  {/* Grid de encuadre */}
-                  <div className="absolute inset-4 border border-dashed border-emerald-400/40 rounded-xl pointer-events-none flex items-center justify-center">
-                    <div className="w-[85%] h-[85%] border-2 border-emerald-400/60 rounded-lg flex items-center justify-center">
-                      <span className="text-[10px] bg-emerald-600/95 text-white font-black px-2.5 py-1 rounded uppercase tracking-wider shadow-md">
-                        Alinea el papel aquí
-                      </span>
-                    </div>
-                  </div>
-                </div>
-
-                {/* Botones de control inferiores */}
-                <div className="flex items-center gap-3 w-full pt-4 mt-auto shrink-0">
-                  <button
-                    onClick={() => {
-                      stopLiveCamera()
-                      setUseLiveCamera(false)
-                      triggerNativeCamera()
-                    }}
-                    className="flex-1 py-3 px-3 bg-white/5 hover:bg-white/10 text-gray-400 hover:text-white rounded-xl text-xs font-bold uppercase transition-all"
-                  >
-                    Cámara Celu
-                  </button>
-                  <button
-                    onClick={captureLiveFrame}
-                    className="flex-2 py-3.5 px-6 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl text-xs font-black uppercase tracking-widest shadow-lg shadow-emerald-600/30 flex items-center justify-center gap-2"
-                  >
-                    <Camera size={16} /> Capturar Foto
-                  </button>
-                </div>
-              </div>
-            ) : (
-              /* B. Fallback: Botón para tomar foto con cámara del sistema */
-              <div className="flex flex-col items-center justify-center py-10 text-center space-y-6 shrink-0">
-                <div className="w-20 h-20 bg-emerald-500/10 border border-emerald-500/20 rounded-full flex items-center justify-center text-emerald-400 shadow-xl shadow-emerald-500/5 animate-pulse">
-                  <Camera size={38} />
-                </div>
-                <div className="space-y-2">
-                  <h4 className="text-white font-bold text-base">Escanear con Cámara del Sistema</h4>
-                  <p className="text-xs text-gray-400 max-w-xs mx-auto">
-                    Toma una foto de tu reporte. Al regresar de la cámara, el sistema te permitirá recortar la mesa y contrastar el documento.
-                  </p>
-                </div>
-
-                {cameraError && (
-                  <div className="flex items-start gap-2 max-w-xs mx-auto p-3 bg-amber-500/5 border border-amber-500/10 rounded-xl text-amber-400 text-[10px] font-bold text-left uppercase">
-                    <AlertCircle size={14} className="shrink-0" />
-                    <span>{cameraError}</span>
-                  </div>
-                )}
-
-                <button
-                  onClick={triggerNativeCamera}
-                  className="w-full max-w-xs py-3.5 px-6 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl font-bold text-xs uppercase tracking-widest transition-all shadow-xl shadow-emerald-600/25 flex items-center justify-center gap-2"
-                >
-                  <Camera size={16} />
-                  Abrir Cámara
-                </button>
-              </div>
-            )
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black overflow-hidden select-none touch-none">
+      
+      {/* -------------------- PASO 1: CAPTURA DE FOTO -------------------- */}
+      {!imageSrc && (
+        <>
+          {/* Cámara en vivo como fondo completo */}
+          {useLiveCamera && stream ? (
+            <video 
+              ref={videoRef}
+              autoPlay 
+              playsInline 
+              muted 
+              className="absolute inset-0 w-full h-full object-cover z-0"
+            />
           ) : (
-            /* PASO 2: Herramientas de Edición */
-            <div className="flex-1 flex flex-col justify-between min-h-0 space-y-3">
-              {/* Contenedor de Previsualización Recortable Flexible */}
-              <div className="relative flex-1 min-h-0 mx-auto w-full border border-white/5 rounded-2xl overflow-hidden bg-black/40 flex items-center justify-center shadow-inner">
-                <div 
-                  className="relative w-full h-full transition-transform duration-300 flex items-center justify-center p-2"
-                  style={{ transform: `rotate(${rotation}deg)` }}
-                >
-                  <img 
-                    ref={imageRef}
-                    src={imageSrc} 
-                    alt="Original" 
-                    className="max-w-full max-h-full object-contain rounded-lg"
-                  />
-
-                  {/* Máscara de recorte */}
-                  <div 
-                    className="absolute border-2 border-dashed border-emerald-400 bg-emerald-400/5 pointer-events-none rounded-lg"
-                    style={{
-                      top: `${cropTop}%`,
-                      bottom: `${cropBottom}%`,
-                      left: `${cropLeft}%`,
-                      right: `${cropRight}%`
-                    }}
-                  >
-                    <span className="absolute top-2 left-2 text-[9px] bg-emerald-600 text-white px-1.5 py-0.5 rounded-md font-black uppercase tracking-wider">
-                      Área Escaneada
-                    </span>
-                  </div>
-                </div>
+            /* Fallback en el centro si no hay stream */
+            <div className="absolute inset-0 flex flex-col items-center justify-center p-6 text-center bg-[#0d121f] space-y-6 z-0">
+              <div className="w-20 h-20 bg-emerald-500/10 border border-emerald-500/20 rounded-full flex items-center justify-center text-emerald-400 shadow-xl shadow-emerald-500/5 animate-pulse">
+                <Camera size={38} />
               </div>
-
-              {/* Sliders táctiles compactos */}
-              <div className="bg-[#131924] border border-white/5 rounded-2xl p-3 space-y-2 shrink-0">
-                <p className="text-[9px] font-black text-gray-500 uppercase tracking-widest mb-0.5">
-                  Ajuste de Bordes (Quitar Mesa/Fondo)
+              <div className="space-y-2">
+                <h4 className="text-white font-bold text-base">Escanear con Cámara del Sistema</h4>
+                <p className="text-xs text-gray-400 max-w-xs mx-auto">
+                  Toma una foto de tu reporte. Al regresar de la cámara, el sistema te permitirá recortar la mesa y contrastar el documento.
                 </p>
-                <div className="grid grid-cols-2 gap-2">
-                  <div className="space-y-0.5">
-                    <div className="flex justify-between text-[8px] text-gray-400 font-bold uppercase">
-                      <span>Arriba ({cropTop}%)</span>
-                    </div>
-                    <input 
-                      type="range" min="0" max="45" value={cropTop} 
-                      onChange={e => setCropTop(Number(e.target.value))}
-                      className="w-full accent-emerald-500 bg-white/5 h-1 rounded-lg appearance-none cursor-pointer"
-                    />
-                  </div>
-                  <div className="space-y-0.5">
-                    <div className="flex justify-between text-[8px] text-gray-400 font-bold uppercase">
-                      <span>Abajo ({cropBottom}%)</span>
-                    </div>
-                    <input 
-                      type="range" min="0" max="45" value={cropBottom} 
-                      onChange={e => setCropBottom(Number(e.target.value))}
-                      className="w-full accent-emerald-500 bg-white/5 h-1 rounded-lg appearance-none cursor-pointer"
-                    />
-                  </div>
-                  <div className="space-y-0.5">
-                    <div className="flex justify-between text-[8px] text-gray-400 font-bold uppercase">
-                      <span>Izquierda ({cropLeft}%)</span>
-                    </div>
-                    <input 
-                      type="range" min="0" max="45" value={cropLeft} 
-                      onChange={e => setCropLeft(Number(e.target.value))}
-                      className="w-full accent-emerald-500 bg-white/5 h-1 rounded-lg appearance-none cursor-pointer"
-                    />
-                  </div>
-                  <div className="space-y-0.5">
-                    <div className="flex justify-between text-[8px] text-gray-400 font-bold uppercase">
-                      <span>Derecha ({cropRight}%)</span>
-                    </div>
-                    <input 
-                      type="range" min="0" max="45" value={cropRight} 
-                      onChange={e => setCropRight(Number(e.target.value))}
-                      className="w-full accent-emerald-500 bg-white/5 h-1 rounded-lg appearance-none cursor-pointer"
-                    />
-                  </div>
-                </div>
               </div>
 
-              {/* Botones de Control de Filtros y Rotación */}
-              <div className="flex items-center justify-between gap-2 shrink-0">
-                <button
-                  onClick={rotateImage}
-                  className="px-3 py-2.5 bg-white/5 hover:bg-white/10 text-white rounded-xl text-[10px] font-bold uppercase tracking-wider transition-all flex items-center gap-1.5 border border-white/5 shrink-0"
-                >
-                  <RotateCw size={12} /> Rotar 90°
-                </button>
-
-                <div className="flex bg-white/5 p-0.5 rounded-xl border border-white/5 flex-1 justify-around">
-                  {(['color', 'grayscale', 'scan'] as FilterType[]).map((f) => (
-                    <button
-                      key={f}
-                      onClick={() => setFilter(f)}
-                      className={`px-2 py-2 text-[9px] font-black uppercase tracking-wider rounded-lg transition-all flex-1 text-center
-                        ${filter === f 
-                          ? 'bg-emerald-600/20 text-emerald-400 border border-emerald-500/20 shadow-sm' 
-                          : 'text-gray-400 hover:text-white'
-                        }
-                      `}
-                    >
-                      {f === 'color' ? 'Original' : f === 'grayscale' ? 'Grises' : 'Escáner'}
-                    </button>
-                  ))}
+              {cameraError && (
+                <div className="flex items-start gap-2 max-w-xs mx-auto p-3 bg-amber-500/5 border border-amber-500/10 rounded-xl text-amber-400 text-[10px] font-bold text-left uppercase">
+                  <AlertCircle size={14} className="shrink-0" />
+                  <span>{cameraError}</span>
                 </div>
-              </div>
+              )}
 
-              {/* Ahorro de peso */}
-              <div className="bg-emerald-500/5 border border-emerald-500/10 rounded-2xl px-4 py-2 text-[9px] text-emerald-400/90 font-bold flex items-center justify-between uppercase tracking-wider shrink-0">
-                <span className="flex items-center gap-1">
-                  <Sparkles size={10} className="animate-pulse" />
-                  Peso Original: {formatMB(originalSize)}
+              <button
+                onClick={triggerNativeCamera}
+                className="w-full max-w-xs py-3.5 px-6 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl font-bold text-xs uppercase tracking-widest transition-all shadow-xl shadow-emerald-600/25 flex items-center justify-center gap-2 border border-emerald-500/20"
+              >
+                <Camera size={16} />
+                Abrir Cámara
+              </button>
+            </div>
+          )}
+
+          {/* Grid de encuadre en el medio (solo si hay cámara en vivo) */}
+          {useLiveCamera && stream && (
+            <div className="absolute inset-0 flex items-center justify-center p-6 pointer-events-none z-10">
+              <div className="w-[88%] h-[68%] border-2 border-dashed border-emerald-400/55 rounded-2xl flex flex-col items-center justify-end pb-8">
+                <span className="text-[10px] bg-emerald-600/95 text-white font-black px-3 py-1 rounded-full uppercase tracking-wider shadow-lg border border-emerald-500/20 backdrop-blur-sm">
+                  Alinea el papel aquí
                 </span>
-                <span>→</span>
-                <span>Peso Estimado: ~200 KB (Ahorro ~96%)</span>
               </div>
             </div>
           )}
-        </div>
 
-        {/* Footer */}
-        {imageSrc && (
-          <div className="px-4 py-3.5 border-t border-white/5 bg-white/2 flex items-center justify-between gap-3 shrink-0">
-            <button
-              disabled={processing}
-              onClick={() => {
-                setImageSrc(null)
-                startLiveCamera()
-              }}
-              className="px-4 py-3 border border-white/10 text-gray-400 hover:text-white rounded-xl text-xs font-bold uppercase tracking-wider transition-all flex items-center gap-1.5"
-            >
-              <Undo size={14} /> Re-tomar
-            </button>
+          {/* Botonera de control inferior flotante */}
+          {useLiveCamera && stream && (
+            <div className="absolute bottom-0 inset-x-0 bg-gradient-to-t from-black via-black/45 to-transparent p-6 z-20 flex items-center justify-center pb-8">
+              <div className="flex items-center gap-3 w-full max-w-sm">
+                <button
+                  onClick={() => {
+                    stopLiveCamera()
+                    setUseLiveCamera(false)
+                    triggerNativeCamera()
+                  }}
+                  className="flex-1 py-3 px-3 bg-white/10 hover:bg-white/20 text-white rounded-xl text-xs font-bold uppercase transition-all backdrop-blur-md border border-white/15 shadow-md"
+                >
+                  Cámara Celu
+                </button>
+                <button
+                  onClick={captureLiveFrame}
+                  className="flex-2 py-3.5 px-6 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl text-xs font-black uppercase tracking-widest shadow-lg shadow-emerald-600/40 flex items-center justify-center gap-2 border border-emerald-500/20"
+                >
+                  <Camera size={16} /> Capturar Foto
+                </button>
+              </div>
+            </div>
+          )}
+        </>
+      )}
 
-            <button
-              disabled={processing}
-              onClick={handleSave}
-              className="px-6 py-3 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl text-xs font-bold uppercase tracking-widest transition-all shadow-lg shadow-emerald-600/20 flex items-center gap-2 disabled:opacity-50"
+      {/* -------------------- PASO 2: HERRAMIENTAS DE EDICIÓN -------------------- */}
+      {imageSrc && (
+        <>
+          {/* Fondo para la edición */}
+          <div className="absolute inset-0 bg-[#070b13] z-0" />
+
+          {/* Contenedor de Previsualización Recortable en el Centro */}
+          <div className="absolute inset-0 flex items-center justify-center p-4 z-10 pb-[280px] pt-[75px]">
+            <div 
+              className="relative w-full h-full transition-transform duration-300 flex items-center justify-center"
+              style={{ transform: `rotate(${rotation}deg)` }}
             >
-              {processing ? (
-                <>
-                  <RefreshCw size={14} className="animate-spin" />
-                  Escaneando...
-                </>
-              ) : (
-                <>
-                  <Check size={14} />
-                  Usar Escaneo
-                </>
-              )}
-            </button>
+              <img 
+                ref={imageRef}
+                src={imageSrc} 
+                alt="Original" 
+                className="max-w-full max-h-full object-contain rounded-xl shadow-2xl border border-white/5"
+              />
+
+              {/* Máscara de recorte */}
+              <div 
+                className="absolute border-2 border-dashed border-emerald-400 bg-emerald-400/5 pointer-events-none rounded-lg"
+                style={{
+                  top: `${cropTop}%`,
+                  bottom: `${cropBottom}%`,
+                  left: `${cropLeft}%`,
+                  right: `${cropRight}%`
+                }}
+              >
+                <span className="absolute top-2 left-2 text-[9px] bg-emerald-600 text-white px-1.5 py-0.5 rounded-md font-black uppercase tracking-wider border border-emerald-500/20 shadow-md">
+                  Área Escaneada
+                </span>
+              </div>
+            </div>
           </div>
-        )}
 
-        {/* Canvas invisible para procesamiento */}
-        <canvas ref={canvasRef} className="hidden" />
+          {/* Panel de control de edición flotante inferior */}
+          <div className="absolute bottom-0 inset-x-0 bg-gradient-to-t from-black via-black/90 to-transparent p-4 pb-6 z-20 flex flex-col gap-3">
+            {/* Sliders táctiles */}
+            <div className="bg-[#131924]/95 border border-white/10 rounded-2xl p-3 space-y-2 backdrop-blur-md max-w-md mx-auto w-full shadow-xl">
+              <p className="text-[9px] font-black text-gray-400 uppercase tracking-widest mb-0.5 flex items-center gap-1.5">
+                <Sparkles size={11} className="text-emerald-400" />
+                Ajuste de Bordes (Quitar Mesa/Fondo)
+              </p>
+              <div className="grid grid-cols-2 gap-2">
+                <div className="space-y-0.5">
+                  <div className="flex justify-between text-[8px] text-gray-400 font-bold uppercase">
+                    <span>Arriba</span>
+                    <span>{cropTop}%</span>
+                  </div>
+                  <input 
+                    type="range" min="0" max="45" value={cropTop} 
+                    onChange={e => setCropTop(Number(e.target.value))}
+                    className="w-full accent-emerald-500 bg-white/10 h-1.5 rounded-lg appearance-none cursor-pointer"
+                  />
+                </div>
+                <div className="space-y-0.5">
+                  <div className="flex justify-between text-[8px] text-gray-400 font-bold uppercase">
+                    <span>Abajo</span>
+                    <span>{cropBottom}%</span>
+                  </div>
+                  <input 
+                    type="range" min="0" max="45" value={cropBottom} 
+                    onChange={e => setCropBottom(Number(e.target.value))}
+                    className="w-full accent-emerald-500 bg-white/10 h-1.5 rounded-lg appearance-none cursor-pointer"
+                  />
+                </div>
+                <div className="space-y-0.5">
+                  <div className="flex justify-between text-[8px] text-gray-400 font-bold uppercase">
+                    <span>Izquierda</span>
+                    <span>{cropLeft}%</span>
+                  </div>
+                  <input 
+                    type="range" min="0" max="45" value={cropLeft} 
+                    onChange={e => setCropLeft(Number(e.target.value))}
+                    className="w-full accent-emerald-500 bg-white/10 h-1.5 rounded-lg appearance-none cursor-pointer"
+                  />
+                </div>
+                <div className="space-y-0.5">
+                  <div className="flex justify-between text-[8px] text-gray-400 font-bold uppercase">
+                    <span>Derecha</span>
+                    <span>{cropRight}%</span>
+                  </div>
+                  <input 
+                    type="range" min="0" max="45" value={cropRight} 
+                    onChange={e => setCropRight(Number(e.target.value))}
+                    className="w-full accent-emerald-500 bg-white/10 h-1.5 rounded-lg appearance-none cursor-pointer"
+                  />
+                </div>
+              </div>
+            </div>
+
+            {/* Filtros y Rotación */}
+            <div className="flex items-center justify-between gap-2 max-w-md mx-auto w-full">
+              <button
+                onClick={rotateImage}
+                className="px-3.5 py-2.5 bg-white/10 hover:bg-white/20 text-white rounded-xl text-[10px] font-bold uppercase tracking-wider transition-all flex items-center gap-1.5 border border-white/10 shrink-0 backdrop-blur-md"
+              >
+                <RotateCw size={12} /> Rotar 90°
+              </button>
+
+              <div className="flex bg-white/10 p-0.5 rounded-xl border border-white/10 flex-1 justify-around backdrop-blur-md">
+                {(['color', 'grayscale', 'scan'] as FilterType[]).map((f) => (
+                  <button
+                    key={f}
+                    onClick={() => setFilter(f)}
+                    className={`px-2 py-2 text-[9px] font-black uppercase tracking-wider rounded-lg transition-all flex-1 text-center
+                      ${filter === f 
+                        ? 'bg-emerald-600/35 text-emerald-300 border border-emerald-500/30 shadow-sm' 
+                        : 'text-gray-300 hover:text-white'
+                      }
+                    `}
+                  >
+                    {f === 'color' ? 'Original' : f === 'grayscale' ? 'Grises' : 'Escáner'}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* Ahorro de peso */}
+            <div className="bg-emerald-500/10 border border-emerald-500/25 rounded-2xl px-4 py-2 text-[9px] text-emerald-300 font-bold flex items-center justify-between uppercase tracking-wider shrink-0 max-w-md mx-auto w-full backdrop-blur-sm shadow-md">
+              <span className="flex items-center gap-1">
+                <Sparkles size={11} className="animate-pulse text-emerald-400" />
+                Original: {formatMB(originalSize)}
+              </span>
+              <span>→</span>
+              <span>Estimado WebP: ~200 KB (Ahorro ~96%)</span>
+            </div>
+
+            {/* Botones definitivos de guardar o cancelar */}
+            <div className="flex items-center justify-between gap-3 pt-2 max-w-md mx-auto w-full border-t border-white/10">
+              <button
+                disabled={processing}
+                onClick={() => {
+                  setImageSrc(null)
+                  startLiveCamera()
+                }}
+                className="px-4 py-3 border border-white/20 text-gray-300 hover:text-white rounded-xl text-xs font-bold uppercase tracking-wider transition-all flex items-center gap-1.5 backdrop-blur-md"
+              >
+                <Undo size={14} /> Re-tomar
+              </button>
+
+              <button
+                disabled={processing}
+                onClick={handleSave}
+                className="px-6 py-3 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl text-xs font-bold uppercase tracking-widest transition-all shadow-lg shadow-emerald-600/30 flex items-center gap-2 disabled:opacity-50 border border-emerald-500/20"
+              >
+                {processing ? (
+                  <>
+                    <RefreshCw size={14} className="animate-spin" />
+                    Escaneando...
+                  </>
+                ) : (
+                  <>
+                    <Check size={14} />
+                    Usar Escaneo
+                  </>
+                )}
+              </button>
+            </div>
+          </div>
+        </>
+      )}
+
+      {/* -------------------- ELEMENTOS COMUNES FLOTANTES (HEADER) -------------------- */}
+      <div className="absolute top-0 inset-x-0 bg-gradient-to-b from-black via-black/45 to-transparent p-5 z-30 flex items-center justify-between pointer-events-auto">
+        <div>
+          <h3 className="text-white font-bold text-sm flex items-center gap-2">
+            <Sparkles className="text-emerald-400 w-4 h-4 animate-pulse" />
+            Escáner Móvil Inteligente
+          </h3>
+          <p className="text-[9px] text-gray-300 font-bold uppercase tracking-widest mt-0.5">{documentLabel}</p>
+        </div>
+        <button 
+          onClick={onClose} 
+          className="p-2 bg-white/10 hover:bg-white/20 text-white rounded-full transition-all backdrop-blur-md border border-white/10"
+        >
+          <X size={18} />
+        </button>
       </div>
+
+      {/* Input de cámara oculto */}
+      <input 
+        type="file" 
+        ref={fileInputRef}
+        onChange={handleFileChange}
+        accept="image/*"
+        capture="environment"
+        className="hidden"
+      />
+
+      {/* Canvas de procesamiento oculto */}
+      <canvas ref={canvasRef} className="hidden" />
     </div>
   )
 }
