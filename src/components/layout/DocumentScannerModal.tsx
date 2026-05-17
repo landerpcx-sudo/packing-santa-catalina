@@ -136,12 +136,6 @@ export default function DocumentScannerModal({
     }
   }, [isOpen, startLiveCamera, stopLiveCamera])
 
-  const [mounted, setMounted] = useState(false)
-
-  useEffect(() => {
-    setMounted(true)
-  }, [])
-
   if (!isOpen || !mounted) return null
 
   const triggerNativeCamera = () => {
