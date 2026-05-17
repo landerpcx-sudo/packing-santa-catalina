@@ -360,12 +360,18 @@ export default function DocumentScannerModal({
   }
 
   return createPortal(
-    <div className="fixed inset-0 z-[99999] flex items-center justify-center bg-black overflow-hidden select-none touch-none">
-      
+    <div 
+      className="fixed z-[99999] bg-black overflow-hidden select-none touch-none text-white"
+      style={{ 
+        top: 0, 
+        left: 0, 
+        width: '100vw', 
+        height: '100dvh' 
+      }}
+    >
       {/* 
-        ELIMINADO el opacity-0 y hidden.
-        iOS Safari pausa y congela por completo los streams WebRTC si la etiqueta de video no es visible. 
-        Ahora el video es 100% visible siempre, permitiendo que la cámara cargue sin ser saboteada por el SO.
+        Video en el fondo absoluto. 
+        Mantiene object-cover para llenar la pantalla.
       */}
       <video 
         ref={videoElementRef}
@@ -380,68 +386,90 @@ export default function DocumentScannerModal({
         className="absolute inset-0 w-full h-full object-cover z-0"
       />
 
-      {/* Pantalla de Carga sobrepuesta mientras carga la cámara en vivo */}
-      {useLiveCamera && !stream && (
-        <div className="absolute inset-0 flex flex-col items-center justify-center bg-black z-10 space-y-4">
-          <RefreshCw className="w-8 h-8 text-emerald-500 animate-spin" />
-          <p className="text-white font-bold text-sm">Encendiendo Cámara...</p>
+      {/* Capa de interfaz: Flexbox en columna para distribuir espacios perfectamente */}
+      <div className="relative z-10 w-full h-full flex flex-col pointer-events-none">
+        
+        {/* HEADER (No flexiona, ocupa su espacio) */}
+        <div className="flex-none bg-gradient-to-b from-black/80 to-transparent p-5 pt-8 flex items-start justify-between pointer-events-auto">
+          <div>
+            <h3 className="font-bold text-sm flex items-center gap-2">
+              <Sparkles className="text-emerald-400 w-4 h-4 animate-pulse" />
+              Escáner Móvil
+            </h3>
+            <p className="text-[9px] text-gray-300 font-bold uppercase tracking-widest mt-0.5">{documentLabel}</p>
+          </div>
+          <button 
+            onClick={onClose} 
+            className="p-2.5 bg-black/40 hover:bg-black/60 text-white rounded-full backdrop-blur-md border border-white/10 transition-all pointer-events-auto"
+            disabled={processing}
+          >
+            <X size={20} />
+          </button>
         </div>
-      )}
 
-      {/* Fallback en el centro si falló WebRTC */}
-      {(!useLiveCamera || (!stream && cameraError)) && (
-        <div className="absolute inset-0 flex flex-col items-center justify-center p-6 text-center bg-[#0d121f] space-y-6 z-10">
-          <div className="w-20 h-20 bg-emerald-500/10 border border-emerald-500/20 rounded-full flex items-center justify-center text-emerald-400 shadow-xl shadow-emerald-500/5 animate-pulse">
-            <Camera size={38} />
-          </div>
-          <div className="space-y-2">
-            <h4 className="text-white font-bold text-base">Escanear con Cámara del Sistema</h4>
-            <p className="text-xs text-gray-400 max-w-xs mx-auto">
-              Toma una foto de tu reporte. El sistema la procesará automáticamente.
-            </p>
-          </div>
-
-          {cameraError && (
-            <div className="flex items-start gap-2 max-w-xs mx-auto p-3 bg-amber-500/5 border border-amber-500/10 rounded-xl text-amber-400 text-[10px] font-bold text-left uppercase">
-              <AlertCircle size={14} className="shrink-0" />
-              <span>{cameraError}</span>
+        {/* CONTENIDO CENTRAL (Se expande para ocupar todo el espacio restante) */}
+        <div className="flex-1 flex flex-col items-center justify-center p-4">
+          
+          {/* Pantalla de Carga WebRTC */}
+          {useLiveCamera && !stream && (
+            <div className="flex flex-col items-center justify-center space-y-4 bg-black/50 p-6 rounded-2xl backdrop-blur-sm border border-white/10">
+              <RefreshCw className="w-8 h-8 text-emerald-500 animate-spin" />
+              <p className="font-bold text-sm">Encendiendo Cámara...</p>
             </div>
           )}
 
-          <button
-            onClick={triggerNativeCamera}
-            className="w-full max-w-xs py-3.5 px-6 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl font-bold text-xs uppercase tracking-widest transition-all shadow-xl shadow-emerald-600/25 flex items-center justify-center gap-2 border border-emerald-500/20"
-          >
-            <Camera size={16} />
-            Abrir Cámara
-          </button>
-        </div>
-      )}
+          {/* Fallback de error o sin cámara */}
+          {(!useLiveCamera || (!stream && cameraError)) && (
+            <div className="flex flex-col items-center justify-center p-8 text-center bg-[#0d121f]/90 backdrop-blur-md space-y-6 rounded-3xl border border-white/10 pointer-events-auto max-w-sm w-full shadow-2xl">
+              <div className="w-20 h-20 bg-emerald-500/10 border border-emerald-500/20 rounded-full flex items-center justify-center text-emerald-400 shadow-xl shadow-emerald-500/5 animate-pulse">
+                <Camera size={38} />
+              </div>
+              <div className="space-y-2">
+                <h4 className="font-bold text-base text-white">Escanear con Cámara</h4>
+                <p className="text-xs text-gray-400">
+                  Toma una foto de tu reporte. El sistema la procesará automáticamente.
+                </p>
+              </div>
 
-      {/* Grid de encuadre (Tamaño Carta) */}
-      {useLiveCamera && stream && (
-        <div className="absolute inset-0 flex items-center justify-center p-4 pointer-events-none z-10 pb-[100px]">
-          <div 
-            ref={guideBoxRef}
-            className="w-full max-w-sm aspect-[8.5/11] max-h-[75vh] border-2 border-dashed border-emerald-400/80 bg-emerald-400/5 rounded-xl flex flex-col items-center justify-center relative shadow-[0_0_0_4000px_rgba(0,0,0,0.65)]"
-          >
-            <div className="absolute inset-0 border border-emerald-500/30 rounded-xl" />
-            <div className="absolute -top-1 -left-1 w-6 h-6 border-t-4 border-l-4 border-emerald-500 rounded-tl-xl" />
-            <div className="absolute -top-1 -right-1 w-6 h-6 border-t-4 border-r-4 border-emerald-500 rounded-tr-xl" />
-            <div className="absolute -bottom-1 -left-1 w-6 h-6 border-b-4 border-l-4 border-emerald-500 rounded-bl-xl" />
-            <div className="absolute -bottom-1 -right-1 w-6 h-6 border-b-4 border-r-4 border-emerald-500 rounded-br-xl" />
-            
-            <span className="text-[10px] bg-emerald-600/95 text-white font-black px-3 py-1.5 rounded-full uppercase tracking-widest shadow-lg border border-emerald-500/20 backdrop-blur-sm absolute bottom-8">
-              Alinea Hoja Carta
-            </span>
-          </div>
-        </div>
-      )}
+              {cameraError && (
+                <div className="flex items-start gap-2 w-full p-3 bg-amber-500/10 border border-amber-500/20 rounded-xl text-amber-400 text-[10px] font-bold text-left uppercase">
+                  <AlertCircle size={14} className="shrink-0" />
+                  <span>{cameraError}</span>
+                </div>
+              )}
 
-      {/* Botonera de control inferior flotante */}
-      {useLiveCamera && stream && (
-        <div className="absolute bottom-0 inset-x-0 bg-gradient-to-t from-black via-black/80 to-transparent p-6 z-20 flex items-center justify-center pb-8 pt-12">
-          <div className="flex items-center gap-3 w-full max-w-sm">
+              <button
+                onClick={triggerNativeCamera}
+                className="w-full py-4 px-6 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl font-bold text-xs uppercase tracking-widest transition-all shadow-xl shadow-emerald-600/25 flex items-center justify-center gap-2 border border-emerald-500/20"
+              >
+                <Camera size={18} />
+                Abrir Cámara
+              </button>
+            </div>
+          )}
+
+          {/* Dotted Grid (Solo si la cámara está activa) */}
+          {useLiveCamera && stream && (
+            <div 
+              ref={guideBoxRef}
+              className="w-full max-w-sm aspect-[8.5/11] max-h-[65vh] border-2 border-dashed border-emerald-400/80 bg-emerald-400/5 rounded-2xl flex flex-col items-center justify-center relative shadow-[0_0_0_4000px_rgba(0,0,0,0.65)]"
+            >
+              <div className="absolute inset-0 border border-emerald-500/30 rounded-2xl" />
+              <div className="absolute -top-1 -left-1 w-8 h-8 border-t-4 border-l-4 border-emerald-500 rounded-tl-2xl" />
+              <div className="absolute -top-1 -right-1 w-8 h-8 border-t-4 border-r-4 border-emerald-500 rounded-tr-2xl" />
+              <div className="absolute -bottom-1 -left-1 w-8 h-8 border-b-4 border-l-4 border-emerald-500 rounded-bl-2xl" />
+              <div className="absolute -bottom-1 -right-1 w-8 h-8 border-b-4 border-r-4 border-emerald-500 rounded-br-2xl" />
+              
+              <span className="text-[10px] bg-emerald-600/95 text-white font-black px-4 py-2 rounded-full uppercase tracking-widest shadow-xl border border-emerald-500/20 backdrop-blur-sm absolute -bottom-4">
+                Alinea Hoja Carta
+              </span>
+            </div>
+          )}
+        </div>
+
+        {/* FOOTER BOTONERA (No flexiona, ocupa su espacio inferior) */}
+        {useLiveCamera && stream && (
+          <div className="flex-none bg-gradient-to-t from-black/90 via-black/60 to-transparent px-6 pb-10 pt-12 flex items-center justify-center gap-3 pointer-events-auto">
             <button
               disabled={processing}
               onClick={() => {
@@ -449,46 +477,28 @@ export default function DocumentScannerModal({
                 setUseLiveCamera(false)
                 triggerNativeCamera()
               }}
-              className="flex-1 py-3 px-3 bg-white/10 hover:bg-white/20 text-white rounded-xl text-xs font-bold uppercase transition-all backdrop-blur-md border border-white/15 shadow-md animate-fade-in"
+              className="py-4 px-4 bg-white/10 hover:bg-white/20 text-white rounded-xl text-[11px] font-bold uppercase transition-all backdrop-blur-md border border-white/15 shadow-md flex items-center justify-center gap-2"
             >
-              Cámara Celu
+              <RefreshCw size={14} /> Nativa
             </button>
             <button
               disabled={processing}
               onClick={captureLiveFrame}
-              className="flex-2 py-3.5 px-6 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl text-xs font-black uppercase tracking-widest shadow-lg shadow-emerald-600/40 flex items-center justify-center gap-2 border border-emerald-500/20 disabled:opacity-50"
+              className="flex-1 py-4 px-6 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl text-xs font-black uppercase tracking-widest shadow-xl shadow-emerald-600/40 flex items-center justify-center gap-2 border border-emerald-500/20 disabled:opacity-50"
             >
               {processing ? (
                 <>
-                  <RefreshCw size={16} className="animate-spin" />
+                  <RefreshCw size={18} className="animate-spin" />
                   Procesando
                 </>
               ) : (
                 <>
-                  <Camera size={16} /> Capturar Foto
+                  <Camera size={18} /> Capturar Foto
                 </>
               )}
             </button>
           </div>
-        </div>
-      )}
-
-      {/* HEADER */}
-      <div className="absolute top-0 inset-x-0 bg-gradient-to-b from-black via-black/45 to-transparent p-5 z-30 flex items-center justify-between pointer-events-auto">
-        <div>
-          <h3 className="text-white font-bold text-sm flex items-center gap-2">
-            <Sparkles className="text-emerald-400 w-4 h-4 animate-pulse" />
-            Escáner Móvil Inteligente
-          </h3>
-          <p className="text-[9px] text-gray-300 font-bold uppercase tracking-widest mt-0.5">{documentLabel}</p>
-        </div>
-        <button 
-          onClick={onClose} 
-          className="p-2 bg-white/10 hover:bg-white/20 text-white rounded-full transition-all backdrop-blur-md border border-white/10 disabled:opacity-50"
-          disabled={processing}
-        >
-          <X size={18} />
-        </button>
+        )}
       </div>
 
       <input 
