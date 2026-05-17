@@ -29,65 +29,83 @@ export default function DocumentScannerModal({
 
   const [useLiveCamera, setUseLiveCamera] = useState(true)
   const [stream, setStream] = useState<MediaStream | null>(null)
+  const streamRef = useRef<MediaStream | null>(null) // Para evitar cierres obsoletos en la limpieza de efectos
   const [cameraError, setCameraError] = useState<string | null>(null)
   const [processing, setProcessing] = useState(false)
 
-  // Ref callback para el elemento de video - Garantiza la vinculación del stream inmediatamente al montarse el nodo en el DOM
-  const videoRef = useCallback((node: HTMLVideoElement | null) => {
-    if (node) {
-      videoElementRef.current = node
-      if (stream) {
-        node.srcObject = stream
-        // Forzar la reproducción inmediata del streaming en navegadores móviles
-        node.play().catch(err => {
-          console.warn("Fallo al forzar reproducción de video:", err)
-        })
-      }
-    } else {
-      videoElementRef.current = null
-    }
-  }, [stream])
+  // Sincronizar el stream con el estado y la referencia mutable
+  const updateStream = (newStream: MediaStream | null) => {
+    setStream(newStream)
+    streamRef.current = newStream
+  }
 
   // Detener la transmisión de la cámara
   const stopLiveCamera = useCallback(() => {
-    if (stream) {
-      stream.getTracks().forEach(track => track.stop())
-      setStream(null)
+    if (streamRef.current) {
+      streamRef.current.getTracks().forEach(track => track.stop())
+      streamRef.current = null
     }
-  }, [stream])
+    setStream(null)
+  }, [])
 
   // Iniciar la transmisión de video de la cámara trasera
   const startLiveCamera = useCallback(async () => {
     try {
-      // Detener cualquier stream anterior
-      if (stream) {
-        stream.getTracks().forEach(track => track.stop())
+      // Detener cualquier stream anterior primero
+      if (streamRef.current) {
+        streamRef.current.getTracks().forEach(track => track.stop())
+        streamRef.current = null
       }
       
-      const mediaStream = await navigator.mediaDevices.getUserMedia({
-        video: {
-          facingMode: 'environment', // Forzar cámara trasera del celular
-          width: { ideal: 1920 },
-          height: { ideal: 1080 }
-        },
-        audio: false
-      })
+      let mediaStream: MediaStream
+      
+      try {
+        // Intento 1: Cámara trasera en resolución Full HD ideal
+        mediaStream = await navigator.mediaDevices.getUserMedia({
+          video: {
+            facingMode: 'environment', // Forzar cámara trasera del celular
+            width: { ideal: 1920 },
+            height: { ideal: 1080 }
+          },
+          audio: false
+        })
+      } catch (firstErr) {
+        console.warn("Fallo primer intento WebRTC con resolución alta, probando resolución básica:", firstErr)
+        try {
+          // Intento 2: Cámara trasera en resolución estándar del sistema
+          mediaStream = await navigator.mediaDevices.getUserMedia({
+            video: {
+              facingMode: 'environment'
+            },
+            audio: false
+          })
+        } catch (secondErr) {
+          console.warn("Fallo segundo intento WebRTC con facingMode, probando cámara genérica:", secondErr)
+          // Intento 3: Cualquier cámara de video disponible en el dispositivo
+          mediaStream = await navigator.mediaDevices.getUserMedia({
+            video: true,
+            audio: false
+          })
+        }
+      }
 
-      setStream(mediaStream)
+      updateStream(mediaStream)
       setCameraError(null)
       setUseLiveCamera(true)
 
-      // Vinculación de seguridad si el nodo ya existe en el DOM
+      // Vinculación directa al elemento de video (siempre presente en el DOM)
       if (videoElementRef.current) {
         videoElementRef.current.srcObject = mediaStream
-        videoElementRef.current.play().catch(e => console.warn(e))
+        videoElementRef.current.play().catch(e => {
+          console.warn("La reproducción del video fue pausada o bloqueada por políticas del navegador:", e)
+        })
       }
     } catch (err) {
-      console.warn('La cámara en vivo falló o no está soportada:', err)
-      setCameraError('No se pudo activar la cámara interna en vivo. Usaremos la cámara nativa de tu teléfono.')
+      console.error('Todos los intentos de activar la cámara WebRTC en vivo fallaron:', err)
+      setCameraError('No pudimos iniciar el escáner WebRTC en vivo. Puedes pulsar "Abrir Cámara" para escanear con la cámara del celular.')
       setUseLiveCamera(false)
     }
-  }, [stream])
+  }, [])
 
   // Control del ciclo de vida del modal y bloqueo de scroll
   useEffect(() => {
@@ -109,12 +127,13 @@ export default function DocumentScannerModal({
 
     return () => {
       document.body.style.overflow = ''
-      // Detener cámara en desmontaje
-      if (stream) {
-        stream.getTracks().forEach(track => track.stop())
+      // Detener cámara en desmontaje utilizando la referencia mutable segura
+      if (streamRef.current) {
+        streamRef.current.getTracks().forEach(track => track.stop())
+        streamRef.current = null
       }
     }
-  }, [isOpen])
+  }, [isOpen, startLiveCamera, stopLiveCamera])
 
   // Montar componente para Portal seguro
   useEffect(() => {
@@ -188,10 +207,10 @@ export default function DocumentScannerModal({
 
   // Capturar fotograma actual y recortar al tamaño Carta
   const captureLiveFrame = () => {
-    if (!videoElementRef.current || !canvasRef.current || !guideBoxRef.current) return
     const video = videoElementRef.current
     const canvas = canvasRef.current
     const guideBox = guideBoxRef.current
+    if (!video || !canvas || !guideBox) return
     const ctx = canvas.getContext('2d')
     if (!ctx) return
 
@@ -254,7 +273,7 @@ export default function DocumentScannerModal({
     const cropW = boxWidth * scaleValue
     const cropH = boxHeight * scaleValue
 
-    // Detener la cámara
+    // Detener la cámara de inmediato para ahorrar batería e hilos
     stopLiveCamera()
 
     // Pintar solo la región recortada
@@ -299,17 +318,22 @@ export default function DocumentScannerModal({
     <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-black overflow-hidden select-none touch-none">
       
       {/* -------------------- CAPTURA DE FOTO -------------------- */}
-      {/* Cámara en vivo como fondo completo */}
-      {useLiveCamera && stream ? (
-        <video 
-          ref={videoRef}
-          autoPlay 
-          playsInline 
-          muted 
-          className="absolute inset-0 w-full h-full object-cover z-0"
-        />
-      ) : (
-        /* Fallback en el centro si no hay stream */
+      {/* Cámara en vivo como fondo completo (Siempre presente en el DOM para evitar race conditions de React refs) */}
+      <video 
+        ref={videoElementRef}
+        autoPlay 
+        playsInline 
+        muted 
+        onLoadedMetadata={(e) => {
+          e.currentTarget.play().catch(err => {
+            console.warn("Fallo reproducción automática al cargar metadatos:", err)
+          })
+        }}
+        className={`absolute inset-0 w-full h-full object-cover z-0 transition-opacity duration-200 ${useLiveCamera && stream ? 'opacity-100 block' : 'opacity-0 hidden'}`}
+      />
+
+      {/* Fallback en el centro si no hay stream o falló WebRTC */}
+      {(!useLiveCamera || !stream) && (
         <div className="absolute inset-0 flex flex-col items-center justify-center p-6 text-center bg-[#0d121f] space-y-6 z-0">
           <div className="w-20 h-20 bg-emerald-500/10 border border-emerald-500/20 rounded-full flex items-center justify-center text-emerald-400 shadow-xl shadow-emerald-500/5 animate-pulse">
             <Camera size={38} />
@@ -370,7 +394,7 @@ export default function DocumentScannerModal({
                 setUseLiveCamera(false)
                 triggerNativeCamera()
               }}
-              className="flex-1 py-3 px-3 bg-white/10 hover:bg-white/20 text-white rounded-xl text-xs font-bold uppercase transition-all backdrop-blur-md border border-white/15 shadow-md"
+              className="flex-1 py-3 px-3 bg-white/10 hover:bg-white/20 text-white rounded-xl text-xs font-bold uppercase transition-all backdrop-blur-md border border-white/15 shadow-md animate-fade-in"
             >
               Cámara Celu
             </button>
