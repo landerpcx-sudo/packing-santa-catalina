@@ -189,7 +189,7 @@ export default function Sidebar() {
       {/* Botón hamburger móvil */}
       <button
         id="btn-mobile-menu"
-        className="lg:hidden fixed top-4 left-4 z-50 p-2 rounded-xl border text-sm font-medium transition-all"
+        className="lg:hidden fixed top-4 left-4 z-[70] p-2 rounded-xl border text-sm font-medium transition-all"
         style={{
           backgroundColor: 'var(--bg-sidebar)',
           borderColor: 'var(--border)',
@@ -204,14 +204,14 @@ export default function Sidebar() {
       {/* Overlay móvil */}
       {mobileOpen && (
         <div
-          className="lg:hidden fixed inset-0 z-40 bg-black/50 backdrop-blur-sm"
+          className="lg:hidden fixed inset-0 z-[60] bg-black/50 backdrop-blur-sm"
           onClick={() => setMobileOpen(false)}
         />
       )}
 
       {/* Sidebar móvil */}
       <aside
-        className={`lg:hidden fixed left-0 top-0 z-40 h-full w-72 transition-transform duration-300 ${
+        className={`lg:hidden fixed left-0 top-0 z-[60] h-full w-72 transition-transform duration-300 ${
           mobileOpen ? 'translate-x-0' : '-translate-x-full'
         }`}
         style={{
