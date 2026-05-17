@@ -1,6 +1,7 @@
 'use client'
 
 import React, { useState, useRef, useEffect, useCallback } from 'react'
+import { createPortal } from 'react-dom'
 import { Camera, X, RotateCw, Check, Undo, Image as ImageIcon, Sparkles, RefreshCw, AlertCircle } from 'lucide-react'
 
 interface DocumentScannerModalProps {
@@ -20,6 +21,7 @@ export default function DocumentScannerModal({
   documentLabel,
   lotCodeOrDispatchId,
 }: DocumentScannerModalProps) {
+  const [mounted, setMounted] = useState(false)
   const [imageSrc, setImageSrc] = useState<string | null>(null)
   const [rotation, setRotation] = useState<number>(0)
   const [filter, setFilter] = useState<FilterType>('scan')
@@ -134,7 +136,12 @@ export default function DocumentScannerModal({
     }
   }, [isOpen])
 
-  if (!isOpen) return null
+  // Montar componente para Portal seguro
+  useEffect(() => {
+    setMounted(true)
+  }, [])
+
+  if (!isOpen || !mounted) return null
 
   // Lanzar el selector de archivos / cámara nativa del sistema
   const triggerNativeCamera = () => {
@@ -318,8 +325,8 @@ export default function DocumentScannerModal({
     return `${(bytes / (1024 * 1024)).toFixed(2)} MB`
   }
 
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black overflow-hidden select-none touch-none">
+  return createPortal(
+    <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-black overflow-hidden select-none touch-none">
       
       {/* -------------------- PASO 1: CAPTURA DE FOTO -------------------- */}
       {!imageSrc && (
@@ -593,6 +600,7 @@ export default function DocumentScannerModal({
 
       {/* Canvas de procesamiento oculto */}
       <canvas ref={canvasRef} className="hidden" />
-    </div>
+    </div>,
+    document.body
   )
 }
