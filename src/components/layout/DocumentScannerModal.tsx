@@ -123,6 +123,7 @@ export default function DocumentScannerModal({
   if (!isOpen || !mounted) return null
 
   // Lanzar el selector de archivos / cámara nativa del sistema
+  // Ya no se usa programmatic click, usamos <label htmlFor="camera-input">
   const triggerNativeCamera = () => {
     fileInputRef.current?.click()
   }
@@ -361,13 +362,13 @@ export default function DocumentScannerModal({
             </div>
           )}
 
-          <button
-            onClick={triggerNativeCamera}
-            className="w-full max-w-xs py-3.5 px-6 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl font-bold text-xs uppercase tracking-widest transition-all shadow-xl shadow-emerald-600/25 flex items-center justify-center gap-2 border border-emerald-500/20"
+          <label
+            htmlFor="camera-input"
+            className="w-full max-w-xs py-3.5 px-6 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl font-bold text-xs uppercase tracking-widest transition-all shadow-xl shadow-emerald-600/25 flex items-center justify-center gap-2 border border-emerald-500/20 cursor-pointer"
           >
             <Camera size={16} />
             Abrir Cámara
-          </button>
+          </label>
         </div>
       )}
 
@@ -396,17 +397,18 @@ export default function DocumentScannerModal({
       {useLiveCamera && stream && (
         <div className="absolute bottom-0 inset-x-0 bg-gradient-to-t from-black via-black/80 to-transparent p-6 z-20 flex items-center justify-center pb-8 pt-12">
           <div className="flex items-center gap-3 w-full max-w-sm">
-            <button
-              disabled={processing}
+            <label
+              htmlFor="camera-input"
               onClick={() => {
-                stopLiveCamera()
-                setUseLiveCamera(false)
-                triggerNativeCamera()
+                if (!processing) {
+                  stopLiveCamera()
+                  setUseLiveCamera(false)
+                }
               }}
-              className="flex-1 py-3 px-3 bg-white/10 hover:bg-white/20 text-white rounded-xl text-xs font-bold uppercase transition-all backdrop-blur-md border border-white/15 shadow-md"
+              className={`flex-1 py-3 px-3 bg-white/10 hover:bg-white/20 text-white rounded-xl text-xs font-bold uppercase transition-all backdrop-blur-md border border-white/15 shadow-md cursor-pointer text-center ${processing ? 'opacity-50 pointer-events-none' : ''}`}
             >
               Cámara Celu
-            </button>
+            </label>
             <button
               disabled={processing}
               onClick={captureLiveFrame}
@@ -446,6 +448,7 @@ export default function DocumentScannerModal({
 
       {/* Input de cámara oculto - sr-only para iOS */}
       <input 
+        id="camera-input"
         type="file" 
         ref={fileInputRef}
         onChange={handleFileChange}
