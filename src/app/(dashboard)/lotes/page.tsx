@@ -160,8 +160,8 @@ export default function LotesPage() {
   // Estadísticas rápidas con useMemo (Mejora #18)
   const stats = useMemo(() => ({
     total: total,
-    pending:  lots.filter(l => l.overall_status === 'pending').length,
-    late:     lots.filter(l => l.overall_status === 'late').length,
+    pending:  lots.filter(l => !l.overall_status || l.overall_status === 'pending' || l.overall_status === 'uploaded').length,
+    late:     lots.filter(l => l.overall_status === 'late' || l.overall_status === 'observed').length,
     complete: lots.filter(l => ['complete','validated','closed'].includes(l.overall_status)).length,
   }), [lots, total])
 

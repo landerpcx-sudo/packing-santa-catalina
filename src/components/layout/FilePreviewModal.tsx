@@ -74,6 +74,15 @@ export default function FilePreviewModal({ isOpen, onClose, fileUrl, fileName }:
     }
   }, [])
 
+  // Bloquear scroll del body mientras el modal está abierto (fix iOS)
+  useEffect(() => {
+    if (isOpen) {
+      const prev = document.body.style.overflow
+      document.body.style.overflow = 'hidden'
+      return () => { document.body.style.overflow = prev }
+    }
+  }, [isOpen])
+
   if (!isOpen || !mounted) return null
 
   // ── Clasificación del archivo ──────────────────────────────────────────────
@@ -90,7 +99,22 @@ export default function FilePreviewModal({ isOpen, onClose, fileUrl, fileName }:
   // ── Render ─────────────────────────────────────────────────────────────────
   return createPortal(
     <div
-      className="fixed inset-0 z-[9999] bg-black/80 backdrop-blur-md flex items-center justify-center p-3 sm:p-6"
+      style={{
+        position: 'fixed',
+        inset: 0,
+        zIndex: 99999,
+        backgroundColor: 'rgba(0,0,0,0.82)',
+        backdropFilter: 'blur(12px)',
+        WebkitBackdropFilter: 'blur(12px)',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        padding: '12px',
+        top: 0,
+        left: 0,
+        right: 0,
+        bottom: 0,
+      }}
       onClick={(e) => { if (e.target === e.currentTarget) onClose() }}
     >
       <div
