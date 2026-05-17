@@ -108,7 +108,7 @@ function UploadZone({
           type="file"
           accept="application/pdf,image/*,.doc,.docx,.xls,.xlsx"
           capture={docType === 'photo' ? 'environment' : undefined}
-          className="hidden"
+          className="sr-only"
           disabled={uploading}
           onChange={e => { if (e.target.files?.[0]) handleFile(e.target.files[0]) }}
         />

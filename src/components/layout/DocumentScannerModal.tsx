@@ -444,14 +444,14 @@ export default function DocumentScannerModal({
         </button>
       </div>
 
-      {/* Input de cámara oculto */}
+      {/* Input de cámara oculto - sr-only para iOS */}
       <input 
         type="file" 
         ref={fileInputRef}
         onChange={handleFileChange}
         accept="image/*"
         capture="environment"
-        className="hidden"
+        className="sr-only"
       />
 
       {/* Canvas de procesamiento oculto */}
