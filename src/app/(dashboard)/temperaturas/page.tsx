@@ -319,7 +319,7 @@ export default function TemperaturasPage() {
       </div>
 
       {/* Alerta de Incumplimiento */}
-      {missingDays.length > 0 && (
+      {!loading && missingDays.length > 0 && (
         <div className="bg-rose-500/10 border border-rose-500/20 rounded-3xl p-6 flex flex-col md:flex-row items-center justify-between gap-6 overflow-hidden relative">
           <div className="absolute top-0 right-0 p-8 opacity-10 pointer-events-none">
             <AlertTriangle size={120} className="text-rose-500" />
