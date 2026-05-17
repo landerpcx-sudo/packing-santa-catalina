@@ -2,7 +2,7 @@
 
 import React, { useState, useRef, useEffect, useCallback } from 'react'
 import { createPortal } from 'react-dom'
-import { Camera, X, RotateCw, Check, Undo, Image as ImageIcon, Sparkles, RefreshCw, AlertCircle } from 'lucide-react'
+import { Camera, X, Check, Undo, Sparkles, RefreshCw, AlertCircle } from 'lucide-react'
 
 interface DocumentScannerModalProps {
   isOpen: boolean
@@ -11,8 +11,6 @@ interface DocumentScannerModalProps {
   documentLabel: string
   lotCodeOrDispatchId: string
 }
-
-type FilterType = 'color' | 'grayscale' | 'scan'
 
 export default function DocumentScannerModal({
   isOpen,
@@ -29,19 +27,24 @@ export default function DocumentScannerModal({
 
   const [useLiveCamera, setUseLiveCamera] = useState(true)
   const [stream, setStream] = useState<MediaStream | null>(null)
-  const streamRef = useRef<MediaStream | null>(null) // Para evitar cierres obsoletos en la limpieza de efectos
-  const activeRequestIdRef = useRef<number>(0) // Evitar condiciones de carrera y dobles arranques concurrentes
-  
   const [cameraError, setCameraError] = useState<string | null>(null)
   const [processing, setProcessing] = useState(false)
 
-  // Sincronizar el stream con el estado y la referencia mutable
-  const updateStream = (newStream: MediaStream | null) => {
-    setStream(newStream)
-    streamRef.current = newStream
-  }
+  // Referencias mutables para evitar race conditions y memory leaks
+  const streamRef = useRef<MediaStream | null>(null)
+  const isRequestingRef = useRef<boolean>(false)
+  const isMountedRef = useRef<boolean>(true)
 
-  // Detener la transmisión de la cámara
+  // Montar componente para Portal seguro y control de ciclo de vida
+  useEffect(() => {
+    setMounted(true)
+    isMountedRef.current = true
+    return () => {
+      isMountedRef.current = false
+    }
+  }, [])
+
+  // Detener la transmisión de la cámara de forma segura
   const stopLiveCamera = useCallback(() => {
     if (streamRef.current) {
       streamRef.current.getTracks().forEach(track => track.stop())
@@ -50,112 +53,102 @@ export default function DocumentScannerModal({
     setStream(null)
   }, [])
 
-  // Iniciar la transmisión de video de la cámara trasera de forma ultra-segura
+  // Iniciar la transmisión de video de la cámara trasera
   const startLiveCamera = useCallback(async () => {
-    const requestId = ++activeRequestIdRef.current
-    
-    try {
-      // Detener cualquier stream anterior
-      if (streamRef.current) {
-        streamRef.current.getTracks().forEach(track => track.stop())
-        streamRef.current = null
-      }
-      
-      let mediaStream: MediaStream
-      
-      try {
-        // Intento 1: Cámara trasera ideal Full HD
-        mediaStream = await navigator.mediaDevices.getUserMedia({
-          video: {
-            facingMode: 'environment',
-            width: { ideal: 1920 },
-            height: { ideal: 1080 }
-          },
-          audio: false
-        })
-      } catch (firstErr) {
-        if (requestId !== activeRequestIdRef.current) return
-        
-        console.warn("Fallo primer intento WebRTC con resolución alta, probando resolución básica:", firstErr)
-        try {
-          // Intento 2: Cámara trasera resolución básica del sistema
-          mediaStream = await navigator.mediaDevices.getUserMedia({
-            video: {
-              facingMode: 'environment'
-            },
-            audio: false
-          })
-        } catch (secondErr) {
-          if (requestId !== activeRequestIdRef.current) return
-          
-          console.warn("Fallo segundo intento WebRTC con facingMode, probando cámara genérica:", secondErr)
-          // Intento 3: Cualquier cámara de video disponible
-          mediaStream = await navigator.mediaDevices.getUserMedia({
-            video: true,
-            audio: false
-          })
-        }
-      }
+    // Bloqueo de concurrencia: Evita que Strict Mode o múltiples clics ejecuten getUserMedia en paralelo (lo cual congela navegadores móviles)
+    if (isRequestingRef.current) return
+    if (streamRef.current) return // Si ya hay cámara activa, no hacer nada
 
-      // Validar si este request sigue siendo el último activo antes de continuar
-      if (requestId !== activeRequestIdRef.current) {
+    isRequestingRef.current = true
+    setCameraError(null)
+
+    try {
+      // Intento 1: Cámara trasera en resolución ideal (Como en el commit original a5956e5 que funcionaba perfecto)
+      const mediaStream = await navigator.mediaDevices.getUserMedia({
+        video: {
+          facingMode: 'environment', // Forzar cámara trasera
+          width: { ideal: 1920 },
+          height: { ideal: 1080 }
+        },
+        audio: false
+      })
+
+      // Validar si el componente sigue vivo antes de aplicar el stream
+      if (!isMountedRef.current) {
         mediaStream.getTracks().forEach(track => track.stop())
+        isRequestingRef.current = false
         return
       }
 
-      updateStream(mediaStream)
-      setCameraError(null)
+      streamRef.current = mediaStream
+      setStream(mediaStream)
       setUseLiveCamera(true)
 
-      // Vinculación directa al elemento de video (siempre persistente en el DOM)
+      // Asignar al DOM (el tag <video> está siempre presente, solo transparente)
       if (videoElementRef.current) {
         videoElementRef.current.srcObject = mediaStream
         videoElementRef.current.play().catch(e => {
-          console.warn("La reproducción del video fue pausada o bloqueada por políticas del navegador:", e)
+          console.warn("La reproducción del video requiere interacción en algunos navegadores:", e)
         })
       }
     } catch (err) {
-      if (requestId !== activeRequestIdRef.current) return
-      console.error('Todos los intentos de activar la cámara WebRTC en vivo fallaron:', err)
-      setCameraError('No pudimos iniciar el escáner WebRTC en vivo. Puedes pulsar "Abrir Cámara" para escanear con la cámara del celular.')
-      setUseLiveCamera(false)
+      if (!isMountedRef.current) return
+      console.warn("Fallo el intento de cámara ideal, probando fallback básico:", err)
+      
+      try {
+        // Intento 2: Fallback básico por si el celular no soporta las resoluciones ideales
+        const fallbackStream = await navigator.mediaDevices.getUserMedia({
+          video: { facingMode: 'environment' },
+          audio: false
+        })
+
+        if (!isMountedRef.current) {
+          fallbackStream.getTracks().forEach(track => track.stop())
+          isRequestingRef.current = false
+          return
+        }
+
+        streamRef.current = fallbackStream
+        setStream(fallbackStream)
+        setUseLiveCamera(true)
+
+        if (videoElementRef.current) {
+          videoElementRef.current.srcObject = fallbackStream
+          videoElementRef.current.play().catch(e => console.warn(e))
+        }
+      } catch (fallbackErr) {
+        if (!isMountedRef.current) return
+        console.error('Todos los intentos de activar la cámara WebRTC en vivo fallaron:', fallbackErr)
+        setCameraError('No pudimos iniciar el escáner WebRTC con las líneas punteadas. Puedes usar tu cámara nativa.')
+        setUseLiveCamera(false)
+      }
+    } finally {
+      // Liberar el candado
+      isRequestingRef.current = false
     }
   }, [])
 
-  // Control del ciclo de vida del modal y bloqueo de scroll
+  // Control del ciclo de vida de la apertura y cierre
   useEffect(() => {
     if (isOpen) {
-      // Bloquear scroll de la página de fondo
       document.body.style.overflow = 'hidden'
-
       setProcessing(false)
       setCameraError(null)
       setUseLiveCamera(true)
-
-      // Iniciar cámara en vivo
+      
       startLiveCamera()
     } else {
-      // Restaurar scroll
       document.body.style.overflow = ''
       stopLiveCamera()
+      isRequestingRef.current = false // Liberar candado por si se cerró durante la petición
     }
 
     return () => {
       document.body.style.overflow = ''
-      // Invalidar peticiones de cámara en vuelo
-      activeRequestIdRef.current++
-      // Detener cámara en desmontaje utilizando la referencia mutable segura
-      if (streamRef.current) {
-        streamRef.current.getTracks().forEach(track => track.stop())
-        streamRef.current = null
-      }
+      stopLiveCamera()
+      isRequestingRef.current = false
     }
   }, [isOpen, startLiveCamera, stopLiveCamera])
-
-  // Montar componente para Portal seguro
-  useEffect(() => {
-    setMounted(true)
-  }, [])
 
   if (!isOpen || !mounted) return null
 
@@ -164,7 +157,7 @@ export default function DocumentScannerModal({
     fileInputRef.current?.click()
   }
 
-  // Procesar archivo de la cámara nativa del sistema utilizando ObjectURL (cero consumo de RAM)
+  // Procesar archivo de la cámara nativa del sistema utilizando ObjectURL
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = e.target.files
     if (!files || files.length === 0) return
@@ -175,7 +168,7 @@ export default function DocumentScannerModal({
     const objectUrl = URL.createObjectURL(file)
     const img = new Image()
     img.onload = () => {
-      // Comprimir a una resolución legible y súper liviana (máximo 1200px)
+      // Comprimir a una resolución de 1200px para evitar cierres en celulares con poca RAM
       const maxDimension = 1200
       let finalWidth = img.naturalWidth
       let finalHeight = img.naturalHeight
@@ -211,10 +204,10 @@ export default function DocumentScannerModal({
             alert('Error al procesar la imagen.')
           }
           setProcessing(false)
-          URL.revokeObjectURL(objectUrl) // Liberar memoria de inmediato
+          URL.revokeObjectURL(objectUrl)
         },
         'image/webp',
-        0.80 // Calidad óptima para conservar nitidez y peso pluma
+        0.80
       )
     }
     img.onerror = () => {
@@ -234,13 +227,18 @@ export default function DocumentScannerModal({
     const ctx = canvas.getContext('2d')
     if (!ctx) return
 
-    setProcessing(true)
-
     // Dimensiones originales del stream (sensor)
     let actualVideoWidth = video.videoWidth
     let actualVideoHeight = video.videoHeight
 
-    // Obtener dimensiones reales renderizadas en pantalla
+    if (!actualVideoWidth || !actualVideoHeight) {
+      alert("Espera un segundo a que la cámara enfoque correctamente.")
+      return
+    }
+
+    setProcessing(true)
+
+    // Dimensiones renderizadas en pantalla
     const videoRect = video.getBoundingClientRect()
     const guideRect = guideBox.getBoundingClientRect()
 
@@ -283,9 +281,6 @@ export default function DocumentScannerModal({
     const cropW = boxWidth * scaleValue
     const cropH = boxHeight * scaleValue
 
-    // Detener la cámara al instante para ahorrar batería y no colgar hilos
-    stopLiveCamera()
-
     // 1. Crear canvas temporal de alta resolución para el recorte
     const tempCanvas = document.createElement('canvas')
     tempCanvas.width = cropW
@@ -302,7 +297,10 @@ export default function DocumentScannerModal({
       tempCtx.drawImage(video, drawX, drawY, drawW, drawH)
     }
 
-    // 2. Redimensionar al canvas final de tamaño ultra optimizado y nitidez óptima (máximo 1200px)
+    // Detener la cámara DESPUÉS de dibujar en el canvas para evitar fotogramas negros
+    stopLiveCamera()
+
+    // 2. Redimensionar al canvas final (máximo 1200px para ser ultraligero)
     const maxDimension = 1200
     let finalW = cropW
     let finalH = cropH
@@ -341,7 +339,7 @@ export default function DocumentScannerModal({
         setProcessing(false)
       },
       'image/webp',
-      0.80 // 80% es el punto dulce para web (documento nítido y ultraligero)
+      0.80 
     )
   }
 
@@ -349,7 +347,9 @@ export default function DocumentScannerModal({
     <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-black overflow-hidden select-none touch-none">
       
       {/* -------------------- CAPTURA DE FOTO -------------------- */}
-      {/* Cámara en vivo como fondo completo (Siempre presente en el DOM para evitar race conditions de React refs) */}
+      {/* Cámara en vivo como fondo completo. 
+          Se elimina "hidden" para asegurar compatibilidad en iOS Safari y se reemplaza con pointer-events-none y opacity-0 
+      */}
       <video 
         ref={videoElementRef}
         autoPlay 
@@ -357,10 +357,12 @@ export default function DocumentScannerModal({
         muted 
         onLoadedMetadata={(e) => {
           e.currentTarget.play().catch(err => {
-            console.warn("Fallo reproducción automática al cargar metadatos:", err)
+            console.warn("Auto-play requirió intervención:", err)
           })
         }}
-        className={`absolute inset-0 w-full h-full object-cover z-0 transition-opacity duration-200 ${useLiveCamera && stream ? 'opacity-100 block' : 'opacity-0 hidden'}`}
+        className={`absolute inset-0 w-full h-full object-cover z-0 transition-opacity duration-300 ${
+          useLiveCamera && stream ? 'opacity-100' : 'opacity-0 pointer-events-none'
+        }`}
       />
 
       {/* Fallback en el centro si no hay stream o falló WebRTC */}
