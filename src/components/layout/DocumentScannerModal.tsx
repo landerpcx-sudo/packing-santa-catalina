@@ -36,8 +36,8 @@ export default function DocumentScannerModal({
   const videoRef = useCallback((node: HTMLVideoElement | null) => {
     if (node) {
       videoElementRef.current = node
-      if (stream) {
-        node.srcObject = stream
+      if (streamRef.current) {
+        node.srcObject = streamRef.current
         // Forzar la reproducción inmediata del streaming en navegadores móviles
         node.play().catch(err => {
           console.warn("Fallo al forzar reproducción de video:", err)
@@ -46,7 +46,7 @@ export default function DocumentScannerModal({
     } else {
       videoElementRef.current = null
     }
-  }, [stream])
+  }, [])
 
   // Detener la transmisión de la cámara
   const stopLiveCamera = useCallback(() => {
@@ -54,11 +54,8 @@ export default function DocumentScannerModal({
       streamRef.current.getTracks().forEach(track => track.stop())
       streamRef.current = null
     }
-    if (stream) {
-      stream.getTracks().forEach(track => track.stop())
-    }
     setStream(null)
-  }, [stream])
+  }, [])
 
   // Iniciar la transmisión de video de la cámara trasera
   const startLiveCamera = useCallback(async () => {
@@ -66,10 +63,6 @@ export default function DocumentScannerModal({
       // Detener cualquier stream anterior
       if (streamRef.current) {
         streamRef.current.getTracks().forEach(track => track.stop())
-        streamRef.current = null
-      }
-      if (stream) {
-        stream.getTracks().forEach(track => track.stop())
       }
       
       const mediaStream = await navigator.mediaDevices.getUserMedia({
@@ -93,11 +86,10 @@ export default function DocumentScannerModal({
       }
     } catch (err: any) {
       console.warn('La cámara en vivo falló o no está soportada:', err)
-      alert('Error detallado de cámara WebRTC: ' + (err.message || err.toString()));
       setCameraError('No se pudo activar la cámara interna en vivo. Usaremos la cámara nativa de tu teléfono.')
       setUseLiveCamera(false)
     }
-  }, [stream])
+  }, [])
 
   // Control del ciclo de vida del modal y bloqueo de scroll
   useEffect(() => {
@@ -109,7 +101,6 @@ export default function DocumentScannerModal({
       setCameraError(null)
       setUseLiveCamera(true)
 
-      alert('Modal montado con éxito. Iniciando stream de cámara...');
       // Iniciar cámara en vivo
       startLiveCamera()
     } else {

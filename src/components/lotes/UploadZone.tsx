@@ -149,7 +149,6 @@ export default function UploadZone({
           onClick={(e) => {
             e.preventDefault();
             e.stopPropagation();
-            alert('Click registrado. Abriendo modal del escáner...');
             setIsScannerOpen(true);
           }}
           className="w-full flex items-center justify-center gap-2 px-4 py-3 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white font-bold text-xs uppercase tracking-widest rounded-2xl transition-all shadow-lg shadow-emerald-950/20 group/scan border border-emerald-500/20 active:scale-[0.98]"
