@@ -166,14 +166,9 @@ export default function UploadZone({
               const files = e.target.files;
               if (files && files.length > 0) {
                 const file = files[0];
-                const reader = new FileReader();
-                reader.onload = () => {
-                  if (typeof reader.result === 'string') {
-                    setScannerImage(reader.result);
-                    setIsScannerOpen(true);
-                  }
-                };
-                reader.readAsDataURL(file);
+                const objectUrl = URL.createObjectURL(file);
+                setScannerImage(objectUrl);
+                setIsScannerOpen(true);
               }
             }}
           />
@@ -276,6 +271,9 @@ export default function UploadZone({
         isOpen={isScannerOpen}
         onClose={() => {
           setIsScannerOpen(false);
+          if (scannerImage) {
+            URL.revokeObjectURL(scannerImage);
+          }
           setScannerImage(null);
         }}
         onScanComplete={(scannedFile) => {

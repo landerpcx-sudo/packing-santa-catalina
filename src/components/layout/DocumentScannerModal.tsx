@@ -80,18 +80,20 @@ export default function DocumentScannerModal({
     const file = files[0]
     setProcessing(true)
 
-    const reader = new FileReader()
-    reader.onload = () => {
-      if (typeof reader.result === 'string') {
-        setCapturedImage(reader.result)
+    try {
+      // Liberar la imagen anterior de la memoria si es un Object URL
+      if (capturedImage && capturedImage.startsWith('blob:')) {
+        URL.revokeObjectURL(capturedImage)
       }
-      setProcessing(false)
-    }
-    reader.onerror = () => {
+
+      const objectUrl = URL.createObjectURL(file)
+      setCapturedImage(objectUrl)
+    } catch (err) {
+      console.error(err)
       alert('Error al leer la foto. Intenta de nuevo.')
+    } finally {
       setProcessing(false)
     }
-    reader.readAsDataURL(file)
   }
 
   // Manejadores de arrastre/panning
