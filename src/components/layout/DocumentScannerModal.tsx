@@ -487,21 +487,25 @@ export default function DocumentScannerModal({
         {/* FOOTER BOTONERA (No flexiona, ocupa su espacio inferior) */}
         {useLiveCamera && stream && (
           <div className="flex-none bg-gradient-to-t from-black/90 via-black/60 to-transparent px-6 pb-10 pt-12 flex items-center justify-center gap-3 pointer-events-auto">
-            <button
-              disabled={processing}
+            <div
+              role="button"
               onClick={() => {
+                if (processing) return
                 stopLiveCamera()
                 setUseLiveCamera(false)
                 triggerNativeCamera()
               }}
-              className="py-4 px-4 bg-white/10 hover:bg-white/20 text-white rounded-xl text-[11px] font-bold uppercase transition-all backdrop-blur-md border border-white/15 shadow-md flex items-center justify-center gap-2"
+              className={`py-4 px-4 bg-white/10 hover:bg-white/20 text-white rounded-xl text-[11px] font-bold uppercase transition-all backdrop-blur-md border border-white/15 shadow-md flex items-center justify-center gap-2 cursor-pointer ${processing ? 'opacity-50 pointer-events-none' : ''}`}
             >
               <RefreshCw size={14} /> Nativa
-            </button>
-            <button
-              disabled={processing}
-              onClick={captureLiveFrame}
-              className="flex-1 py-4 px-6 rounded-xl text-xs font-black uppercase tracking-widest shadow-xl flex items-center justify-center gap-2 border border-emerald-400/30 transition-all"
+            </div>
+            <div
+              role="button"
+              onClick={() => {
+                if (processing) return
+                captureLiveFrame()
+              }}
+              className={`flex-1 py-4 px-6 rounded-xl text-xs font-black uppercase tracking-widest shadow-xl flex items-center justify-center gap-2 border border-emerald-400/30 transition-all cursor-pointer ${processing ? 'opacity-50 pointer-events-none' : ''}`}
               style={{
                 backgroundColor: processing ? '#065f46' : '#10b981',
                 color: processing ? '#a7f3d0' : '#ffffff',
@@ -519,7 +523,7 @@ export default function DocumentScannerModal({
                   <Camera size={18} /> Capturar Foto
                 </>
               )}
-            </button>
+            </div>
           </div>
         )}
       </div>
