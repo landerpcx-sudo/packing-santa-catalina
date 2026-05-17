@@ -116,24 +116,43 @@ export default function DocumentScannerModal({
     }
   }, [])
 
-  const [scrollPos, setScrollPos] = useState(0)
-
   useEffect(() => {
     if (isOpen) {
-      setScrollPos(window.scrollY)
       document.body.style.overflow = 'hidden'
+      
+      // HACK: Deshabilitar temporalmente la animación y transform de page-transition 
+      // para que el `fixed` escape al viewport principal y cubra el BottomNav sin usar portales.
+      const pageWrapper = document.querySelector('.page-transition') as HTMLElement
+      if (pageWrapper) {
+        pageWrapper.style.transform = 'none'
+        pageWrapper.style.willChange = 'auto'
+        pageWrapper.style.animation = 'none'
+      }
+
       setProcessing(false)
       setCameraError(null)
       setUseLiveCamera(true)
       startLiveCamera()
     } else {
       document.body.style.overflow = ''
+      const pageWrapper = document.querySelector('.page-transition') as HTMLElement
+      if (pageWrapper) {
+        pageWrapper.style.transform = ''
+        pageWrapper.style.willChange = ''
+        pageWrapper.style.animation = ''
+      }
       stopLiveCamera()
       isRequestingRef.current = false
     }
 
     return () => {
       document.body.style.overflow = ''
+      const pageWrapper = document.querySelector('.page-transition') as HTMLElement
+      if (pageWrapper) {
+        pageWrapper.style.transform = ''
+        pageWrapper.style.willChange = ''
+        pageWrapper.style.animation = ''
+      }
       stopLiveCamera()
       isRequestingRef.current = false
     }
@@ -358,13 +377,7 @@ export default function DocumentScannerModal({
 
   return (
     <div 
-      className="absolute z-[99999] bg-black overflow-hidden select-none touch-none text-white"
-      style={{ 
-        top: scrollPos, 
-        left: 0, 
-        width: '100vw', 
-        height: '100dvh' 
-      }}
+      className="fixed inset-0 z-[99999] bg-black overflow-hidden select-none touch-none text-white"
     >
       {/* 
         Video en el fondo absoluto. 
