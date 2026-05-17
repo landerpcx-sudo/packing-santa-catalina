@@ -35,6 +35,7 @@ export default function UploadZone({
   const [driveUrl, setDriveUrl] = useState('')
   const [fileName, setFileName] = useState('')
   const [isScannerOpen, setIsScannerOpen] = useState(false)
+  const [scannerImage, setScannerImage] = useState<string | null>(null)
   
   const nativeCameraInputRef = useRef<HTMLInputElement>(null)
 
@@ -146,34 +147,38 @@ export default function UploadZone({
     <div className="space-y-3">
       {/* Botón de Escáner Integrado - FUERA del dropzone para que no interfiera con los clicks normales */}
       {state === 'idle' && Object.keys(accept).some(mime => mime.startsWith('image/') || mime === 'image/*') && (
-        <button
-          type="button"
-          onClick={(e) => {
-            e.preventDefault();
-            e.stopPropagation();
-            setIsScannerOpen(true);
-          }}
-          className="w-full flex items-center justify-center gap-2 px-4 py-3 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white font-bold text-xs uppercase tracking-widest rounded-2xl transition-all shadow-lg shadow-emerald-950/20 group/scan border border-emerald-500/20 active:scale-[0.98]"
-        >
-          <Camera className="w-4 h-4 group-hover/scan:scale-110 transition-transform text-emerald-200" />
-          📷 Iniciar Escáner de Documento
-        </button>
+        <>
+          <label
+            htmlFor={`camera-input-${documentType}`}
+            className="w-full flex items-center justify-center gap-2 px-4 py-3 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white font-bold text-xs uppercase tracking-widest rounded-2xl transition-all shadow-lg shadow-emerald-950/20 group/scan border border-emerald-500/20 active:scale-[0.98] cursor-pointer text-center"
+          >
+            <Camera className="w-4 h-4 group-hover/scan:scale-110 transition-transform text-emerald-200" />
+            📷 Iniciar Escáner de Documento
+          </label>
+          
+          <input
+            id={`camera-input-${documentType}`}
+            type="file"
+            accept="image/*"
+            capture="environment"
+            className="hidden"
+            onChange={(e) => {
+              const files = e.target.files;
+              if (files && files.length > 0) {
+                const file = files[0];
+                const reader = new FileReader();
+                reader.onload = () => {
+                  if (typeof reader.result === 'string') {
+                    setScannerImage(reader.result);
+                    setIsScannerOpen(true);
+                  }
+                };
+                reader.readAsDataURL(file);
+              }
+            }}
+          />
+        </>
       )}
-
-      {/* Input de cámara nativo oculto */}
-      <input
-        type="file"
-        ref={nativeCameraInputRef}
-        accept="image/*"
-        capture="environment"
-        className="hidden"
-        onChange={(e) => {
-          const files = e.target.files;
-          if (files && files.length > 0) {
-            onDrop([files[0]]);
-          }
-        }}
-      />
 
       <div
         {...getRootProps()}
@@ -269,12 +274,16 @@ export default function UploadZone({
 
       <DocumentScannerModal
         isOpen={isScannerOpen}
-        onClose={() => setIsScannerOpen(false)}
+        onClose={() => {
+          setIsScannerOpen(false);
+          setScannerImage(null);
+        }}
         onScanComplete={(scannedFile) => {
           onDrop([scannedFile]);
         }}
         documentLabel={documentLabel}
         lotCodeOrDispatchId={lotCode}
+        initialImage={scannerImage}
       />
     </div>
   )

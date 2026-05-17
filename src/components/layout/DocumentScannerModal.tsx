@@ -10,6 +10,7 @@ interface DocumentScannerModalProps {
   onScanComplete: (scannedFile: File) => void
   documentLabel: string
   lotCodeOrDispatchId: string
+  initialImage: string | null
 }
 
 type FilterType = 'color' | 'grayscale' | 'scan'
@@ -20,6 +21,7 @@ export default function DocumentScannerModal({
   onScanComplete,
   documentLabel,
   lotCodeOrDispatchId,
+  initialImage,
 }: DocumentScannerModalProps) {
   const [mounted, setMounted] = useState(false)
   const canvasRef = useRef<HTMLCanvasElement>(null)
@@ -42,8 +44,8 @@ export default function DocumentScannerModal({
   useEffect(() => {
     if (isOpen) {
       document.body.style.overflow = 'hidden'
-      // Limpiar estados al abrir
-      setCapturedImage(null)
+      // Inicializar estados con la imagen capturada nativamente
+      setCapturedImage(initialImage)
       setProcessing(false)
       setRotation(0)
       setScale(1.0)
@@ -56,7 +58,7 @@ export default function DocumentScannerModal({
     return () => {
       document.body.style.overflow = ''
     }
-  }, [isOpen])
+  }, [isOpen, initialImage])
 
   // Montar para portal
   useEffect(() => {
