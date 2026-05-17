@@ -152,7 +152,10 @@ export default function DashboardPage() {
   const lotesStats = {
     total:       (lotesData?.total ?? lotes.length).toString(),
     completos:   lotes.filter((l: any) => ['complete','validated','closed'].includes(l.overall_status)).length.toString(),
-    incompletos: lotes.filter((l: any) => ['uploaded','pending',undefined,null,''].includes(l.overall_status)).length.toString(),
+    incompletos: lotes.filter((l: any) => {
+      const s = l.overall_status
+      return !s || s === 'pending' || s === 'uploaded' || s === 'late'
+    }).length.toString(),
     atrasados:   lotes.filter((l: any) => l.overall_status === 'observed').length.toString(),
     recPending:  lotes.filter((l: any) => l.reception_status === 'pending').length.toString(),
     qualPending: lotes.filter((l: any) => l.quality_status === 'pending').length.toString(),

@@ -44,12 +44,19 @@ export default function FilePreviewModal({ isOpen, onClose, fileUrl, fileName }:
   const [mounted,      setMounted]      = useState(false)
   const [loading,      setLoading]      = useState(true)
   const [isFullscreen, setIsFullscreen] = useState(false)
-  const containerRef = useRef<HTMLDivElement>(null)
+  const containerRef  = useRef<HTMLDivElement>(null)
+  const timeoutRef    = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   useEffect(() => { setMounted(true) }, [])
 
   useEffect(() => {
-    if (isOpen) setLoading(true)
+    if (isOpen) {
+      setLoading(true)
+      // Timeout de seguridad: si el iframe no dispara onLoad en 10s, ocultar spinner
+      if (timeoutRef.current) clearTimeout(timeoutRef.current)
+      timeoutRef.current = setTimeout(() => setLoading(false), 10_000)
+    }
+    return () => { if (timeoutRef.current) clearTimeout(timeoutRef.current) }
   }, [isOpen, fileUrl])
 
   useEffect(() => {
@@ -166,8 +173,14 @@ export default function FilePreviewModal({ isOpen, onClose, fileUrl, fileName }:
               src={iframeSrc}
               className="w-full h-full border-0"
               style={{ display: 'block' }}
-              onLoad={() => setLoading(false)}
-              onError={() => setLoading(false)}
+              onLoad={() => {
+                if (timeoutRef.current) clearTimeout(timeoutRef.current)
+                setLoading(false)
+              }}
+              onError={() => {
+                if (timeoutRef.current) clearTimeout(timeoutRef.current)
+                setLoading(false)
+              }}
               title="Visor de documentos"
               allow="autoplay"
             />
