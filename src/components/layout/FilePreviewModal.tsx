@@ -91,9 +91,10 @@ export default function FilePreviewModal({ isOpen, onClose, fileUrl, fileName }:
   const isImage   = !isDrive && isImageFile(fileUrl, fileName)
   const isPdf     = !isDrive && isPdfFile(fileUrl, fileName)
 
-  // Los archivos de Supabase/S3 se pueden mostrar en iframe directo
-  // (el navegador detecta el Content-Type automáticamente)
-  const showIframe = isPdf || isDrive || (isSupabase && !isImage)
+  // Los archivos de Drive usan su iframe. Los PDFs de Supabase en móvil es mejor no usar iframe
+  // porque iOS no los soporta bien. Usamos una vista de "Abrir documento".
+  const showIframe = isDrive
+  const showPdfFallback = !isDrive && !isImage && (isPdf || isSupabase)
   const iframeSrc  = isDrive ? toDrivePreview(fileUrl) : fileUrl
 
   // ── Render ─────────────────────────────────────────────────────────────────
@@ -169,7 +170,7 @@ export default function FilePreviewModal({ isOpen, onClose, fileUrl, fileName }:
         <div className="flex-1 relative overflow-hidden min-h-0">
 
           {/* Spinner */}
-          {loading && (
+          {loading && (showIframe || isImage) && (
             <div className="absolute inset-0 flex flex-col items-center justify-center gap-3 bg-[#0b1628] z-10">
               <Loader2 className="w-8 h-8 animate-spin text-indigo-400" />
               <span className="text-xs font-bold text-gray-500 uppercase tracking-widest">Cargando documento...</span>
