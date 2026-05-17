@@ -68,9 +68,36 @@ export async function GET(
 
     // 3. Crear el ZIP en memoria
     const chunks: any[] = []
-    const archiverFunc = typeof archiver === 'function' ? archiver : (archiver as any).default;
+    let archiverFunc: any = null;
+    
+    if (typeof archiver === 'function') {
+      archiverFunc = archiver;
+    } else if (archiver && typeof (archiver as any).default === 'function') {
+      archiverFunc = (archiver as any).default;
+    } else if (archiver && typeof (archiver as any).create === 'function') {
+      archiverFunc = (archiver as any).create;
+    } else if (archiver && (archiver as any).default && typeof (archiver as any).default.create === 'function') {
+      archiverFunc = (archiver as any).default.create;
+    } else {
+      // Fallback dinámico total
+      try {
+        const dynamicArchiver = require('archiver');
+        if (typeof dynamicArchiver === 'function') {
+          archiverFunc = dynamicArchiver;
+        } else if (dynamicArchiver && typeof dynamicArchiver.create === 'function') {
+          archiverFunc = dynamicArchiver.create;
+        } else if (dynamicArchiver && typeof dynamicArchiver.default === 'function') {
+          archiverFunc = dynamicArchiver.default;
+        } else if (dynamicArchiver && dynamicArchiver.default && typeof dynamicArchiver.default.create === 'function') {
+          archiverFunc = dynamicArchiver.default.create;
+        }
+      } catch (e) {
+        console.error('Error en fallback dinámico de archiver:', e);
+      }
+    }
+
     if (typeof archiverFunc !== 'function') {
-      throw new Error('Archiver is not a function');
+      throw new Error('Archiver no pudo ser resuelto como función. Objeto recibido: ' + JSON.stringify(archiver));
     }
     const archive = archiverFunc('zip', { zlib: { level: 5 } })
 

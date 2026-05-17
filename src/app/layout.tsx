@@ -38,9 +38,21 @@ export default function RootLayout({
           dangerouslySetInnerHTML={{
             __html: `
               if ('serviceWorker' in navigator) {
-                window.addEventListener('load', function() {
-                  navigator.serviceWorker.register('/sw.js');
-                });
+                if (document.readyState === 'complete' || document.readyState === 'interactive') {
+                  navigator.serviceWorker.register('/sw.js').then(function() {
+                    console.log('Service Worker registrado con éxito');
+                  }).catch(function(err) {
+                    console.error('Error al registrar Service Worker:', err);
+                  });
+                } else {
+                  window.addEventListener('load', function() {
+                    navigator.serviceWorker.register('/sw.js').then(function() {
+                      console.log('Service Worker registrado con éxito en load');
+                    }).catch(function(err) {
+                      console.error('Error al registrar Service Worker en load:', err);
+                    });
+                  });
+                }
               }
             `,
           }}
