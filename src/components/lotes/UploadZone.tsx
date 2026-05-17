@@ -162,11 +162,27 @@ export default function UploadZone({
             accept="image/*"
             capture="environment"
             className="hidden"
-            onChange={(e) => {
+            onChange={async (e) => {
               const files = e.target.files;
               if (files && files.length > 0) {
                 const file = files[0];
-                const objectUrl = URL.createObjectURL(file);
+                
+                let processedFile = file;
+                // Si la imagen es muy grande, la comprimimos a un tamaño razonable en un hilo separado
+                if (file.type.startsWith('image/') && file.size > 1.5 * 1024 * 1024) {
+                  try {
+                    const options = {
+                      maxSizeMB: 1.0,
+                      maxWidthOrHeight: 1600,
+                      useWebWorker: true
+                    };
+                    processedFile = await imageCompression(file, options);
+                  } catch (err) {
+                    console.error("Error pre-compressing photo", err);
+                  }
+                }
+                
+                const objectUrl = URL.createObjectURL(processedFile);
                 setScannerImage(objectUrl);
                 setIsScannerOpen(true);
               }

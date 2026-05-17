@@ -292,7 +292,7 @@ export default function DocumentScannerModal({
           <div className="absolute inset-0 flex flex-col items-center justify-center p-4 pb-20">
             
             {/* Máscara oscura y guía del tamaño carta */}
-            <div className="relative w-full max-w-sm aspect-[8.5/11] max-h-[60vh] border-2 border-dashed border-emerald-500/80 bg-black/50 overflow-hidden rounded-2xl shadow-[0_0_0_4000px_rgba(8,11,17,0.85)] flex items-center justify-center pointer-events-auto">
+            <div className="relative w-full max-w-sm aspect-[8.5/11] max-h-[60vh] border-2 border-dashed border-emerald-500/80 bg-black/60 overflow-hidden rounded-2xl flex items-center justify-center pointer-events-auto backdrop-blur-[1px] shadow-2xl">
               <div 
                 ref={guideBoxRef}
                 className="absolute inset-0 z-10 pointer-events-none flex flex-col items-center justify-center"
