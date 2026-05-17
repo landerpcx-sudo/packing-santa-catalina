@@ -470,7 +470,7 @@ export default function DocumentScannerModal({
               <div className="absolute -bottom-1 -left-1 w-8 h-8 border-b-4 border-l-4 border-emerald-500 rounded-bl-2xl" />
               <div className="absolute -bottom-1 -right-1 w-8 h-8 border-b-4 border-r-4 border-emerald-500 rounded-br-2xl" />
               
-              <span className="text-[10px] bg-emerald-600/95 text-white font-black px-4 py-2 rounded-full uppercase tracking-widest shadow-xl border border-emerald-500/20 backdrop-blur-sm absolute -bottom-4">
+              <span className="text-[10px] bg-emerald-500 text-white font-black px-4 py-2 rounded-full uppercase tracking-widest shadow-xl border border-emerald-400/30 backdrop-blur-sm absolute -bottom-4">
                 Alinea Hoja Carta
               </span>
             </div>
@@ -494,7 +494,7 @@ export default function DocumentScannerModal({
             <button
               disabled={processing}
               onClick={captureLiveFrame}
-              className="flex-1 py-4 px-6 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl text-xs font-black uppercase tracking-widest shadow-xl shadow-emerald-600/40 flex items-center justify-center gap-2 border border-emerald-500/20 disabled:opacity-50"
+              className="flex-1 py-4 px-6 bg-emerald-500 hover:bg-emerald-400 text-white rounded-xl text-xs font-black uppercase tracking-widest shadow-xl shadow-emerald-500/40 flex items-center justify-center gap-2 border border-emerald-400/30 disabled:opacity-50"
             >
               {processing ? (
                 <>
