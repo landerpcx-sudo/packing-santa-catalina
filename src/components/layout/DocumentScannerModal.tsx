@@ -116,8 +116,11 @@ export default function DocumentScannerModal({
     }
   }, [])
 
+  const [scrollPos, setScrollPos] = useState(0)
+
   useEffect(() => {
     if (isOpen) {
+      setScrollPos(window.scrollY)
       document.body.style.overflow = 'hidden'
       setProcessing(false)
       setCameraError(null)
@@ -136,7 +139,7 @@ export default function DocumentScannerModal({
     }
   }, [isOpen, startLiveCamera, stopLiveCamera])
 
-  if (!isOpen || !mounted) return null
+  if (!isOpen) return null
 
   const triggerNativeCamera = () => {
     fileInputRef.current?.click()
@@ -353,11 +356,11 @@ export default function DocumentScannerModal({
     }, 50)
   }
 
-  return createPortal(
+  return (
     <div 
-      className="fixed z-[99999] bg-black overflow-hidden select-none touch-none text-white"
+      className="absolute z-[99999] bg-black overflow-hidden select-none touch-none text-white"
       style={{ 
-        top: 0, 
+        top: scrollPos, 
         left: 0, 
         width: '100vw', 
         height: '100dvh' 
@@ -505,7 +508,6 @@ export default function DocumentScannerModal({
       />
 
       <canvas ref={canvasRef} className="hidden" />
-    </div>,
-    document.body
+    </div>
   )
 }
