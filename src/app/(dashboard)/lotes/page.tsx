@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState, useCallback, useMemo, useRef } from 'react'
+import { useEffect, useState, useCallback, useMemo, useRef, Fragment } from 'react'
 import {
   Package, Plus, Search, Filter, ExternalLink,
   Clock, CheckCircle, AlertCircle, XCircle, BarChart3,
@@ -92,7 +92,7 @@ const StatusBadge = ({ status }: { status: string }) => {
         {/* Puntos y líneas conectoras */}
         <div className="flex items-center w-full px-1">
           {stages.map((s, i) => (
-            <React.Fragment key={s.label}>
+            <Fragment key={s.label}>
               <div 
                 className={`w-2.5 h-2.5 rounded-full border ${getStageColor(s.status)} transition-all duration-300 shrink-0 z-10`} 
                 title={s.label} 
@@ -102,7 +102,7 @@ const StatusBadge = ({ status }: { status: string }) => {
                   s.status === 'validated' || s.status === 'complete' ? 'bg-emerald-500/50' : 'bg-gray-700/50'
                 }`} />
               )}
-            </React.Fragment>
+            </Fragment>
           ))}
         </div>
         {/* Etiquetas de texto */}
