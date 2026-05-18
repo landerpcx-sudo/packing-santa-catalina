@@ -14,6 +14,7 @@ import UploadZone from '@/components/lotes/UploadZone' // General UploadZone
 import NewDispatchModal from '@/components/despachos/NewDispatchModal'
 import InlineValidation from '@/components/lotes/InlineValidation'
 import FilePreviewModal from '@/components/layout/FilePreviewModal'
+import { useRouter } from 'next/navigation'
 
 interface DispatchDocument {
   id: string
@@ -61,6 +62,7 @@ const STATUS_CONFIG: Record<string, { label: string; color: string; icon: React.
 export default function DispatchDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params)
   const { user } = useAuth()
+  const router = useRouter()
   const [dispatch, setDispatch] = useState<Dispatch | null>(null)
   const [loading, setLoading] = useState(true)
   const [refreshing, setRefreshing] = useState(false)
@@ -136,6 +138,31 @@ export default function DispatchDetailPage({ params }: { params: Promise<{ id: s
       }
     } catch (e) {
       alert('Error de conexión al intentar eliminar')
+    }
+  }
+
+  const handleDeleteDispatch = async () => {
+    const confirmation = prompt('🛑 ¡ADVERTENCIA CRÍTICA!\n\n¿Estás seguro de que deseas ELIMINAR ESTE DESPACHO COMPLETAMENTE?\n\nEsta acción:\n1. Borrará el registro de la Base de Datos.\n2. Enviará la carpeta de Google Drive a la papelera.\n3. Es irreversible.\n\nEscribe "ELIMINAR" en mayúsculas para confirmar:')
+    
+    if (confirmation !== 'ELIMINAR') {
+      alert('Eliminación cancelada.')
+      return
+    }
+
+    try {
+      const res = await fetch(`/api/despachos/${id}`, {
+        method: 'DELETE',
+        headers: { 'x-user-id': user?.userId || '', 'x-user-role': user?.role || '' }
+      })
+      if (res.ok) {
+        alert('Despacho eliminado con éxito.')
+        router.push('/despachos')
+      } else {
+        const data = await res.json()
+        alert(data.error || 'Error al eliminar el despacho.')
+      }
+    } catch (e) {
+      alert('Error de conexión al intentar eliminar.')
     }
   }
 
@@ -260,6 +287,15 @@ export default function DispatchDetailPage({ params }: { params: Promise<{ id: s
                 title="Editar Información"
               >
                 <Edit2 className="w-4 h-4" />
+              </button>
+            )}
+            {user?.role === 'admin' && (
+              <button
+                onClick={handleDeleteDispatch}
+                className="p-2 rounded-xl border border-red-500/20 text-red-400 hover:bg-red-500/10 hover:border-red-500/40 transition-all"
+                title="Eliminar Despacho Permanentemente"
+              >
+                <Trash2 className="w-4 h-4" />
               </button>
             )}
             <button onClick={() => fetchDispatch(true)} className="p-2 rounded-xl border border-white/10 text-gray-400 hover:text-white hover:bg-white/5 transition-all">

@@ -268,3 +268,86 @@ export async function PATCH(
     return NextResponse.json({ error: err.message || 'Error interno' }, { status: 500 })
   }
 }
+
+// DELETE - Eliminar un lote completo (Solo Admin)
+export async function DELETE(
+  request: Request,
+  { params }: { params: Promise<{ id: string }> }
+) {
+  try {
+    const { id } = await params
+    const headersList = await headers()
+    const userRole = headersList.get('x-user-role')
+
+    // 1. Verificación de seguridad estricta
+    if (userRole !== 'admin') {
+      return NextResponse.json({ error: 'Acceso denegado. Solo administradores pueden eliminar lotes.' }, { status: 403 })
+    }
+
+    // 2. Obtener datos del lote antes de borrar
+    const { data: lot, error: fetchError } = await supabaseAdmin
+      .from('lots')
+      .select('drive_folder_id, internal_code')
+      .eq('id', id)
+      .single()
+
+    if (fetchError || !lot) {
+      return NextResponse.json({ error: 'Lote no encontrado' }, { status: 404 })
+    }
+
+    // 3. Eliminar archivos de Supabase Storage
+    const { data: docs } = await supabaseAdmin
+      .from('lot_documents')
+      .select('storage_path')
+      .eq('lot_id', id)
+    
+    if (docs && docs.length > 0) {
+      const pathsToDelete = docs.map(d => d.storage_path).filter(Boolean) as string[]
+      if (pathsToDelete.length > 0) {
+        const { error: storageError } = await supabaseAdmin.storage.from('documentos').remove(pathsToDelete)
+        if (storageError) console.error('Error limpiando storage de Supabase:', storageError)
+      }
+    }
+
+    // 4. Mover carpeta de Google Drive a la Papelera
+    if (lot.drive_folder_id) {
+      try {
+        const { trashFolder } = await import('@/lib/drive')
+        await trashFolder(lot.drive_folder_id)
+      } catch (driveErr) {
+        console.error('Error moviendo carpeta de Drive a papelera:', driveErr)
+        // No bloqueamos la eliminación de base de datos si falla Drive
+      }
+    }
+
+    // 5. Eliminar el lote de la base de datos
+    // Nota: lot_documents se borrará en cascada si está configurado así, sino borrará el lote.
+    // Para asegurar, borramos los docs primero
+    await supabaseAdmin.from('lot_documents').delete().eq('lot_id', id)
+    
+    const { error: deleteError } = await supabaseAdmin
+      .from('lots')
+      .delete()
+      .eq('id', id)
+
+    if (deleteError) {
+      return NextResponse.json({ error: deleteError.message }, { status: 500 })
+    }
+
+    // Opcional: Registrar en auditoría que se eliminó el lote
+    const userId = headersList.get('x-user-id')
+    await supabaseAdmin.from('audit_log').insert({
+      user_id: userId || null,
+      action: 'DELETE_LOT',
+      entity_type: 'lots',
+      entity_id: id,
+      details: { internal_code: lot.internal_code, deleted_at: new Date().toISOString() },
+    })
+
+    return NextResponse.json({ success: true, message: 'Lote eliminado permanentemente.' })
+
+  } catch (err: any) {
+    console.error('DELETE /api/lotes/[id] error:', err)
+    return NextResponse.json({ error: err.message || 'Error interno al eliminar lote' }, { status: 500 })
+  }
+}

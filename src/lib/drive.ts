@@ -97,3 +97,18 @@ export async function uploadFile(
     url: file.data.webViewLink,
   }
 }
+
+export async function trashFolder(folderId: string) {
+  try {
+    const drive = await getDriveClient()
+    await drive.files.update({
+      fileId: folderId,
+      requestBody: { trashed: true },
+      supportsAllDrives: true,
+    })
+    console.log(`Carpeta/Archivo enviado a la papelera en Drive. ID: ${folderId}`)
+  } catch (err: any) {
+    console.error(`Error al mover a papelera en Drive: ${err.message}`)
+    throw err
+  }
+}

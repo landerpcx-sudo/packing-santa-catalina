@@ -65,3 +65,83 @@ export async function PATCH(
     return NextResponse.json({ error: err.message || 'Error interno' }, { status: 500 })
   }
 }
+
+// DELETE - Eliminar un despacho completo (Solo Admin)
+export async function DELETE(
+  request: Request,
+  { params }: { params: Promise<{ id: string }> }
+) {
+  try {
+    const { id } = await params
+    const headersList = await headers()
+    const userRole = headersList.get('x-user-role')
+
+    // 1. Verificación de seguridad estricta
+    if (userRole !== 'admin') {
+      return NextResponse.json({ error: 'Acceso denegado. Solo administradores pueden eliminar despachos.' }, { status: 403 })
+    }
+
+    // 2. Obtener datos antes de borrar
+    const { data: dispatch, error: fetchError } = await supabaseAdmin
+      .from('dispatches')
+      .select('drive_folder_id, internal_code')
+      .eq('id', id)
+      .single()
+
+    if (fetchError || !dispatch) {
+      return NextResponse.json({ error: 'Despacho no encontrado' }, { status: 404 })
+    }
+
+    // 3. Eliminar archivos de Supabase Storage
+    const { data: docs } = await supabaseAdmin
+      .from('dispatch_documents')
+      .select('storage_path')
+      .eq('dispatch_id', id)
+    
+    if (docs && docs.length > 0) {
+      const pathsToDelete = docs.map(d => d.storage_path).filter(Boolean) as string[]
+      if (pathsToDelete.length > 0) {
+        const { error: storageError } = await supabaseAdmin.storage.from('documentos').remove(pathsToDelete)
+        if (storageError) console.error('Error limpiando storage de Supabase (despachos):', storageError)
+      }
+    }
+
+    // 4. Mover carpeta de Google Drive a la Papelera
+    if (dispatch.drive_folder_id) {
+      try {
+        const { trashFolder } = await import('@/lib/drive')
+        await trashFolder(dispatch.drive_folder_id)
+      } catch (driveErr) {
+        console.error('Error moviendo carpeta de Drive a papelera (despachos):', driveErr)
+      }
+    }
+
+    // 5. Eliminar el despacho de la base de datos
+    await supabaseAdmin.from('dispatch_documents').delete().eq('dispatch_id', id)
+    
+    const { error: deleteError } = await supabaseAdmin
+      .from('dispatches')
+      .delete()
+      .eq('id', id)
+
+    if (deleteError) {
+      return NextResponse.json({ error: deleteError.message }, { status: 500 })
+    }
+
+    // Auditoría
+    const userId = headersList.get('x-user-id')
+    await supabaseAdmin.from('audit_log').insert({
+      user_id: userId || null,
+      action: 'DELETE_DISPATCH',
+      entity_type: 'dispatches',
+      entity_id: id,
+      details: { internal_code: dispatch.internal_code, deleted_at: new Date().toISOString() },
+    })
+
+    return NextResponse.json({ success: true, message: 'Despacho eliminado permanentemente.' })
+
+  } catch (err: any) {
+    console.error('DELETE /api/despachos/[id] error:', err)
+    return NextResponse.json({ error: err.message || 'Error interno al eliminar despacho' }, { status: 500 })
+  }
+}

@@ -90,9 +90,12 @@ const DocTypeConfig: Record<string, { label: string; color: string }> = {
   other:        { label: 'Otro',                color: 'text-gray-400' },
 }
 
+import { useRouter } from 'next/navigation'
+
 export default function LoteDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params)
   const { user } = useAuth()
+  const router = useRouter()
   const [lot, setLot] = useState<Lot | null>(null)
   const [loading, setLoading] = useState(true)
   const [refreshing, setRefreshing] = useState(false)
@@ -145,6 +148,31 @@ export default function LoteDetailPage({ params }: { params: Promise<{ id: strin
       if (res.ok) fetchLot(true)
       else alert('Error al eliminar')
     } catch (e) { alert('Error de conexión') }
+  }
+
+  const handleDeleteLot = async () => {
+    const confirmation = prompt('🛑 ¡ADVERTENCIA CRÍTICA!\n\n¿Estás seguro de que deseas ELIMINAR ESTE LOTE COMPLETAMENTE?\n\nEsta acción:\n1. Borrará el registro de la Base de Datos.\n2. Enviará la carpeta de Google Drive a la papelera.\n3. Es irreversible.\n\nEscribe "ELIMINAR" en mayúsculas para confirmar:')
+    
+    if (confirmation !== 'ELIMINAR') {
+      alert('Eliminación cancelada.')
+      return
+    }
+
+    try {
+      const res = await fetch(`/api/lotes/${id}`, {
+        method: 'DELETE',
+        headers: { 'x-user-id': user?.userId || '', 'x-user-role': user?.role || '' }
+      })
+      if (res.ok) {
+        alert('Lote eliminado con éxito.')
+        router.push('/lotes')
+      } else {
+        const data = await res.json()
+        alert(data.error || 'Error al eliminar el lote.')
+      }
+    } catch (e) {
+      alert('Error de conexión al intentar eliminar.')
+    }
   }
 
   const handleCloseLot = async () => {
@@ -221,15 +249,18 @@ export default function LoteDetailPage({ params }: { params: Promise<{ id: strin
             )}
             <a href={`/api/lotes/${lot.id}/download-all`} className="flex items-center gap-2 px-3 py-1.5 bg-blue-500/10 border border-blue-500/20 rounded-xl text-blue-400 hover:bg-blue-500/20 transition-all text-sm"><Download className="w-4 h-4" /> Descargar Todo</a>
             {(lot.overall_status === 'complete' || lot.overall_status === 'validated') && user?.role === 'admin' && (
-              <button onClick={handleCloseLot} className="flex items-center gap-1.5 px-3 py-1.5 bg-red-500/10 border border-red-500/30 rounded-xl text-red-400 hover:bg-red-500/20 text-sm font-medium transition-all"><Lock className="w-4 h-4" /> Cerrar Lote</button>
+              <button onClick={handleCloseLot} className="flex items-center gap-1.5 px-3 py-1.5 bg-orange-500/10 border border-orange-500/30 rounded-xl text-orange-400 hover:bg-orange-500/20 text-sm font-medium transition-all"><Lock className="w-4 h-4" /> Cerrar Lote</button>
             )}
             {lot.overall_status === 'closed' && user?.role === 'admin' && (
               <button onClick={handleOpenLot} className="flex items-center gap-1.5 px-3 py-1.5 bg-green-500/10 border border-green-500/30 rounded-xl text-green-400 hover:bg-green-500/20 text-sm font-medium transition-all"><FolderOpen className="w-4 h-4" /> Abrir Lote</button>
             )}
             {user?.role === 'admin' && lot.overall_status !== 'closed' && (
-              <button onClick={() => setShowEditModal(true)} className="p-2 rounded-xl border border-white/10 text-gray-400 hover:text-indigo-400"><Edit2 className="w-4 h-4" /></button>
+              <button onClick={() => setShowEditModal(true)} className="p-2 rounded-xl border border-white/10 text-gray-400 hover:text-indigo-400" title="Editar Información"><Edit2 className="w-4 h-4" /></button>
             )}
-            <button onClick={() => fetchLot(true)} className="p-2 rounded-xl border border-white/10 text-gray-400"><RefreshCw className="w-4 h-4" /></button>
+            {user?.role === 'admin' && (
+              <button onClick={handleDeleteLot} className="p-2 rounded-xl border border-red-500/20 text-red-400 hover:bg-red-500/10 hover:border-red-500/40 transition-all" title="Eliminar Lote Permanentemente"><Trash2 className="w-4 h-4" /></button>
+            )}
+            <button onClick={() => fetchLot(true)} className="p-2 rounded-xl border border-white/10 text-gray-400 hover:text-white transition-all"><RefreshCw className={`w-4 h-4 ${refreshing ? 'animate-spin' : ''}`} /></button>
           </div>
         </div>
       </div>

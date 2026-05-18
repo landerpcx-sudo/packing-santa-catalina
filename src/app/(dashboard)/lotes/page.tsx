@@ -68,31 +68,60 @@ const StatusBadge = ({ status }: { status: string }) => {
   )
 }
 
-// Semáforo de 3 etapas: Recepción / Calidad / Proceso
-const LotSemaphore = ({ lot }: { lot: Lot }) => {
-  const stages = [
-    { label: 'Rec.', status: lot.reception_status },
-    { label: 'Cal.', status: lot.quality_status },
-    { label: 'Pro.', status: lot.process_status },
-  ]
-  const dotColor: Record<string, string> = {
-    pending:   'bg-red-500/30',
-    uploaded:  'bg-yellow-400',
-    validated: 'bg-green-400',
-    observed:  'bg-yellow-400',
-    late:      'bg-red-500 animate-pulse',
-  }
-  return (
-    <div className="flex items-center gap-1.5">
-      {stages.map((s) => (
-        <div key={s.label} className="flex flex-col items-center gap-0.5">
-          <div className={`w-3 h-3 rounded-full border border-white/10 ${dotColor[s.status] || 'bg-gray-600'}`} title={s.label} />
-          <span className="text-gray-600 text-[9px] uppercase font-bold">{s.label}</span>
+  // Semáforo de 3 etapas: Recepción / Calidad / Proceso (Diseño Stepper)
+  const LotSemaphore = ({ lot }: { lot: Lot }) => {
+    const stages = [
+      { label: 'Rec.', status: lot.reception_status },
+      { label: 'Cal.', status: lot.quality_status },
+      { label: 'Pro.', status: lot.process_status },
+    ]
+    
+    const getStageColor = (status: string) => {
+      switch (status) {
+        case 'validated':
+        case 'complete': return 'bg-emerald-500 border-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.5)]'
+        case 'uploaded': return 'bg-yellow-400 border-yellow-400 shadow-[0_0_8px_rgba(250,204,21,0.5)]'
+        case 'observed': return 'bg-orange-500 border-orange-500'
+        case 'late': return 'bg-red-500 border-red-500 animate-pulse shadow-[0_0_8px_rgba(239,68,68,0.6)]'
+        default: return 'bg-[#1f2937] border-gray-600'
+      }
+    }
+
+    return (
+      <div className="flex flex-col gap-1.5 w-full max-w-[130px]">
+        {/* Puntos y líneas conectoras */}
+        <div className="flex items-center w-full px-1">
+          {stages.map((s, i) => (
+            <React.Fragment key={s.label}>
+              <div 
+                className={`w-2.5 h-2.5 rounded-full border ${getStageColor(s.status)} transition-all duration-300 shrink-0 z-10`} 
+                title={s.label} 
+              />
+              {i < stages.length - 1 && (
+                <div className={`flex-1 h-[2px] -mx-0.5 z-0 ${
+                  s.status === 'validated' || s.status === 'complete' ? 'bg-emerald-500/50' : 'bg-gray-700/50'
+                }`} />
+              )}
+            </React.Fragment>
+          ))}
         </div>
-      ))}
-    </div>
-  )
-}
+        {/* Etiquetas de texto */}
+        <div className="flex items-center justify-between w-full">
+           {stages.map((s, i) => (
+             <span 
+               key={s.label} 
+               className={`text-[8.5px] uppercase font-bold tracking-tighter ${
+                 s.status === 'validated' ? 'text-emerald-500/80' : 
+                 s.status === 'pending' ? 'text-gray-600' : 'text-gray-400'
+               }`}
+             >
+               {s.label}
+             </span>
+           ))}
+        </div>
+      </div>
+    )
+  }
 
 const isOverdue = (deadline: string | null, status: string) => {
   if (!deadline || ['validated', 'closed'].includes(status)) return false
