@@ -24,10 +24,10 @@ import {
 } from 'lucide-react'
 
 const NAV_ITEMS = [
-  { href: '/dashboard', label: 'Dashboard', icon: LayoutDashboard, roles: ['admin', 'jefe_frio', 'calidad', 'cuadratura', 'sag', 'despacho', 'gerencia'] },
-  { href: '/lotes', label: 'Lotes / Recepción', icon: Package, roles: ['admin', 'jefe_frio', 'calidad', 'cuadratura'] },
-  { href: '/temperaturas', label: 'Temperaturas', icon: Thermometer, roles: ['admin', 'jefe_frio', 'gerencia'] },
-  { href: '/despachos', label: 'Despachos', icon: Truck, roles: ['admin', 'jefe_frio', 'sag', 'despacho', 'gerencia'] },
+  { href: '/dashboard', label: 'Dashboard', icon: LayoutDashboard, roles: ['admin', 'jefe_frio', 'calidad', 'cuadratura', 'sag', 'despacho', 'gerencia', 'agronomo'] },
+  { href: '/lotes', label: 'Lotes / Recepción', icon: Package, roles: ['admin', 'jefe_frio', 'calidad', 'cuadratura', 'gerencia', 'agronomo'] },
+  { href: '/temperaturas', label: 'Temperaturas', icon: Thermometer, roles: ['admin', 'jefe_frio', 'gerencia', 'agronomo'] },
+  { href: '/despachos', label: 'Despachos', icon: Truck, roles: ['admin', 'jefe_frio', 'sag', 'despacho', 'gerencia', 'agronomo'] },
   { href: '/pendientes', label: 'Pendientes', icon: ClipboardList, roles: ['admin'] },
   { href: '/usuarios', label: 'Usuarios', icon: Users, roles: ['admin'] },
   { href: '/configuracion', label: 'Configuración', icon: Settings, roles: ['admin'] },

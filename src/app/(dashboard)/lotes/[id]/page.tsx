@@ -431,7 +431,7 @@ export default function LoteDetailPage({ params }: { params: Promise<{ id: strin
                 )}
 
                 {/* Zona de subida */}
-                {lot.overall_status !== 'closed' && (
+                {lot.overall_status !== 'closed' && ['admin', 'jefe_frio', 'calidad', 'cuadratura'].includes(user?.role || '') && (
                   <UploadZone
                     lotId={lot.id}
                     lotCode={lot.internal_code}

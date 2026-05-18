@@ -7,6 +7,7 @@ export const ROLES = {
   SAG: 'sag',
   DESPACHO: 'despacho',
   GERENCIA: 'gerencia',
+  AGRONOMO: 'agronomo',
 } as const
 
 export type Role = typeof ROLES[keyof typeof ROLES]
@@ -71,6 +72,10 @@ export const DEFAULT_PERMISSIONS_BY_ROLE: Record<Role, Permission[]> = {
     PERMISSIONS.CAN_VIEW_ALL,
     PERMISSIONS.CAN_DOWNLOAD_ALL,
   ],
+  agronomo: [
+    PERMISSIONS.CAN_VIEW_ALL,
+    PERMISSIONS.CAN_DOWNLOAD_ALL,
+  ],
 }
 
 // Display names para UI
@@ -82,6 +87,7 @@ export const ROLE_DISPLAY_NAMES: Record<Role, string> = {
   sag: 'Contraparte SAG',
   despacho: 'Despacho',
   gerencia: 'Gerencia',
+  agronomo: 'Agrónomo',
 }
 
 // Estados de documentos con colores semáforo
