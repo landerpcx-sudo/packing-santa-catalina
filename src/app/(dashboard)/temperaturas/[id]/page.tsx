@@ -249,9 +249,11 @@ export default function TemperatureDetailPage({ params }: { params: Promise<{ id
             <div className="bg-[#0f172a] border border-white/10 rounded-3xl p-6">
                <div className="flex items-center justify-between mb-4">
                   <span className="text-[10px] font-bold text-gray-500 uppercase tracking-widest">Temperatura</span>
-                  <button onClick={() => setEditingTemp(true)} className="p-2 bg-white/5 rounded-xl text-gray-500 hover:text-blue-400 transition-all">
-                     <Edit3 size={16} />
-                  </button>
+                  {['admin', 'jefe_frio'].includes(user?.role || '') && (
+                    <button onClick={() => setEditingTemp(true)} className="p-2 bg-white/5 rounded-xl text-gray-500 hover:text-blue-400 transition-all">
+                       <Edit3 size={16} />
+                    </button>
+                  )}
                </div>
                {editingTemp ? (
                  <div className="flex items-center gap-2 animate-in fade-in duration-200">
@@ -348,13 +350,15 @@ export default function TemperatureDetailPage({ params }: { params: Promise<{ id
                             </div>
                          </div>
                        ))}
-                       <UploadZone
-                         reportId={id}
-                         reportCode={report.internal_code}
-                         docType={type}
-                         label={`Subir ${label.toLowerCase()}`}
-                         onSuccess={fetchReport}
-                       />
+                       {['admin', 'jefe_frio'].includes(user?.role || '') && (
+                         <UploadZone
+                           reportId={id}
+                           reportCode={report.internal_code}
+                           docType={type}
+                           label={`Subir ${label.toLowerCase()}`}
+                           onSuccess={fetchReport}
+                         />
+                       )}
                     </div>
                   </div>
                 )
