@@ -228,90 +228,109 @@ export default function UsuariosPage() {
         </div>
       </div>
 
-      {/* Users Grid/List */}
+      {/* Users Table */}
       {loading ? (
         <div className="flex flex-col items-center justify-center py-20 gap-4">
           <Loader2 className="w-10 h-10 text-indigo-500 animate-spin" />
           <p className="text-gray-400 font-medium">Cargando directorio de usuarios...</p>
         </div>
       ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
-          {filteredUsers.map((user) => (
-            <div 
-              key={user.id} 
-              className={`group bg-[#0f172a] border border-white/10 rounded-3xl p-6 transition-all duration-300 hover:border-indigo-500/30 hover:shadow-2xl hover:shadow-indigo-500/5 ${!user.active ? 'opacity-60 grayscale' : ''}`}
-            >
-              <div className="flex items-start justify-between mb-4">
-                <div className="flex items-center gap-4">
-                  <div className={`w-14 h-14 rounded-2xl flex items-center justify-center font-bold text-xl shadow-inner ${user.active ? 'bg-gradient-to-br from-indigo-500/20 to-purple-500/20 text-indigo-400' : 'bg-gray-500/10 text-gray-500'}`}>
-                    {user.display_name.charAt(0).toUpperCase()}
-                  </div>
-                  <div>
-                    <h3 className="font-bold text-white text-lg leading-tight">{user.display_name}</h3>
-                    <p className="text-sm text-gray-500 font-medium flex items-center gap-1.5 mt-0.5">
-                      <Mail size={12} /> @{user.username}
-                    </p>
-                  </div>
-                </div>
-                <div className="flex gap-1">
-                  <button 
-                    onClick={() => handleOpenModal(user)}
-                    className="p-2 text-gray-500 hover:text-indigo-400 hover:bg-indigo-400/10 rounded-xl transition-all"
-                  >
-                    <Edit2 size={16} />
-                  </button>
-                  <button 
-                    onClick={() => toggleUserStatus(user)}
-                    className={`p-2 rounded-xl transition-all ${user.active ? 'text-gray-500 hover:text-red-400 hover:bg-red-400/10' : 'text-emerald-500 hover:bg-emerald-500/10'}`}
-                  >
-                    {user.active ? <UserX size={16} /> : <UserCheck size={16} />}
-                  </button>
-                </div>
-              </div>
-
-              <div className="grid grid-cols-2 gap-3 mt-6">
-                <div className="bg-white/5 border border-white/5 rounded-2xl p-3">
-                  <p className="text-[10px] uppercase tracking-widest font-bold text-gray-500 mb-1 flex items-center gap-1">
-                    <Shield size={10} /> Rol
-                  </p>
-                  <p className="text-xs font-bold text-white truncate">
-                    {ROLE_DISPLAY_NAMES[user.role as keyof typeof ROLE_DISPLAY_NAMES] || user.role}
-                  </p>
-                </div>
-                <div className="bg-white/5 border border-white/5 rounded-2xl p-3">
-                  <p className="text-[10px] uppercase tracking-widest font-bold text-gray-500 mb-1 flex items-center gap-1">
-                    <Briefcase size={10} /> Área
-                  </p>
-                  <p className="text-xs font-bold text-white truncate">
-                    {user.area || 'No definida'}
-                  </p>
-                </div>
-              </div>
-
-              <div className="mt-4 flex items-center justify-between px-1">
-                <div className="flex items-center gap-2">
-                   <div className={`w-2 h-2 rounded-full ${user.active ? 'bg-emerald-500 animate-pulse' : 'bg-gray-500'}`} />
-                   <span className="text-[10px] font-bold text-gray-500 uppercase tracking-widest">
-                     {user.active ? 'Usuario Activo' : 'Acceso Revocado'}
-                   </span>
-                </div>
-                {user.can_validate && (
-                   <div className="flex items-center gap-1 text-[10px] font-bold text-indigo-400 uppercase tracking-widest bg-indigo-500/10 px-2 py-0.5 rounded-lg border border-indigo-500/20">
-                     <Lock size={10} /> Validador
-                   </div>
+        <div className="bg-[#0f172a] border border-white/10 rounded-3xl overflow-hidden shadow-2xl">
+          <div className="overflow-x-auto">
+            <table className="w-full text-left border-collapse">
+              <thead>
+                <tr className="bg-white/5 border-b border-white/10">
+                  <th className="p-4 text-xs font-bold text-gray-500 uppercase tracking-widest whitespace-nowrap">Usuario</th>
+                  <th className="p-4 text-xs font-bold text-gray-500 uppercase tracking-widest whitespace-nowrap">Rol / Área</th>
+                  <th className="p-4 text-xs font-bold text-gray-500 uppercase tracking-widest whitespace-nowrap">Permisos</th>
+                  <th className="p-4 text-xs font-bold text-gray-500 uppercase tracking-widest whitespace-nowrap text-center">Estado</th>
+                  <th className="p-4 text-xs font-bold text-gray-500 uppercase tracking-widest whitespace-nowrap text-right">Acciones</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-white/5">
+                {filteredUsers.map((user) => (
+                  <tr key={user.id} className={`group hover:bg-white/[0.02] transition-colors ${!user.active ? 'opacity-60 grayscale' : ''}`}>
+                    <td className="p-4">
+                      <div className="flex items-center gap-3">
+                        <div className={`w-10 h-10 rounded-xl flex items-center justify-center font-bold text-sm shadow-inner shrink-0 ${user.active ? 'bg-gradient-to-br from-indigo-500/20 to-purple-500/20 text-indigo-400' : 'bg-gray-500/10 text-gray-500'}`}>
+                          {user.display_name.charAt(0).toUpperCase()}
+                        </div>
+                        <div>
+                          <p className="font-bold text-white text-sm leading-tight whitespace-nowrap">{user.display_name}</p>
+                          <p className="text-xs text-gray-500 font-medium flex items-center gap-1 mt-0.5 whitespace-nowrap">
+                            <Mail size={10} /> @{user.username}
+                          </p>
+                        </div>
+                      </div>
+                    </td>
+                    <td className="p-4">
+                      <div className="flex items-center gap-2">
+                        <div className="p-1.5 bg-white/5 rounded-lg text-indigo-400 shrink-0"><Shield size={12} /></div>
+                        <div>
+                          <p className="text-sm font-bold text-white truncate max-w-[150px]">{ROLE_DISPLAY_NAMES[user.role as keyof typeof ROLE_DISPLAY_NAMES] || user.role}</p>
+                          <p className="text-[10px] text-gray-500 uppercase tracking-wider truncate max-w-[150px]">{user.area || 'Sin Área'}</p>
+                        </div>
+                      </div>
+                    </td>
+                    <td className="p-4">
+                      <div className="flex items-center gap-1.5 flex-wrap max-w-[200px]">
+                        {user.can_validate && <div className="text-[9px] font-bold text-indigo-400 uppercase tracking-widest bg-indigo-500/10 px-1.5 py-0.5 rounded border border-indigo-500/20 flex items-center gap-1 shrink-0"><Lock size={8}/> Firma</div>}
+                        {user.can_create_lot && <div className="text-[9px] font-bold text-emerald-400 uppercase tracking-widest bg-emerald-500/10 px-1.5 py-0.5 rounded border border-emerald-500/20 flex items-center gap-1 shrink-0"><Edit2 size={8}/> Escribe</div>}
+                        {!user.can_validate && !user.can_create_lot && <div className="text-[9px] font-bold text-gray-400 uppercase tracking-widest bg-gray-500/10 px-1.5 py-0.5 rounded border border-gray-500/20 flex items-center gap-1 shrink-0"><Eye size={8}/> Lee</div>}
+                      </div>
+                    </td>
+                    <td className="p-4 text-center">
+                      <div className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full border ${user.active ? 'bg-emerald-500/10 border-emerald-500/20 text-emerald-400' : 'bg-red-500/10 border-red-500/20 text-red-400'}`}>
+                        <div className={`w-1.5 h-1.5 rounded-full ${user.active ? 'bg-emerald-500 animate-pulse' : 'bg-red-500'}`} />
+                        <span className="text-[10px] font-bold uppercase tracking-widest">{user.active ? 'Activo' : 'Revocado'}</span>
+                      </div>
+                    </td>
+                    <td className="p-4 text-right">
+                      <div className="flex justify-end gap-1 opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-opacity">
+                        <button 
+                          onClick={() => handleOpenModal(user)}
+                          className="p-2 text-gray-400 hover:text-indigo-400 hover:bg-indigo-400/10 rounded-lg transition-all"
+                          title="Editar"
+                        >
+                          <Edit2 size={16} />
+                        </button>
+                        <button 
+                          onClick={() => toggleUserStatus(user)}
+                          className={`p-2 rounded-lg transition-all ${user.active ? 'text-gray-400 hover:text-red-400 hover:bg-red-400/10' : 'text-emerald-500 hover:text-emerald-400 hover:bg-emerald-400/10'}`}
+                          title={user.active ? "Desactivar" : "Activar"}
+                        >
+                          {user.active ? <UserX size={16} /> : <UserCheck size={16} />}
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+                {filteredUsers.length === 0 && (
+                  <tr>
+                    <td colSpan={5} className="p-8 text-center text-gray-500 text-sm">
+                      No se encontraron usuarios con ese filtro.
+                    </td>
+                  </tr>
                 )}
-              </div>
-            </div>
-          ))}
+              </tbody>
+            </table>
+          </div>
         </div>
       )}
 
-      {/* Modal Crear/Editar */}
+      {/* Panel Lateral (Drawer) para Crear/Editar */}
       {isModalOpen && (
-        <div className="fixed inset-0 z-[110] overflow-y-auto backdrop-blur-md bg-black/80">
-          <div className="flex min-h-full items-start justify-center p-4 sm:p-6 lg:p-10">
-            <div className="bg-[#0f172a] border border-white/10 rounded-3xl w-full max-w-4xl shadow-2xl animate-in zoom-in-95 duration-200 relative">
-            <div className="p-8 border-b border-white/5 flex items-center justify-between bg-white/5">
+        <>
+          {/* Overlay Oscuro */}
+          <div 
+            className="fixed inset-0 z-[100] bg-black/60 backdrop-blur-sm transition-opacity" 
+            onClick={() => setIsModalOpen(false)}
+          />
+          
+          {/* Drawer Panel */}
+          <div className="fixed inset-y-0 right-0 z-[110] w-full max-w-[450px] bg-[#0f172a] shadow-2xl border-l border-white/10 flex flex-col animate-in slide-in-from-right duration-300">
+            
+            <div className="p-6 border-b border-white/10 flex items-center justify-between bg-white/5 shrink-0">
               <div className="flex items-center gap-3">
                 <div className="p-2 bg-indigo-500/20 rounded-xl text-indigo-400">
                   {editingUser ? <Edit2 size={20} /> : <UserPlus size={20} />}
@@ -320,16 +339,16 @@ export default function UsuariosPage() {
                   <h3 className="text-xl font-bold text-white tracking-tight">
                     {editingUser ? 'Editar Usuario' : 'Nuevo Usuario'}
                   </h3>
-                  <p className="text-xs text-gray-400">Completa los datos de acceso para el personal.</p>
+                  <p className="text-xs text-gray-400">Configuración de acceso y permisos.</p>
                 </div>
               </div>
-              <button onClick={() => setIsModalOpen(false)} className="p-2 hover:bg-white/10 rounded-full text-gray-400 transition-all">
+              <button onClick={() => setIsModalOpen(false)} className="p-2 hover:bg-white/10 rounded-full text-gray-400 transition-all hover:text-white">
                 <X size={20} />
               </button>
             </div>
             
             {showCredentialsSummary ? (
-              <div className="p-8 space-y-6 text-center animate-in fade-in zoom-in duration-300">
+              <div className="p-8 space-y-6 text-center animate-in fade-in zoom-in duration-300 flex-1 overflow-y-auto">
                 <div className="w-20 h-20 bg-emerald-500/20 text-emerald-500 rounded-full flex items-center justify-center mx-auto mb-4">
                   <CheckCircle2 size={40} />
                 </div>
@@ -340,7 +359,7 @@ export default function UsuariosPage() {
                 
                 <div className="bg-black/40 border border-white/10 rounded-2xl p-6 text-left space-y-4 relative overflow-hidden">
                   <div className="absolute top-0 right-0 p-4 opacity-10 pointer-events-none">
-                    <Shield size={60} />
+                     <Shield size={60} />
                   </div>
                   <div>
                     <label className="text-[10px] font-black uppercase tracking-[0.2em] text-gray-500 block mb-1">Usuario / ID</label>
@@ -375,144 +394,152 @@ export default function UsuariosPage() {
                 </div>
               </div>
             ) : (
-              <form onSubmit={handleSubmit} className="p-6 space-y-4">
-              {modalError && (
-                <div className="p-4 rounded-2xl bg-red-500/10 border border-red-500/20 flex gap-3 items-center text-red-400 text-sm">
-                  <AlertCircle size={18} className="flex-shrink-0" />
-                  <p className="font-medium">{modalError}</p>
-                </div>
-              )}
+              <form onSubmit={handleSubmit} className="flex-1 overflow-y-auto p-6 space-y-6">
+                {modalError && (
+                  <div className="p-4 rounded-xl bg-red-500/10 border border-red-500/20 flex gap-3 items-center text-red-400 text-sm">
+                    <AlertCircle size={18} className="flex-shrink-0" />
+                    <p className="font-medium">{modalError}</p>
+                  </div>
+                )}
 
-              <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <label className="text-[11px] uppercase tracking-widest font-bold text-gray-500 ml-1">Usuario (ID)</label>
-                  <input 
-                    type="text" 
-                    required
-                    disabled={!!editingUser}
-                    placeholder="ej. juan.perez"
-                    value={formData.username}
-                    onChange={(e) => setFormData({...formData, username: e.target.value})}
-                    className="w-full bg-black/40 border border-white/10 rounded-2xl px-4 py-3 text-sm text-white focus:outline-none focus:border-indigo-500/50 disabled:opacity-50"
-                  />
+                <div className="space-y-4">
+                  <div className="space-y-2">
+                    <label className="text-[11px] uppercase tracking-widest font-bold text-gray-500 ml-1">Usuario (ID)</label>
+                    <input 
+                      type="text" 
+                      required
+                      disabled={!!editingUser}
+                      placeholder="ej. juan.perez"
+                      value={formData.username}
+                      onChange={(e) => setFormData({...formData, username: e.target.value})}
+                      className="w-full bg-black/40 border border-white/10 rounded-xl px-4 py-3 text-sm text-white focus:outline-none focus:border-indigo-500/50 disabled:opacity-50"
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <label className="text-[11px] uppercase tracking-widest font-bold text-gray-500 ml-1">Nombre Completo</label>
+                    <input 
+                      type="text" 
+                      required
+                      placeholder="ej. Juan Pérez"
+                      value={formData.display_name}
+                      onChange={(e) => setFormData({...formData, display_name: e.target.value})}
+                      className="w-full bg-black/40 border border-white/10 rounded-xl px-4 py-3 text-sm text-white focus:outline-none focus:border-indigo-500/50"
+                    />
+                  </div>
                 </div>
-                <div className="space-y-2">
-                  <label className="text-[11px] uppercase tracking-widest font-bold text-gray-500 ml-1">Nombre Completo</label>
-                  <input 
-                    type="text" 
-                    required
-                    placeholder="ej. Juan Pérez"
-                    value={formData.display_name}
-                    onChange={(e) => setFormData({...formData, display_name: e.target.value})}
-                    className="w-full bg-black/40 border border-white/10 rounded-2xl px-4 py-3 text-sm text-white focus:outline-none focus:border-indigo-500/50"
-                  />
-                </div>
-              </div>
 
-              <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <label className="text-[11px] uppercase tracking-widest font-bold text-gray-500 ml-1">Rol en Sistema</label>
-                  <select 
-                    value={formData.role}
-                    onChange={(e) => setFormData({...formData, role: e.target.value})}
-                    className="w-full bg-black/40 border border-white/10 rounded-2xl px-4 py-3 text-sm text-white focus:outline-none focus:border-indigo-500/50 appearance-none"
-                  >
-                    {Object.entries(ROLE_DISPLAY_NAMES).map(([val, label]) => (
-                      <option key={val} value={val}>{label}</option>
-                    ))}
-                  </select>
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <label className="text-[11px] uppercase tracking-widest font-bold text-gray-500 ml-1">Rol en Sistema</label>
+                    <select 
+                      value={formData.role}
+                      onChange={(e) => setFormData({...formData, role: e.target.value})}
+                      className="w-full bg-black/40 border border-white/10 rounded-xl px-4 py-3 text-sm text-white focus:outline-none focus:border-indigo-500/50 appearance-none"
+                    >
+                      {Object.entries(ROLE_DISPLAY_NAMES).map(([val, label]) => (
+                        <option key={val} value={val}>{label}</option>
+                      ))}
+                    </select>
+                  </div>
+                  <div className="space-y-2">
+                    <label className="text-[11px] uppercase tracking-widest font-bold text-gray-500 ml-1">Área / Sección</label>
+                    <input 
+                      type="text" 
+                      placeholder="ej. Frío, Despacho"
+                      value={formData.area}
+                      onChange={(e) => setFormData({...formData, area: e.target.value})}
+                      className="w-full bg-black/40 border border-white/10 rounded-xl px-4 py-3 text-sm text-white focus:outline-none focus:border-indigo-500/50"
+                    />
+                  </div>
                 </div>
-                <div className="space-y-2">
-                  <label className="text-[11px] uppercase tracking-widest font-bold text-gray-500 ml-1">Área / Sección</label>
-                  <input 
-                    type="text" 
-                    placeholder="ej. Frío, Despacho"
-                    value={formData.area}
-                    onChange={(e) => setFormData({...formData, area: e.target.value})}
-                    className="w-full bg-black/40 border border-white/10 rounded-2xl px-4 py-3 text-sm text-white focus:outline-none focus:border-indigo-500/50"
-                  />
-                </div>
-              </div>
 
-              <div className="space-y-2">
-                <label className="text-[11px] uppercase tracking-widest font-bold text-gray-500 ml-1">
-                  {editingUser ? 'Nueva Contraseña (dejar en blanco para mantener)' : 'Contraseña de Acceso'}
-                </label>
-                <div className="relative">
-                  <Lock className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-500 w-4 h-4" />
-                  <input 
-                    type={showPassword ? 'text' : 'password'} 
-                    required={!editingUser}
-                    value={formData.password}
-                    onChange={(e) => setFormData({...formData, password: e.target.value})}
-                    className="w-full bg-black/40 border border-white/10 rounded-2xl pl-11 pr-12 py-3 text-sm text-white focus:outline-none focus:border-indigo-500/50 font-mono"
-                  />
-                  <button
-                    type="button"
-                    onClick={() => setShowPassword(!showPassword)}
-                    className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-500 hover:text-white transition-all"
-                  >
-                    {showPassword ? <EyeOff size={16} /> : <Eye size={16} />}
-                  </button>
+                <div className="space-y-2">
+                  <label className="text-[11px] uppercase tracking-widest font-bold text-gray-500 ml-1">
+                    {editingUser ? 'Nueva Contraseña (opcional)' : 'Contraseña de Acceso'}
+                  </label>
+                  <div className="relative">
+                    <Lock className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-500 w-4 h-4" />
+                    <input 
+                      type={showPassword ? 'text' : 'password'} 
+                      required={!editingUser}
+                      value={formData.password}
+                      onChange={(e) => setFormData({...formData, password: e.target.value})}
+                      className="w-full bg-black/40 border border-white/10 rounded-xl pl-11 pr-12 py-3 text-sm text-white focus:outline-none focus:border-indigo-500/50 font-mono"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowPassword(!showPassword)}
+                      className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-500 hover:text-white transition-all"
+                    >
+                      {showPassword ? <EyeOff size={16} /> : <Eye size={16} />}
+                    </button>
+                  </div>
                 </div>
-              </div>
 
-              <div className="space-y-4">
-                <div className="flex items-center gap-2 mb-2">
-                  <Shield size={16} className="text-indigo-400" />
-                  <h4 className="text-sm font-bold text-white uppercase tracking-widest">Permisos de Usuario</h4>
-                </div>
-                
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
-                  {[
-                    { id: 'can_view_all', label: 'Visualizar todo', desc: 'Ver todos los lotes y reportes' },
-                    { id: 'can_download_all', label: 'Descargar todo', desc: 'Permitir descarga de archivos' },
-                    { id: 'can_validate', label: 'Firma Digital', desc: 'Validar y aprobar informes' },
-                    { id: 'can_manage_users', label: 'Administrar Usuarios', desc: 'Crear y editar personal' },
-                    { id: 'can_sync_drive', label: 'Sincronizar Drive', desc: 'Forzar sincronización manual' },
-                    { id: 'can_create_lot', label: 'Crear Lotes', desc: 'Registrar recepciones nuevas' },
-                    { id: 'can_view_drive', label: 'Ver en Drive', desc: 'Enlace directo a carpetas Drive' },
-                  ].map((perm) => (
-                    <div key={perm.id} className="flex items-start gap-3 p-4 bg-white/5 rounded-2xl border border-white/5 hover:bg-white/10 transition-all">
-                      <input 
-                        type="checkbox" 
-                        id={perm.id}
-                        checked={(formData as any)[perm.id]}
-                        onChange={(e) => setFormData({...formData, [perm.id]: e.target.checked})}
-                        className="w-5 h-5 mt-0.5 rounded-lg accent-indigo-500 bg-black/40 border-white/10"
-                      />
-                      <label htmlFor={perm.id} className="flex flex-col cursor-pointer select-none">
-                        <span className="text-sm font-bold text-white">{perm.label}</span>
-                        <span className="text-[10px] text-gray-400 leading-tight">{perm.desc}</span>
+                <div className="space-y-3 pt-2">
+                  <div className="flex items-center gap-2 mb-3">
+                    <Shield size={16} className="text-indigo-400" />
+                    <h4 className="text-sm font-bold text-white uppercase tracking-widest">Matriz de Permisos</h4>
+                  </div>
+                  
+                  <div className="space-y-2">
+                    {[
+                      { id: 'can_view_all', label: 'Visualizar todo', desc: 'Ver todos los lotes y reportes' },
+                      { id: 'can_download_all', label: 'Descargar todo', desc: 'Permitir descarga de archivos' },
+                      { id: 'can_validate', label: 'Firma Digital', desc: 'Validar y aprobar informes' },
+                      { id: 'can_create_lot', label: 'Modificar Registros', desc: 'Crear lotes y subir documentos' },
+                      { id: 'can_sync_drive', label: 'Sincronizar Drive', desc: 'Forzar sincronización manual' },
+                      { id: 'can_manage_users', label: 'Admin Usuarios', desc: 'Crear y editar personal' },
+                      { id: 'can_view_drive', label: 'Ver Drive Original', desc: 'Enlace directo a Google Drive' },
+                    ].map((perm) => (
+                      <label key={perm.id} className="flex items-center justify-between p-3 bg-white/5 rounded-xl border border-white/5 hover:bg-white/10 transition-all cursor-pointer group">
+                        <div className="flex flex-col">
+                          <span className="text-sm font-bold text-white">{perm.label}</span>
+                          <span className="text-[10px] text-gray-400 leading-tight mt-0.5">{perm.desc}</span>
+                        </div>
+                        <div className="relative">
+                          <input 
+                            type="checkbox" 
+                            id={perm.id}
+                            checked={(formData as any)[perm.id]}
+                            onChange={(e) => setFormData({...formData, [perm.id]: e.target.checked})}
+                            className="sr-only peer"
+                          />
+                          <div className="w-10 h-5 bg-black/50 rounded-full border border-white/10 peer-checked:bg-indigo-500 peer-checked:border-indigo-400 transition-colors"></div>
+                          <div className="absolute left-0.5 top-0.5 w-4 h-4 bg-gray-400 rounded-full transition-transform peer-checked:translate-x-5 peer-checked:bg-white shadow-sm"></div>
+                        </div>
                       </label>
-                    </div>
-                  ))}
+                    ))}
+                  </div>
                 </div>
-              </div>
 
-              <div className="flex gap-3 pt-4">
-                <button
-                  type="button"
-                  onClick={() => setIsModalOpen(false)}
-                  className="flex-1 px-6 py-4 rounded-2xl border border-white/10 text-gray-400 font-bold text-sm hover:bg-white/5 transition-all"
-                >
-                  Cancelar
-                </button>
-                <button
-                  type="submit"
-                  disabled={isSubmitting}
-                  className="flex-1 px-6 py-4 rounded-2xl bg-indigo-600 text-white font-bold text-sm hover:bg-indigo-500 transition-all shadow-xl shadow-indigo-600/20 disabled:opacity-50 flex items-center justify-center gap-2"
-                >
-                  {isSubmitting ? <Loader2 size={18} className="animate-spin" /> : <CheckCircle2 size={18} />}
-                  {editingUser ? 'Guardar Cambios' : 'Crear Usuario'}
-                </button>
-              </div>
-            </form>
-          )}
-        </div>
-      </div>
-    </div>
-    )}
+              </form>
+            )}
+            {!showCredentialsSummary && (
+               <div className="p-4 border-t border-white/10 bg-[#0f172a] shrink-0">
+                 <div className="flex gap-3">
+                   <button
+                     type="button"
+                     onClick={() => setIsModalOpen(false)}
+                     className="flex-1 px-4 py-3 rounded-xl border border-white/10 text-gray-400 font-bold text-sm hover:bg-white/5 transition-all"
+                   >
+                     Cancelar
+                   </button>
+                   <button
+                     type="button"
+                     onClick={handleSubmit}
+                     disabled={isSubmitting}
+                     className="flex-[2] px-4 py-3 rounded-xl bg-indigo-600 text-white font-bold text-sm hover:bg-indigo-500 transition-all shadow-xl shadow-indigo-600/20 disabled:opacity-50 flex items-center justify-center gap-2"
+                   >
+                     {isSubmitting ? <Loader2 size={18} className="animate-spin" /> : <CheckCircle2 size={18} />}
+                     {editingUser ? 'Guardar Cambios' : 'Crear Usuario'}
+                   </button>
+                 </div>
+               </div>
+            )}
+          </div>
+        </>
+      )}
     </div>
   )
 }
