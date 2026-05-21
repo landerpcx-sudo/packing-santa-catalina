@@ -230,10 +230,16 @@ export default function DispatchDetailPage({ params }: { params: Promise<{ id: s
             </div>
             <div>
               <h1 className="text-2xl font-bold text-white">Despacho {dispatch.dispatch_code}</h1>
-              <p className="text-gray-400 text-sm flex items-center gap-1.5">
-                <Calendar className="w-3.5 h-3.5" />
-                {formatDate(dispatch.dispatch_date)}
-              </p>
+              <div className="flex flex-wrap items-center gap-x-3 gap-y-1 mt-1 text-xs text-gray-400">
+                <span className="text-indigo-400 font-semibold flex items-center gap-1">
+                  <Calendar className="w-3 h-3" />
+                  {formatDate(dispatch.dispatch_date)}
+                </span>
+                <span className="text-gray-600">|</span>
+                <span><strong>Cliente:</strong> {dispatch.client || '—'}</span>
+                <span className="text-gray-600">|</span>
+                <span><strong>Mercado / Destino:</strong> {dispatch.destination || '—'}</span>
+              </div>
             </div>
           </div>
           <div className="flex items-center gap-2">
@@ -433,7 +439,7 @@ export default function DispatchDetailPage({ params }: { params: Promise<{ id: s
                 )
               })}
             </div>
-            {dispatch.overall_status !== 'closed' && (
+            {dispatch.overall_status !== 'closed' && !['gerencia', 'agronomo'].includes(user?.role || '') && (
               <UploadZone
                 lotId={id}
                 lotCode={dispatch.dispatch_code}
@@ -505,7 +511,7 @@ export default function DispatchDetailPage({ params }: { params: Promise<{ id: s
                 </div>
               ))}
             </div>
-            {dispatch.overall_status !== 'closed' && ['admin', 'jefe_frio', 'sag', 'despacho'].includes(user?.role || '') && (
+            {dispatch.overall_status !== 'closed' && ['admin', 'jefe_frio', 'sag', 'despacho'].includes(user?.role || '') && !['gerencia', 'agronomo'].includes(user?.role || '') && (
               <PalletUploadZone dispatchId={id} onUploadSuccess={() => fetchDispatch(true)} />
             )}
           </div>
@@ -567,7 +573,7 @@ export default function DispatchDetailPage({ params }: { params: Promise<{ id: s
                 </div>
               ))}
             </div>
-            {dispatch.overall_status !== 'closed' && ['admin', 'jefe_frio', 'sag', 'despacho'].includes(user?.role || '') && (
+            {dispatch.overall_status !== 'closed' && ['admin', 'jefe_frio', 'sag', 'despacho'].includes(user?.role || '') && !['gerencia', 'agronomo'].includes(user?.role || '') && (
               <UploadZone
                 lotId={id}
                 lotCode={dispatch.dispatch_code}
@@ -629,7 +635,7 @@ export default function DispatchDetailPage({ params }: { params: Promise<{ id: s
                 </div>
               ))}
             </div>
-            {dispatch.overall_status !== 'closed' && ['admin', 'jefe_frio', 'sag', 'despacho'].includes(user?.role || '') && (
+            {dispatch.overall_status !== 'closed' && ['admin', 'jefe_frio', 'sag', 'despacho'].includes(user?.role || '') && !['gerencia', 'agronomo'].includes(user?.role || '') && (
               <UploadZone
                 lotId={id}
                 lotCode={dispatch.dispatch_code}

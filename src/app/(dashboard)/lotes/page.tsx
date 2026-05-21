@@ -147,16 +147,36 @@ export default function LotesPage() {
   const [filterStatus, setFilterStatus] = useState('')
   const [dateFrom, setDateFrom] = useState('')
   const [dateTo, setDateTo] = useState('')
+  const [filterClient, setFilterClient] = useState('')
+  const [filterProducer, setFilterProducer] = useState('')
+  const [filterSpecies, setFilterSpecies] = useState('')
+  const [filterVariety, setFilterVariety] = useState('')
 
   const searchRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
-  const fetchLots = useCallback(async (searchValue?: string, statusValue?: string) => {
+  const fetchLots = useCallback(async (
+    searchValue?: string, 
+    statusValue?: string,
+    clientValue?: string,
+    producerValue?: string,
+    speciesValue?: string,
+    varietyValue?: string
+  ) => {
     setLoading(true)
     const params = new URLSearchParams({ limit: '50' })
     const s = searchValue !== undefined ? searchValue : search
     const f = statusValue !== undefined ? statusValue : filterStatus
+    const c = clientValue !== undefined ? clientValue : filterClient
+    const p = producerValue !== undefined ? producerValue : filterProducer
+    const sp = speciesValue !== undefined ? speciesValue : filterSpecies
+    const v = varietyValue !== undefined ? varietyValue : filterVariety
+
     if (s) params.set('search', s)
     if (f) params.set('status', f)
+    if (c) params.set('client', c)
+    if (p) params.set('producer', p)
+    if (sp) params.set('species', sp)
+    if (v) params.set('variety', v)
     if (dateFrom) params.set('from', dateFrom)
     if (dateTo)   params.set('to', dateTo)
 
@@ -167,7 +187,7 @@ export default function LotesPage() {
       setTotal(json.total || 0)
     }
     setLoading(false)
-  }, [search, filterStatus])
+  }, [search, filterStatus, filterClient, filterProducer, filterSpecies, filterVariety, dateFrom, dateTo])
 
   // Debounce para el campo de búsqueda (Mejora #11)
   const handleSearchChange = (value: string) => {
@@ -268,6 +288,53 @@ export default function LotesPage() {
         </div>
       </div>
 
+      {/* Filtros Avanzados por Atributo */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-3 bg-white/3 border border-white/5 rounded-2xl p-4">
+        <div>
+          <label className="block text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-1">Cliente</label>
+          <input
+            type="text"
+            placeholder="Filtrar por cliente..."
+            value={filterClient}
+            onChange={(e) => { setFilterClient(e.target.value); fetchLots(search, filterStatus, e.target.value, filterProducer, filterSpecies, filterVariety) }}
+            className="w-full bg-white/5 border border-white/10 rounded-xl px-3 py-2 text-white placeholder-gray-500 text-xs focus:outline-none focus:border-green-400/50 transition-all"
+          />
+        </div>
+        <div>
+          <label className="block text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-1">Productor</label>
+          <input
+            type="text"
+            placeholder="Filtrar por productor..."
+            value={filterProducer}
+            onChange={(e) => { setFilterProducer(e.target.value); fetchLots(search, filterStatus, filterClient, e.target.value, filterSpecies, filterVariety) }}
+            className="w-full bg-white/5 border border-white/10 rounded-xl px-3 py-2 text-white placeholder-gray-500 text-xs focus:outline-none focus:border-green-400/50 transition-all"
+          />
+        </div>
+        <div>
+          <label className="block text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-1">Especie</label>
+          <select
+            value={filterSpecies}
+            onChange={(e) => { setFilterSpecies(e.target.value); fetchLots(search, filterStatus, filterClient, filterProducer, e.target.value, filterVariety) }}
+            className="w-full bg-white/5 border border-white/10 rounded-xl px-3 py-2 text-white text-xs focus:outline-none focus:border-green-400/50 transition-all appearance-none cursor-pointer"
+          >
+            <option value="" className="bg-[#111827]">Todas las especies</option>
+            {Object.keys(SPECIES_ICONS).filter(s => s !== 'Limon' && s !== 'Arandano').map(sp => (
+              <option key={sp} value={sp} className="bg-[#111827]">{SPECIES_ICONS[sp]} {sp}</option>
+            ))}
+          </select>
+        </div>
+        <div>
+          <label className="block text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-1">Variedad</label>
+          <input
+            type="text"
+            placeholder="Filtrar por variedad..."
+            value={filterVariety}
+            onChange={(e) => { setFilterVariety(e.target.value); fetchLots(search, filterStatus, filterClient, filterProducer, filterSpecies, e.target.value) }}
+            className="w-full bg-white/5 border border-white/10 rounded-xl px-3 py-2 text-white placeholder-gray-500 text-xs focus:outline-none focus:border-green-400/50 transition-all"
+          />
+        </div>
+      </div>
+
       {/* Filtro de rango de fechas (#24) */}
       <div className="flex flex-wrap items-center gap-3">
         <div className="flex items-center gap-2">
@@ -288,12 +355,20 @@ export default function LotesPage() {
             className="bg-white/5 border border-white/10 rounded-xl px-3 py-2 text-sm text-white focus:outline-none focus:border-green-400/50 transition-all"
           />
         </div>
-        {(dateFrom || dateTo) && (
+        {(dateFrom || dateTo || filterClient || filterProducer || filterSpecies || filterVariety) && (
           <button
-            onClick={() => { setDateFrom(''); setDateTo(''); fetchLots() }}
+            onClick={() => {
+              setDateFrom('');
+              setDateTo('');
+              setFilterClient('');
+              setFilterProducer('');
+              setFilterSpecies('');
+              setFilterVariety('');
+              fetchLots(search, filterStatus, '', '', '', '');
+            }}
             className="px-3 py-2 text-xs text-gray-400 hover:text-red-400 border border-white/10 rounded-xl transition-all font-bold uppercase tracking-wider"
           >
-            ✕ Limpiar fechas
+            ✕ Limpiar filtros
           </button>
         )}
       </div>

@@ -142,20 +142,22 @@ export default function UploadZone({
 
   return (
     <div className="space-y-3">
-      {/* Botón de Escáner Integrado - FUERA del dropzone para que no interfiera con los clicks normales */}
+      {/* Botón de Escáner Integrado - Solo visible en móvil (oculto en escritorio con md:hidden) */}
       {state === 'idle' && Object.keys(accept).some(mime => mime.startsWith('image/') || mime === 'image/*') && (
-        <button
-          type="button"
-          onClick={(e) => {
-            e.preventDefault();
-            e.stopPropagation();
-            setIsScannerOpen(true);
-          }}
-          className="w-full flex items-center justify-center gap-2 px-4 py-3 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white font-bold text-xs uppercase tracking-widest rounded-2xl transition-all shadow-lg shadow-emerald-950/20 group/scan border border-emerald-500/20 active:scale-[0.98]"
-        >
-          <Camera className="w-4 h-4 group-hover/scan:scale-110 transition-transform text-emerald-200" />
-          📷 Iniciar Escáner de Documento Móvil
-        </button>
+        <div className="md:hidden">
+          <button
+            type="button"
+            onClick={(e) => {
+              e.preventDefault();
+              e.stopPropagation();
+              setIsScannerOpen(true);
+            }}
+            className="w-full flex items-center justify-center gap-2 px-4 py-3 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white font-bold text-xs uppercase tracking-widest rounded-2xl transition-all shadow-lg shadow-emerald-950/20 group/scan border border-emerald-500/20 active:scale-[0.98]"
+          >
+            <Camera className="w-4 h-4 group-hover/scan:scale-110 transition-transform text-emerald-200" />
+            📷 Iniciar Escáner de Documento Móvil
+          </button>
+        </div>
       )}
 
       <div

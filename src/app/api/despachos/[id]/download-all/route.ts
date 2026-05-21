@@ -40,6 +40,16 @@ export async function GET(
 
     const filesToZip: { name: string; buffer: Buffer }[] = []
     
+    const DOCUMENT_TYPE_TRANSLATIONS: Record<string, string> = {
+      pata_pata: 'Fotos Pata Pata',
+      thermograph: 'Fotos Termógrafo',
+      invoice: 'Factura',
+      loading_guide: 'Guía de Despacho',
+      photos: 'Fotos de Carga',
+      otros: 'Otros',
+      other: 'Otros'
+    }
+
     for (const doc of documents) {
       if (!doc.storage_path) continue
 
@@ -50,7 +60,8 @@ export async function GET(
       if (error || !data) continue
 
       const arrayBuffer = await data.arrayBuffer()
-      const folder = doc.document_type || 'otros'
+      const folderKey = doc.document_type || 'otros'
+      const folder = DOCUMENT_TYPE_TRANSLATIONS[folderKey] || folderKey
       filesToZip.push({
         name: `${folder}/${doc.original_file_name}`,
         buffer: Buffer.from(arrayBuffer)

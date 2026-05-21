@@ -42,6 +42,22 @@ interface UserApp {
   created_at: string
 }
 
+const getPermissionsByRole = (role: string) => {
+  const isOperative = ['jefe_frio', 'calidad', 'cuadratura', 'sag', 'despacho'].includes(role)
+  const isAdmin = role === 'admin'
+  const isReader = ['gerencia', 'agronomo'].includes(role)
+
+  return {
+    can_validate: isAdmin,
+    can_view_all: isAdmin || isOperative || isReader,
+    can_download_all: isAdmin || isOperative || isReader,
+    can_manage_users: isAdmin,
+    can_sync_drive: isAdmin,
+    can_create_lot: isAdmin || isOperative,
+    can_view_drive: isAdmin
+  }
+}
+
 export default function UsuariosPage() {
   const [users, setUsers] = useState<UserApp[]>([])
   const [loading, setLoading] = useState(true)
@@ -94,35 +110,26 @@ export default function UsuariosPage() {
     setModalError('')
     if (user) {
       setEditingUser(user)
+      const perms = getPermissionsByRole(user.role)
       setFormData({
         username: user.username,
         display_name: user.display_name,
         role: user.role,
         area: user.area || '',
         password: '', // No mostrar password
-        can_validate: !!user.can_validate,
-        can_view_all: !!user.can_view_all,
-        can_download_all: !!user.can_download_all,
-        can_manage_users: !!user.can_manage_users,
-        can_sync_drive: !!user.can_sync_drive,
-        can_create_lot: !!user.can_create_lot,
-        can_view_drive: !!user.can_view_drive
+        ...perms
       })
     } else {
       setEditingUser(null)
+      const defaultRole = 'calidad'
+      const perms = getPermissionsByRole(defaultRole)
       setFormData({
         username: '',
         display_name: '',
-        role: 'calidad',
+        role: defaultRole,
         area: '',
         password: '',
-        can_validate: false,
-        can_view_all: false,
-        can_download_all: false,
-        can_manage_users: false,
-        can_sync_drive: false,
-        can_create_lot: false,
-        can_view_drive: false
+        ...perms
       })
     }
     setIsModalOpen(true)
@@ -433,7 +440,15 @@ export default function UsuariosPage() {
                     <label className="text-[11px] uppercase tracking-widest font-bold text-gray-500 ml-1">Rol en Sistema</label>
                     <select 
                       value={formData.role}
-                      onChange={(e) => setFormData({...formData, role: e.target.value})}
+                      onChange={(e) => {
+                        const newRole = e.target.value
+                        const perms = getPermissionsByRole(newRole)
+                        setFormData({
+                          ...formData,
+                          role: newRole,
+                          ...perms
+                        })
+                      }}
                       className="w-full bg-black/40 border border-white/10 rounded-xl px-4 py-3 text-sm text-white focus:outline-none focus:border-indigo-500/50 appearance-none"
                     >
                       {Object.entries(ROLE_DISPLAY_NAMES).map(([val, label]) => (
@@ -492,7 +507,7 @@ export default function UsuariosPage() {
                       { id: 'can_manage_users', label: 'Admin Usuarios', desc: 'Crear y editar personal' },
                       { id: 'can_view_drive', label: 'Ver Drive Original', desc: 'Enlace directo a Google Drive' },
                     ].map((perm) => (
-                      <label key={perm.id} className="flex items-center justify-between p-3 bg-white/5 rounded-xl border border-white/5 hover:bg-white/10 transition-all cursor-pointer group">
+                      <label key={perm.id} className="flex items-center justify-between p-3 bg-white/5 rounded-xl border border-white/5 transition-all opacity-80 group">
                         <div className="flex flex-col">
                           <span className="text-sm font-bold text-white">{perm.label}</span>
                           <span className="text-[10px] text-gray-400 leading-tight mt-0.5">{perm.desc}</span>
@@ -502,11 +517,11 @@ export default function UsuariosPage() {
                             type="checkbox" 
                             id={perm.id}
                             checked={(formData as any)[perm.id]}
-                            onChange={(e) => setFormData({...formData, [perm.id]: e.target.checked})}
+                            disabled
                             className="sr-only peer"
                           />
-                          <div className="w-10 h-5 bg-black/50 rounded-full border border-white/10 peer-checked:bg-indigo-500 peer-checked:border-indigo-400 transition-colors"></div>
-                          <div className="absolute left-0.5 top-0.5 w-4 h-4 bg-gray-400 rounded-full transition-transform peer-checked:translate-x-5 peer-checked:bg-white shadow-sm"></div>
+                          <div className="w-10 h-5 bg-black/50 rounded-full border border-white/10 peer-checked:bg-indigo-500/30 peer-checked:border-indigo-500/20 transition-colors"></div>
+                          <div className="absolute left-0.5 top-0.5 w-4 h-4 bg-gray-400 rounded-full transition-transform peer-checked:translate-x-5 peer-checked:bg-indigo-400 shadow-sm"></div>
                         </div>
                       </label>
                     ))}

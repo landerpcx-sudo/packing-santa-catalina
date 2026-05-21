@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useRef, useCallback } from 'react'
 import { createPortal } from 'react-dom'
-import { X, ExternalLink, Download, FileText, Loader2, Maximize2, Minimize2 } from 'lucide-react'
+import { X, ExternalLink, Download, FileText, Loader2, Maximize2, Minimize2, FileSpreadsheet, FileImage } from 'lucide-react'
 
 interface FilePreviewModalProps {
   isOpen: boolean
@@ -11,7 +11,8 @@ interface FilePreviewModalProps {
   fileName: string
 }
 
-/** Determina si la URL/nombre corresponde a una imagen */
+// ── Helpers de clasificación ─────────────────────────────────────────────────
+
 function isImageFile(url: string, name: string): boolean {
   const extRegex = /\.(jpg|jpeg|png|gif|webp|bmp|svg)$/i
   const hints    = ['/jpeg', '/png', '/jpg', '/webp', 'image%2F', 'image/']
@@ -22,14 +23,18 @@ function isImageFile(url: string, name: string): boolean {
   )
 }
 
-/** Determina si la URL/nombre corresponde a un PDF */
 function isPdfFile(url: string, name: string): boolean {
   return (
     /\.pdf$/i.test(name) ||
     url.toLowerCase().includes('.pdf') ||
-    url.toLowerCase().includes('%2Fpdf') ||
+    url.toLowerCase().includes('%2fpdf') ||
     url.toLowerCase().includes('/pdf')
   )
+}
+
+/** Archivos que Google Docs Viewer puede renderizar: Excel, Word, PowerPoint, CSV, etc. */
+function isOfficeFile(name: string): boolean {
+  return /\.(xlsx|xls|xlsm|xlsb|doc|docx|ppt|pptx|csv|ods|odt|odp|rtf)$/i.test(name)
 }
 
 /** Transforma URL de Google Drive a versión embebible */
@@ -40,21 +45,40 @@ function toDrivePreview(url: string): string {
     : url
 }
 
+/** Construye URL para el visor de Google Docs (funciona para PDF, Excel, Word, etc.) */
+function toGoogleDocsViewer(url: string): string {
+  return `https://docs.google.com/gview?url=${encodeURIComponent(url)}&embedded=true`
+}
+
+// ── Icono según tipo de archivo ─────────────────────────────────────────────
+
+function FileIcon({ name, className }: { name: string; className?: string }) {
+  if (isImageFile('', name)) return <FileImage className={className} />
+  if (isPdfFile('', name))   return <FileText  className={className} />
+  if (isOfficeFile(name))    return <FileSpreadsheet className={className} />
+  return <FileText className={className} />
+}
+
+// ── Componente principal ─────────────────────────────────────────────────────
+
 export default function FilePreviewModal({ isOpen, onClose, fileUrl, fileName }: FilePreviewModalProps) {
   const [mounted,      setMounted]      = useState(false)
   const [loading,      setLoading]      = useState(true)
+  const [iframeError,  setIframeError]  = useState(false)
   const [isFullscreen, setIsFullscreen] = useState(false)
-  const containerRef  = useRef<HTMLDivElement>(null)
-  const timeoutRef    = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const containerRef = useRef<HTMLDivElement>(null)
+  const timeoutRef   = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   useEffect(() => { setMounted(true) }, [])
 
+  // Reset state cada vez que se abre un archivo nuevo
   useEffect(() => {
     if (isOpen) {
       setLoading(true)
-      // Timeout de seguridad: si el iframe no dispara onLoad en 10s, ocultar spinner
+      setIframeError(false)
       if (timeoutRef.current) clearTimeout(timeoutRef.current)
-      timeoutRef.current = setTimeout(() => setLoading(false), 10_000)
+      // Timeout de seguridad de 15s
+      timeoutRef.current = setTimeout(() => setLoading(false), 15_000)
     }
     return () => { if (timeoutRef.current) clearTimeout(timeoutRef.current) }
   }, [isOpen, fileUrl])
@@ -74,7 +98,7 @@ export default function FilePreviewModal({ isOpen, onClose, fileUrl, fileName }:
     }
   }, [])
 
-  // Bloquear scroll del body mientras el modal está abierto (fix iOS)
+  // Bloquear scroll del body mientras el modal está abierto
   useEffect(() => {
     if (isOpen) {
       const prev = document.body.style.overflow
@@ -87,15 +111,50 @@ export default function FilePreviewModal({ isOpen, onClose, fileUrl, fileName }:
 
   // ── Clasificación del archivo ──────────────────────────────────────────────
   const isDrive   = fileUrl.includes('drive.google.com')
-  const isSupabase = fileUrl.includes('supabase') || fileUrl.includes('/storage/v1/') || fileUrl.includes('amazonaws')
   const isImage   = !isDrive && isImageFile(fileUrl, fileName)
   const isPdf     = !isDrive && isPdfFile(fileUrl, fileName)
+  const isOffice  = !isDrive && !isImage && isOfficeFile(fileName)
 
-  // Los archivos de Drive usan su iframe. Los PDFs de Supabase en móvil es mejor no usar iframe
-  // porque iOS no los soporta bien. Usamos una vista de "Abrir documento".
-  const showIframe = isDrive
-  const showPdfFallback = !isDrive && !isImage && (isPdf || isSupabase)
-  const iframeSrc  = isDrive ? toDrivePreview(fileUrl) : fileUrl
+  // Estrategia de visualización:
+  // 1. Imagen           → <img> nativo
+  // 2. Drive            → iframe con /preview de Drive
+  // 3. PDF              → iframe nativo (todos los browsers modernos lo soportan)
+  // 4. Excel/Word/etc.  → iframe con Google Docs Viewer
+  // 5. Desconocido      → FallbackView con descarga
+
+  let iframeSrc: string | null = null
+  let showImage = false
+  let showFallback = false
+
+  if (isImage) {
+    showImage = true
+  } else if (isDrive) {
+    iframeSrc = toDrivePreview(fileUrl)
+  } else if (isPdf) {
+    iframeSrc = fileUrl          // iframe nativo para PDF
+  } else if (isOffice) {
+    iframeSrc = toGoogleDocsViewer(fileUrl)  // Google Docs Viewer
+  } else {
+    showFallback = true
+  }
+
+  // Etiqueta de tipo para el header
+  const typeLabel = isImage ? 'Imagen'
+    : isPdf    ? 'PDF'
+    : isOffice ? 'Documento Office'
+    : isDrive  ? 'Google Drive'
+    : 'Documento'
+
+  const handleIframeLoad = () => {
+    if (timeoutRef.current) clearTimeout(timeoutRef.current)
+    setLoading(false)
+  }
+
+  const handleIframeError = () => {
+    if (timeoutRef.current) clearTimeout(timeoutRef.current)
+    setLoading(false)
+    setIframeError(true)
+  }
 
   // ── Render ─────────────────────────────────────────────────────────────────
   return createPortal(
@@ -111,10 +170,6 @@ export default function FilePreviewModal({ isOpen, onClose, fileUrl, fileName }:
         alignItems: 'center',
         justifyContent: 'center',
         padding: '12px',
-        top: 0,
-        left: 0,
-        right: 0,
-        bottom: 0,
       }}
       onClick={(e) => { if (e.target === e.currentTarget) onClose() }}
     >
@@ -127,12 +182,12 @@ export default function FilePreviewModal({ isOpen, onClose, fileUrl, fileName }:
         <div className="flex items-center justify-between px-5 py-3.5 border-b border-white/8 bg-white/[0.02] flex-shrink-0">
           <div className="flex items-center gap-3 min-w-0 flex-1 mr-4">
             <div className="p-2 bg-indigo-500/15 rounded-xl text-indigo-400 flex-shrink-0">
-              <FileText className="w-4 h-4" />
+              <FileIcon name={fileName} className="w-4 h-4" />
             </div>
             <div className="min-w-0">
               <h2 className="text-white font-bold text-sm truncate">{fileName}</h2>
               <p className="text-[10px] text-gray-500 font-bold uppercase tracking-widest">
-                {isImage ? 'Imagen' : isPdf ? 'PDF' : isDrive ? 'Google Drive' : 'Documento'} · Vista Previa
+                {typeLabel} · Vista Previa
               </p>
             </div>
           </div>
@@ -169,16 +224,23 @@ export default function FilePreviewModal({ isOpen, onClose, fileUrl, fileName }:
         {/* ── Cuerpo ──────────────────────────────────────────────── */}
         <div className="flex-1 relative overflow-hidden min-h-0">
 
-          {/* Spinner */}
-          {loading && (showIframe || isImage) && (
+          {/* Spinner de carga */}
+          {loading && !showFallback && !showImage && (
             <div className="absolute inset-0 flex flex-col items-center justify-center gap-3 bg-[#0b1628] z-10">
               <Loader2 className="w-8 h-8 animate-spin text-indigo-400" />
-              <span className="text-xs font-bold text-gray-500 uppercase tracking-widest">Cargando documento...</span>
+              <span className="text-xs font-bold text-gray-500 uppercase tracking-widest">
+                {isOffice ? 'Cargando visor de Office...' : 'Cargando documento...'}
+              </span>
+              {isOffice && (
+                <p className="text-[11px] text-gray-600 max-w-xs text-center">
+                  Usando Google Docs Viewer. Puede tardar unos segundos.
+                </p>
+              )}
             </div>
           )}
 
           {/* ── Imagen ── */}
-          {isImage && (
+          {showImage && (
             <div className="w-full h-full flex items-center justify-center p-4 bg-black/30">
               <img
                 src={fileUrl}
@@ -191,28 +253,27 @@ export default function FilePreviewModal({ isOpen, onClose, fileUrl, fileName }:
             </div>
           )}
 
-          {/* ── iframe (PDF / Drive / Supabase directo) ── */}
-          {!isImage && showIframe && (
+          {/* ── iframe (Drive / PDF nativo / Google Docs Viewer) ── */}
+          {iframeSrc && !iframeError && (
             <iframe
               key={iframeSrc}
               src={iframeSrc}
               className="w-full h-full border-0"
               style={{ display: 'block' }}
-              onLoad={() => {
-                if (timeoutRef.current) clearTimeout(timeoutRef.current)
-                setLoading(false)
-              }}
-              onError={() => {
-                if (timeoutRef.current) clearTimeout(timeoutRef.current)
-                setLoading(false)
-              }}
+              onLoad={handleIframeLoad}
+              onError={handleIframeError}
               title="Visor de documentos"
               allow="autoplay"
             />
           )}
 
-          {/* ── Fallback: sin vista previa ── */}
-          {!isImage && !showIframe && (
+          {/* ── Error del iframe → fallback con descarga ── */}
+          {iframeSrc && iframeError && (
+            <FallbackView fileUrl={fileUrl} onReady={() => setLoading(false)} errorMsg="No se pudo cargar el visor. Abre el archivo directamente." />
+          )}
+
+          {/* ── Tipo desconocido → fallback ── */}
+          {showFallback && (
             <FallbackView fileUrl={fileUrl} onReady={() => setLoading(false)} />
           )}
         </div>
@@ -229,7 +290,17 @@ export default function FilePreviewModal({ isOpen, onClose, fileUrl, fileName }:
   )
 }
 
-function FallbackView({ fileUrl, onReady }: { fileUrl: string; onReady: () => void }) {
+// ── Fallback view ────────────────────────────────────────────────────────────
+
+function FallbackView({
+  fileUrl,
+  onReady,
+  errorMsg,
+}: {
+  fileUrl: string
+  onReady: () => void
+  errorMsg?: string
+}) {
   useEffect(() => { onReady() }, []) // eslint-disable-line react-hooks/exhaustive-deps
   return (
     <div className="w-full h-full flex flex-col items-center justify-center gap-6 p-8 text-center">
@@ -239,7 +310,7 @@ function FallbackView({ fileUrl, onReady }: { fileUrl: string; onReady: () => vo
       <div>
         <p className="text-white font-bold text-base">Sin vista previa disponible</p>
         <p className="text-gray-500 text-sm mt-1.5 max-w-xs mx-auto">
-          Este tipo de archivo no puede visualizarse directamente en el navegador.
+          {errorMsg ?? 'Este tipo de archivo no puede visualizarse directamente en el navegador.'}
         </p>
       </div>
       <a

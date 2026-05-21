@@ -50,8 +50,7 @@ const STATUS_CONFIG: Record<string, { label: string; color: string; icon: React.
 const DOC_TYPE_LABELS: Record<string, string> = {
   daily_report: 'Reporte Temperatura Diaria',
   photo: 'Foto Temperatura',
-  backup: 'Respaldo',
-  other: 'Otro',
+  backup: 'Respaldo / Otro',
 }
 
 // Zona de subida simple
@@ -295,8 +294,8 @@ export default function TemperatureDetailPage({ params }: { params: Promise<{ id
                 Archivos del Reporte
              </h2>
 
-             {/* Dynamic Render of Document Types */}
-             {['daily_report', 'photo', 'backup'].map((type) => {
+             {/* Dynamic Render of Document Types - solo reporte diario y foto */}
+             {['daily_report', 'photo'].map((type) => {
                 const label = DOC_TYPE_LABELS[type]
                 const docs = docsByType[type] || []
                 return (
@@ -363,6 +362,67 @@ export default function TemperatureDetailPage({ params }: { params: Promise<{ id
                   </div>
                 )
              })}
+
+             {/* Sección Otros / Respaldos - siempre visible, sin validación ni conteo */}
+             <div className="bg-[#0f172a] border border-white/10 rounded-3xl overflow-hidden shadow-lg">
+               <div className="px-6 py-4 border-b border-white/5 bg-white/[0.02] flex items-center justify-between">
+                 <h3 className="text-sm font-bold text-gray-300 uppercase tracking-widest">Otros / Respaldos</h3>
+                 <span className="text-[10px] font-black text-gray-500 bg-white/5 px-2 py-0.5 rounded-lg border border-white/5">
+                   {(docsByType['backup'] || []).length} ARCHIVOS
+                 </span>
+               </div>
+               <div className="p-6 space-y-4">
+                 {(docsByType['backup'] || []).sort((a,b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()).map(doc => (
+                   <div key={doc.id} className="flex items-center justify-between p-4 bg-black/20 rounded-2xl border border-white/5 group hover:border-indigo-500/30 transition-all">
+                     <div className="flex items-center gap-4 min-w-0">
+                       <div className="p-2 bg-indigo-500/10 rounded-xl text-indigo-400 group-hover:scale-110 transition-all">
+                         <FileText size={20} />
+                       </div>
+                       <div className="min-w-0">
+                         <p className="text-sm font-bold text-white truncate">{doc.original_file_name}</p>
+                         <p className="text-[10px] text-gray-500 font-bold uppercase tracking-tighter mt-0.5 flex items-center gap-1.5">
+                           <User size={10} /> {doc.uploaded_by_user?.display_name || 'Sistema'} · {new Date(doc.created_at).toLocaleString('es-CL')}
+                         </p>
+                       </div>
+                     </div>
+                     <div className="flex items-center gap-2">
+                       {doc.drive_file_url && (user?.role === 'admin' || user?.canViewDrive || !doc.storage_url) ? (
+                         <button
+                           onClick={() => {
+                             const isImage = /\.(jpg|jpeg|png|gif|webp|bmp)$/i.test(doc.original_file_name)
+                             setPreviewFile({
+                               isOpen: true,
+                               url: (isImage && doc.storage_url) ? doc.storage_url : doc.drive_file_url!,
+                               name: doc.original_file_name
+                             })
+                           }}
+                           className={`p-2.5 rounded-xl transition-all flex items-center gap-2 ${!doc.storage_url ? 'bg-amber-500/10 text-amber-500 border border-amber-500/20' : 'bg-indigo-500/10 text-indigo-400 hover:bg-indigo-500 hover:text-white'}`}
+                           title="Ver archivo"
+                         >
+                           <ExternalLink size={16} />
+                         </button>
+                       ) : doc.storage_url ? (
+                         <button onClick={() => setPreviewFile({ isOpen: true, url: doc.storage_url!, name: doc.original_file_name })} className="p-2.5 bg-gray-500/10 text-gray-400 rounded-xl hover:bg-white hover:text-black transition-all" title="Ver archivo">
+                           <ExternalLink size={16} />
+                         </button>
+                       ) : null}
+                     </div>
+                   </div>
+                 ))}
+                 {(docsByType['backup'] || []).length === 0 && (
+                   <p className="text-gray-600 text-sm italic text-center py-2">No hay archivos extra en esta sección.</p>
+                 )}
+                 {!['gerencia', 'agronomo'].includes(user?.role || '') && (
+                   <UploadZone
+                     reportId={id}
+                     reportCode={report.internal_code}
+                     docType="backup"
+                     label="Subir archivo extra / respaldo"
+                     onSuccess={fetchReport}
+                   />
+                 )}
+               </div>
+             </div>
           </div>
         </div>
 

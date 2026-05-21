@@ -42,6 +42,16 @@ export async function GET(
     // Esto evita problemas de streams cruzados en entornos Windows/Vercel
     const filesToZip: { name: string; buffer: Buffer }[] = []
     
+    const DOCUMENT_TYPE_TRANSLATIONS: Record<string, string> = {
+      reception: 'Informe de Recepción',
+      quality: 'Control de Calidad',
+      process: 'Informe de Proceso',
+      temperature: 'Control de Temperatura',
+      pack_list: 'Pack List',
+      otros: 'Otros',
+      other: 'Otros'
+    }
+
     for (const doc of documents) {
       if (!doc.storage_path) continue
 
@@ -55,7 +65,8 @@ export async function GET(
       }
 
       const arrayBuffer = await data.arrayBuffer()
-      const folder = doc.document_type || 'otros'
+      const folderKey = doc.document_type || 'otros'
+      const folder = DOCUMENT_TYPE_TRANSLATIONS[folderKey] || folderKey
       filesToZip.push({
         name: `${folder}/${doc.original_file_name}`,
         buffer: Buffer.from(arrayBuffer)

@@ -22,7 +22,7 @@ export async function GET() {
         quality_status,
         process_status,
         created_at,
-        lot_documents(id, document_type, status, validation_status, original_file_name)
+        lot_documents(id, document_type, status, validation_status, original_file_name, storage_url, drive_file_url)
       `)
       .or('reception_status.eq.uploaded,quality_status.eq.uploaded,process_status.eq.uploaded,reception_status.eq.observed,quality_status.eq.observed,process_status.eq.observed')
       .order('created_at', { ascending: false })
@@ -40,9 +40,9 @@ export async function GET() {
         photos_status,
         overall_status,
         created_at,
-        dispatch_documents(id, document_type, status, validation_status, original_file_name)
+        dispatch_documents(id, document_type, status, validation_status, original_file_name, storage_url, drive_file_url)
       `)
-      .or('overall_status.eq.pending,overall_status.eq.observed,overall_status.eq.late')
+      .or('overall_status.eq.pending,overall_status.eq.uploaded,overall_status.eq.observed,overall_status.eq.late')
       .neq('overall_status', 'complete')
       .order('created_at', { ascending: false })
 

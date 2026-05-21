@@ -23,6 +23,13 @@ export async function POST(request: Request) {
   try {
     const headersList = await headers()
     const userId = headersList.get('x-user-id')
+    const userRole = headersList.get('x-user-role')
+
+    // Validar rol de escritura
+    if (userRole !== 'admin' && userRole !== 'jefe_frio') {
+      return NextResponse.json({ error: 'No tienes permisos para crear reportes de temperatura.' }, { status: 403 })
+    }
+
     const body = await request.json()
     const { report_date, chamber, client, temperature_value, observation } = body
 

@@ -115,18 +115,19 @@ export async function POST(
           .from('dispatch_documents')
           .select('status')
           .eq('dispatch_id', doc.dispatch_id)
-        
-        const anyObserved = allDocs?.some(d => d.status === 'observed')
+
         const minPata = Math.ceil((dispatch.expected_pallets || 0) / 2)
-        
-        // El despacho está completo si:
-        // 1. Pack List está Validado
-        // 2. Fotos Pata-Pata >= min (No requieren validación individual)
-        // 3. Fotos Termógrafo >= 2 (No requieren validación individual)
-        const meetsRequirements = dispatch.pack_list_status === 'validated' && 
-                                 dispatch.pata_pata_photos_count >= minPata && 
-                                 dispatch.thermograph_photos_count >= 2
-        
+
+        // Usar el status NUEVO del documento recién validado para el pack_list
+        const newPackListStatus = doc.document_type === 'pack_list' ? doc.status : dispatch.pack_list_status
+
+        // Re-evaluar con el valor actualizado
+        const anyObserved = allDocs?.some(d => d.status === 'observed') || (doc.document_type !== 'pack_list' && doc.status === 'observed')
+        const meetsRequirements =
+          newPackListStatus === 'validated' &&
+          dispatch.pata_pata_photos_count >= minPata &&
+          dispatch.thermograph_photos_count >= 2
+
         let overall = 'uploaded'
         if (anyObserved) {
           overall = 'observed'
@@ -136,13 +137,7 @@ export async function POST(
 
         const updates: any = { overall_status: overall }
         if (doc.document_type === 'pack_list') {
-           updates.pack_list_status = doc.status
-           // Re-evaluar meetsRequirements con el nuevo status del pack_list
-           if (doc.status === 'validated' && dispatch.pata_pata_photos_count >= minPata && dispatch.thermograph_photos_count >= 2) {
-             updates.overall_status = 'complete'
-           } else if (doc.status === 'observed') {
-             updates.overall_status = 'observed'
-           }
+          updates.pack_list_status = doc.status
         }
 
         await supabaseAdmin

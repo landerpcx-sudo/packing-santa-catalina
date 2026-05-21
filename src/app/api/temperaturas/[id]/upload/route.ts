@@ -11,6 +11,12 @@ export async function POST(
     const { id } = await params
     const headersList = await headers()
     const userId = headersList.get('x-user-id')
+    const userRole = headersList.get('x-user-role')
+
+    // Validar que el usuario no sea un rol lector estricto para temperaturas
+    if (userRole === 'gerencia' || userRole === 'agronomo') {
+      return NextResponse.json({ error: 'No tienes permisos para subir archivos a este reporte.' }, { status: 403 })
+    }
 
     // Obtener el reporte
     const { data: report, error: reportError } = await supabaseAdmin

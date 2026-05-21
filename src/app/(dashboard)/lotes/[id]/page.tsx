@@ -231,7 +231,25 @@ export default function LoteDetailPage({ params }: { params: Promise<{ id: strin
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
           <div className="flex items-center gap-4">
             <div className="w-12 h-12 bg-green-500/10 border border-green-500/20 rounded-2xl flex items-center justify-center"><Package className="w-6 h-6 text-green-400" /></div>
-            <div><h1 className="text-2xl font-bold text-white">{lot.display_name}</h1><p className="text-gray-400 text-sm">{lot.internal_code}</p></div>
+            <div>
+              <div className="flex items-center gap-2 flex-wrap">
+                <h1 className="text-2xl font-bold text-white">{lot.display_name}</h1>
+                {lot.species && (
+                  <span className="text-lg animate-pulse" title={`Especie: ${lot.species}`}>
+                    {SPECIES_ICONS[lot.species] || SPECIES_ICONS[lot.species.charAt(0).toUpperCase() + lot.species.slice(1).toLowerCase()] || '🍇'}
+                  </span>
+                )}
+              </div>
+              <div className="flex flex-wrap items-center gap-x-3 gap-y-1 mt-1 text-xs text-gray-400">
+                <span className="text-green-400 font-mono font-semibold">{lot.internal_code}</span>
+                <span className="text-gray-600">|</span>
+                <span><strong>Cliente:</strong> {lot.client || '—'}</span>
+                <span className="text-gray-600">|</span>
+                <span><strong>Productor:</strong> {lot.producer || '—'}</span>
+                <span className="text-gray-600">|</span>
+                <span><strong>Variedad:</strong> {lot.variety || '—'}</span>
+              </div>
+            </div>
           </div>
           <div className="flex items-center gap-2">
             {lot.drive_folder_url && (user?.role === 'admin' || user?.canViewDrive) && (
@@ -448,29 +466,58 @@ export default function LoteDetailPage({ params }: { params: Promise<{ id: strin
         })}
       </div>
 
-      {docsByType['backup'] && docsByType['backup'].length > 0 && (
-        <div className="bg-white/3 border border-white/8 rounded-2xl p-5">
-          <h3 className="text-gray-300 font-medium text-sm mb-3 flex items-center gap-2">
-            <FileText className="w-4 h-4 text-gray-400" />
-            Respaldos y Otros
-          </h3>
-          {docsByType['backup'].map((doc) => (
-            <div key={doc.id} className="flex items-center gap-3 border-b border-white/5 py-2 last:border-0">
-              <FileText className="w-4 h-4 text-gray-500" />
-              <span className="text-gray-300 text-sm flex-1 truncate">{doc.original_file_name}</span>
-              {doc.drive_file_url && (user?.role === 'admin' || user?.canViewDrive) ? (
-                <a href={doc.drive_file_url} target="_blank" rel="noopener noreferrer" className="text-blue-400" title="Ver en Google Drive">
-                  <Eye className="w-3.5 h-3.5" />
-                </a>
-              ) : (
-                <a href={doc.storage_url || '#'} target="_blank" rel="noopener noreferrer" className="text-gray-400" title="Ver en Supabase">
-                  <Eye className="w-3.5 h-3.5" />
-                </a>
-              )}
+      {/* Sección Otros / Respaldos - siempre visible */}
+      <div className="bg-white/3 border border-white/8 rounded-2xl p-5">
+        <h3 className="text-white font-medium text-sm mb-4 flex items-center gap-2">
+          <FolderOpen className="w-4 h-4 text-indigo-400" />
+          Otros / Respaldos
+        </h3>
+        <div className="space-y-3 mb-4">
+          {(docsByType['backup'] || []).sort((a,b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()).map(doc => (
+            <div key={doc.id} className="bg-white/5 border border-white/10 rounded-xl px-3 py-2 flex items-center justify-between group transition-all hover:bg-white/10">
+              <div className="flex flex-col truncate">
+                <div className="flex items-center gap-2">
+                  <FileText className="w-3.5 h-3.5 text-gray-400 flex-shrink-0" />
+                  <span className="text-gray-300 text-[11px] truncate">{doc.original_file_name}</span>
+                </div>
+                <span className="text-[9px] text-gray-500 ml-5">{doc.uploaded_by_user?.display_name || 'Sistema'} • {formatDate(doc.created_at)}</span>
+              </div>
+              <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                {doc.drive_file_url && (user?.role === 'admin' || user?.canViewDrive || !doc.storage_url) ? (
+                  <button
+                    onClick={() => setPreviewFile({ isOpen: true, url: doc.storage_url || doc.drive_file_url!, name: doc.original_file_name })}
+                    className="text-indigo-400 p-1 hover:bg-white/10 rounded"
+                    title="Ver archivo"
+                  >
+                    <Eye className="w-3.5 h-3.5" />
+                  </button>
+                ) : doc.storage_url ? (
+                  <button onClick={() => setPreviewFile({ isOpen: true, url: doc.storage_url!, name: doc.original_file_name })} className="text-gray-400 p-1 hover:bg-white/10 rounded" title="Ver archivo">
+                    <Eye className="w-3.5 h-3.5" />
+                  </button>
+                ) : null}
+                {user?.role === 'admin' && lot.overall_status !== 'closed' && (
+                  <button onClick={() => handleDeleteDocument(doc.id, 'lot_documents')} className="text-red-400 p-1 hover:bg-red-400/10 rounded" title="Eliminar">
+                    <Trash2 className="w-3.5 h-3.5" />
+                  </button>
+                )}
+              </div>
             </div>
           ))}
+          {(docsByType['backup'] || []).length === 0 && (
+            <p className="text-gray-600 text-xs italic">No hay archivos extra en esta sección.</p>
+          )}
         </div>
-      )}
+        {lot.overall_status !== 'closed' && !['gerencia', 'agronomo'].includes(user?.role || '') && (
+          <UploadZone
+            lotId={lot.id}
+            lotCode={lot.internal_code}
+            documentType="backup"
+            documentLabel="Archivo Extra / Respaldo"
+            onUploadSuccess={() => fetchLot(true)}
+          />
+        )}
+      </div>
 
       {showEditModal && (
         <NewLotModal 

@@ -11,6 +11,10 @@ export async function GET(request: Request) {
   const search = searchParams.get('search') || ''
   const dateFrom = searchParams.get('from') || ''
   const dateTo = searchParams.get('to') || ''
+  const client = searchParams.get('client') || ''
+  const producer = searchParams.get('producer') || ''
+  const species = searchParams.get('species') || ''
+  const variety = searchParams.get('variety') || ''
   
   const offset = (page - 1) * limit
 
@@ -22,6 +26,10 @@ export async function GET(request: Request) {
 
   if (status) query = query.eq('overall_status', status)
   if (search) query = query.or(`internal_code.ilike.%${search}%,display_name.ilike.%${search}%,client.ilike.%${search}%`)
+  if (client) query = query.ilike('client', `%${client}%`)
+  if (producer) query = query.ilike('producer', `%${producer}%`)
+  if (species) query = query.ilike('species', `%${species}%`)
+  if (variety) query = query.ilike('variety', `%${variety}%`)
   
   if (dateFrom) query = query.gte('created_at', `${dateFrom}T00:00:00Z`)
   if (dateTo) query = query.lte('created_at', `${dateTo}T23:59:59Z`)

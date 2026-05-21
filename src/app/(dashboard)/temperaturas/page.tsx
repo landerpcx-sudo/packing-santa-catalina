@@ -3,6 +3,8 @@
 import { useEffect, useState } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
+import { useAuth } from '@/context/AuthContext'
+
 import {
   Thermometer, Plus, RefreshCw, CheckCircle, Clock,
   AlertCircle, XCircle, Calendar, FolderOpen, ExternalLink,
@@ -171,6 +173,7 @@ function NewReportModal({ onClose, onCreated, initialDate }: { onClose: () => vo
 }
 
 export default function TemperaturasPage() {
+  const { user } = useAuth()
   const [reports, setReports] = useState<TemperatureReport[]>([])
   const [total, setTotal] = useState(0)
   const [loading, setLoading] = useState(true)
@@ -308,13 +311,15 @@ export default function TemperaturasPage() {
                Lista
              </button>
           </div>
-          <button
-            onClick={() => { setSelectedDate(undefined); setShowModal(true); }}
-            className="flex items-center gap-2 px-6 py-3 bg-blue-600 hover:bg-blue-500 text-white font-bold rounded-2xl transition-all shadow-xl shadow-blue-600/20 active:scale-95"
-          >
-            <Plus size={18} />
-            Nuevo Registro
-          </button>
+          {['admin', 'jefe_frio'].includes(user?.role || '') && (
+            <button
+              onClick={() => { setSelectedDate(undefined); setShowModal(true); }}
+              className="flex items-center gap-2 px-6 py-3 bg-blue-600 hover:bg-blue-500 text-white font-bold rounded-2xl transition-all shadow-xl shadow-blue-600/20 active:scale-95"
+            >
+              <Plus size={18} />
+              Nuevo Registro
+            </button>
+          )}
         </div>
       </div>
 
@@ -334,15 +339,26 @@ export default function TemperaturasPage() {
                 Se han detectado {missingDays.length} días sin datos de temperatura en los últimos 30 días. Por normativa, deben estar todos registrados.
               </p>
               <div className="flex flex-wrap gap-2 mt-4">
-                {missingDays.slice(0, 5).map(d => (
-                  <button 
-                    key={d}
-                    onClick={() => { setSelectedDate(d); setShowModal(true); }}
-                    className="px-3 py-1.5 bg-rose-500/20 border border-rose-500/30 rounded-xl text-[10px] font-bold text-rose-400 hover:bg-rose-500/30 transition-all uppercase tracking-widest"
-                  >
-                    Registrar {formatDateShort(d)}
-                  </button>
-                ))}
+                {['admin', 'jefe_frio'].includes(user?.role || '') ? (
+                  missingDays.slice(0, 5).map(d => (
+                    <button 
+                      key={d}
+                      onClick={() => { setSelectedDate(d); setShowModal(true); }}
+                      className="px-3 py-1.5 bg-rose-500/20 border border-rose-500/30 rounded-xl text-[10px] font-bold text-rose-400 hover:bg-rose-500/30 transition-all uppercase tracking-widest"
+                    >
+                      Registrar {formatDateShort(d)}
+                    </button>
+                  ))
+                ) : (
+                  missingDays.slice(0, 5).map(d => (
+                    <span 
+                      key={d}
+                      className="px-3 py-1.5 bg-white/5 border border-white/10 rounded-xl text-[10px] font-bold text-gray-400 uppercase tracking-widest"
+                    >
+                      Falta {formatDateShort(d)}
+                    </span>
+                  ))
+                )}
                 {missingDays.length > 5 && <span className="text-[10px] text-gray-500 font-bold self-center">Y {missingDays.length - 5} MÁS...</span>}
               </div>
             </div>
@@ -487,19 +503,23 @@ export default function TemperaturasPage() {
                   <div 
                     key={day.date} 
                     onClick={() => {
-                      if (day.reports.length === 1) router.push(`/temperaturas/${day.reports[0].id}`)
-                      else if (day.reports.length === 0 && !isFuture) { setSelectedDate(day.date); setShowModal(true); }
+                      if (day.reports.length === 1) {
+                        router.push(`/temperaturas/${day.reports[0].id}`)
+                      } else if (day.reports.length === 0 && !isFuture && ['admin', 'jefe_frio'].includes(user?.role || '')) {
+                        setSelectedDate(day.date);
+                        setShowModal(true);
+                      }
                     }}
                     className={`h-28 p-3 border-r border-b border-white/5 relative group transition-all hover:z-10
                       ${isToday ? 'bg-blue-500/5' : ''} 
                       ${isMissing ? 'bg-rose-500/[0.03]' : ''} 
-                      ${isFuture ? 'opacity-30 cursor-default' : 'hover:bg-indigo-500/10'}`}
+                      ${isFuture || (day.reports.length === 0 && !['admin', 'jefe_frio'].includes(user?.role || '')) ? 'opacity-30 cursor-default' : 'hover:bg-indigo-500/10 cursor-pointer'}`}
                   >
                     <div className="flex justify-between items-start">
                        <span className={`text-xs font-bold ${isToday ? 'bg-blue-500 text-white w-6 h-6 rounded-lg flex items-center justify-center' : 'text-gray-500 group-hover:text-white'}`}>
                          {day.day}
                        </span>
-                       {day.reports.length > 1 && !isFuture && (
+                       {day.reports.length > 1 && !isFuture && ['admin', 'jefe_frio'].includes(user?.role || '') && (
                           <button 
                             onClick={(e) => { e.stopPropagation(); setSelectedDate(day.date); setShowModal(true); }}
                             className="p-1 bg-blue-600/20 text-blue-400 rounded-lg hover:bg-blue-600 hover:text-white transition-all shadow-sm"
@@ -511,23 +531,23 @@ export default function TemperaturasPage() {
                     </div>
                     
                     <div className="mt-2 space-y-1.5 max-h-[60px] overflow-y-auto custom-scrollbar">
-                      {day.reports.map((report) => (
+                       {day.reports.map((report) => (
                         <div 
                           key={report.id} 
                           onClick={(e) => { e.stopPropagation(); router.push(`/temperaturas/${report.id}`); }}
                           className="flex items-center gap-1.5 px-1.5 py-1 bg-white/5 border border-white/5 rounded-lg hover:bg-indigo-500/20 hover:border-indigo-500/30 transition-all cursor-pointer group/item"
                         >
-                          <div className="w-1 h-3 bg-emerald-500 rounded-full shrink-0" />
-                          <div className="min-w-0">
-                            <div className="text-[9px] font-black text-white truncate leading-none">
-                              {report.temperature_value}°C
-                            </div>
-                            <div className="text-[7px] text-gray-500 font-bold uppercase tracking-widest truncate leading-none mt-0.5 group-hover/item:text-gray-300">
-                              {report.client || report.chamber || 'Cámara'}
-                            </div>
-                          </div>
+                           <div className="w-1 h-3 bg-emerald-500 rounded-full shrink-0" />
+                           <div className="min-w-0">
+                             <div className="text-[9px] font-black text-white truncate leading-none">
+                               {report.temperature_value}°C
+                             </div>
+                             <div className="text-[7px] text-gray-500 font-bold uppercase tracking-widest truncate leading-none mt-0.5 group-hover/item:text-gray-300">
+                               {report.client || report.chamber || 'Cámara'}
+                             </div>
+                           </div>
                         </div>
-                      ))}
+                       ))}
                     </div>
 
                     {isMissing && (
@@ -538,7 +558,7 @@ export default function TemperaturasPage() {
                       </div>
                     )}
 
-                    {day.reports.length === 0 && !isFuture && !isMissing && !isToday && (
+                    {day.reports.length === 0 && !isFuture && !isMissing && !isToday && ['admin', 'jefe_frio'].includes(user?.role || '') && (
                        <Plus size={14} className="absolute bottom-3 right-3 text-gray-700 opacity-0 group-hover:opacity-100 transition-all" />
                     )}
                   </div>

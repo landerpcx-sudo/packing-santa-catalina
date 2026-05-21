@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server'
+import { headers } from 'next/headers'
 import { supabaseAdmin } from '@/lib/supabase-admin'
 
 export async function GET(
@@ -31,23 +32,58 @@ export async function PATCH(
   request: Request,
   { params }: { params: Promise<{ id: string }> }
 ) {
-  const { id } = await params
-  const body = await request.json()
-  const { temperature_value, chamber, client, observation } = body
+  try {
+    const headersList = await headers()
+    const userRole = headersList.get('x-user-role')
+    const userId = headersList.get('x-user-id')
 
-  const { data, error } = await supabaseAdmin
-    .from('temperature_reports')
-    .update({
-      temperature_value: temperature_value ?? undefined,
-      chamber: chamber ?? undefined,
-      client: client ?? undefined,
-      observation: observation ?? undefined,
-      updated_at: new Date().toISOString(),
+    // Validar rol de escritura
+    if (userRole !== 'admin' && userRole !== 'jefe_frio') {
+      return NextResponse.json({ error: 'No tienes permisos para modificar reportes de temperatura.' }, { status: 403 })
+    }
+
+    const { id } = await params
+    const body = await request.json()
+    const { temperature_value, chamber, client, observation } = body
+
+    // Obtener reporte actual para registrar en auditoría el cambio de valor
+    const { data: oldReport } = await supabaseAdmin
+      .from('temperature_reports')
+      .select('temperature_value, internal_code')
+      .eq('id', id)
+      .single()
+
+    const { data, error } = await supabaseAdmin
+      .from('temperature_reports')
+      .update({
+        temperature_value: temperature_value ?? undefined,
+        chamber: chamber ?? undefined,
+        client: client ?? undefined,
+        observation: observation ?? undefined,
+        updated_at: new Date().toISOString(),
+      })
+      .eq('id', id)
+      .select()
+      .single()
+
+    if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+
+    // Registrar en auditoría
+    await supabaseAdmin.from('audit_log').insert({
+      user_id: userId || null,
+      action: 'UPDATE_TEMPERATURE_REPORT',
+      entity_type: 'temperature_reports',
+      entity_id: id,
+      details: { 
+        internal_code: oldReport?.internal_code,
+        old_value: oldReport?.temperature_value, 
+        new_value: temperature_value 
+      },
     })
-    .eq('id', id)
-    .select()
-    .single()
 
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 })
-  return NextResponse.json({ data })
+    return NextResponse.json({ data })
+  } catch (err: any) {
+    console.error('PATCH /api/temperaturas/[id] error:', err)
+    return NextResponse.json({ error: err.message || 'Error interno' }, { status: 500 })
+  }
 }
