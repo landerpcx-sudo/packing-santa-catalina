@@ -68,6 +68,7 @@ export interface TemperatureReport {
   internal_code: string   // TEMP-2026-05-15
   report_date: string
   client: string | null
+  variety: string | null
   chamber: string | null
   temperature_value: number | null
   responsible_id: string | null

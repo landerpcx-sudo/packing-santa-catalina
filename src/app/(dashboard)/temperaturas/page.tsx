@@ -17,6 +17,7 @@ interface TemperatureReport {
   report_date: string
   chamber: string | null
   client: string | null
+  variety: string | null
   temperature_value: number | null
   status: string
   observation: string | null
@@ -39,6 +40,7 @@ function NewReportModal({ onClose, onCreated, initialDate }: { onClose: () => vo
     report_date: initialDate || new Date().toISOString().split('T')[0],
     chamber: '',
     client: '',
+    variety: '',
     temperature_value: '',
     observation: '',
   })
@@ -55,6 +57,8 @@ function NewReportModal({ onClose, onCreated, initialDate }: { onClose: () => vo
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         ...form,
+        client: form.client || null,
+        variety: form.variety || null,
         temperature_value: form.temperature_value ? parseFloat(form.temperature_value) : null,
       }),
     })
@@ -127,15 +131,27 @@ function NewReportModal({ onClose, onCreated, initialDate }: { onClose: () => vo
             </div>
           </div>
 
-          <div>
-            <label className="block text-[11px] uppercase tracking-widest font-bold text-gray-500 mb-2 ml-1">Cliente / Lote</label>
-            <input
-              type="text"
-              placeholder="Ej: The Growers (Dejar vacío para general)"
-              value={form.client}
-              onChange={e => setForm(f => ({ ...f, client: e.target.value }))}
-              className="w-full bg-black/40 border border-white/10 rounded-2xl px-4 py-3 text-sm text-white focus:outline-none focus:border-blue-500/50 transition-all"
-            />
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="block text-[11px] uppercase tracking-widest font-bold text-gray-500 mb-2 ml-1">Cliente / Lote</label>
+              <input
+                type="text"
+                placeholder="Ej: The Growers"
+                value={form.client}
+                onChange={e => setForm(f => ({ ...f, client: e.target.value }))}
+                className="w-full bg-black/40 border border-white/10 rounded-2xl px-4 py-3 text-sm text-white focus:outline-none focus:border-blue-500/50 transition-all"
+              />
+            </div>
+            <div>
+              <label className="block text-[11px] uppercase tracking-widest font-bold text-gray-500 mb-2 ml-1">Variedad Fruta</label>
+              <input
+                type="text"
+                placeholder="Ej: Limones"
+                value={form.variety}
+                onChange={e => setForm(f => ({ ...f, variety: e.target.value }))}
+                className="w-full bg-black/40 border border-white/10 rounded-2xl px-4 py-3 text-sm text-white focus:outline-none focus:border-blue-500/50 transition-all"
+              />
+            </div>
           </div>
 
           <div>
@@ -180,8 +196,23 @@ export default function TemperaturasPage() {
   const [showModal, setShowModal] = useState(false)
   const [selectedDate, setSelectedDate] = useState<string | undefined>(undefined)
   const [controlStartDate, setControlStartDate] = useState<string | null>(null)
-  const [viewMode, setViewMode] = useState<'list' | 'calendar'>('calendar')
+  const [viewMode, setViewMode] = useState<'list' | 'calendar' | 'chart'>('calendar')
   const [currentMonth, setCurrentMonth] = useState(new Date())
+  
+  // Filtros para la pestaña de Gráfico Histórico
+  const [filterClient, setFilterClient] = useState('')
+  const [filterVariety, setFilterVariety] = useState('')
+  const [startDate, setStartDate] = useState(() => {
+    const d = new Date()
+    d.setDate(d.getDate() - 30)
+    return d.toISOString().split('T')[0]
+  })
+  const [endDate, setEndDate] = useState(() => new Date().toISOString().split('T')[0])
+  const [hoveredPoint, setHoveredPoint] = useState<{
+    x: number
+    y: number
+    report: TemperatureReport
+  } | null>(null)
   
   const router = useRouter()
   const today = new Date().toISOString().split('T')[0]
@@ -310,6 +341,12 @@ export default function TemperaturasPage() {
              >
                Lista
              </button>
+             <button 
+               onClick={() => setViewMode('chart')}
+               className={`px-4 py-2 rounded-xl text-xs font-bold uppercase tracking-widest transition-all ${viewMode === 'chart' ? 'bg-indigo-600 text-white shadow-lg' : 'text-gray-500 hover:text-white'}`}
+             >
+               Gráfico
+             </button>
           </div>
           {['admin', 'jefe_frio'].includes(user?.role || '') && (
             <button
@@ -433,7 +470,7 @@ export default function TemperaturasPage() {
       </div>
 
       {/* Main Content Area */}
-      {viewMode === 'calendar' ? (
+      {viewMode === 'calendar' && (
         <div className="space-y-4">
           {/* Calendar Controls */}
           <div className="flex items-center justify-between bg-[#0f172a] border border-white/10 rounded-2xl p-4">
@@ -567,7 +604,9 @@ export default function TemperaturasPage() {
             </div>
           </div>
         </div>
-      ) : (
+      )}
+
+      {viewMode === 'list' && (
         <div className="bg-[#0f172a] border border-white/10 rounded-3xl overflow-hidden shadow-2xl">
           <table className="w-full text-left border-collapse">
             <thead>
@@ -576,6 +615,7 @@ export default function TemperaturasPage() {
                 <th className="px-6 py-4">Código</th>
                 <th className="px-6 py-4">Valor</th>
                 <th className="px-6 py-4">Cámara / Cliente</th>
+                <th className="px-6 py-4">Variedad</th>
                 <th className="px-6 py-4">Responsable</th>
                 <th className="px-6 py-4 text-right">Acción</th>
               </tr>
@@ -591,6 +631,7 @@ export default function TemperaturasPage() {
                       <div className="h-4 bg-white/5 rounded w-24 mb-1" />
                       <div className="h-3 bg-white/5 rounded w-16" />
                     </td>
+                    <td className="px-6 py-4"><div className="h-4 bg-white/5 rounded w-16" /></td>
                     <td className="px-6 py-4"><div className="h-4 bg-white/5 rounded w-20" /></td>
                     <td className="px-6 py-4 text-right"><div className="h-5 bg-white/5 rounded-full w-5 ml-auto" /></td>
                   </tr>
@@ -619,6 +660,9 @@ export default function TemperaturasPage() {
                       <div className="text-sm text-white font-medium">{report.chamber || 'General'}</div>
                       <div className="text-[10px] text-gray-500 uppercase tracking-widest">{report.client || 'Sin Cliente'}</div>
                     </td>
+                    <td className="px-6 py-4 text-gray-400 text-xs font-medium">
+                      {report.variety || '—'}
+                    </td>
                     <td className="px-6 py-4 text-gray-400 text-xs">
                       {report.responsible?.display_name || 'Sistema'}
                     </td>
@@ -630,6 +674,500 @@ export default function TemperaturasPage() {
               })}
             </tbody>
           </table>
+        </div>
+      )}
+
+      {viewMode === 'chart' && (
+        <div className="space-y-6">
+          {/* Filtros */}
+          <div className="bg-[#0f172a] border border-white/10 rounded-3xl p-6 shadow-xl space-y-4">
+            <h3 className="text-sm font-bold text-white uppercase tracking-widest flex items-center gap-2 mb-2">
+              <span className="w-1.5 h-3 bg-blue-500 rounded-full" />
+              Filtros de Búsqueda Histórica
+            </h3>
+            
+            <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+              <div>
+                <label className="block text-[10px] uppercase tracking-widest font-bold text-gray-500 mb-2 ml-1">Cliente / Lote</label>
+                <select
+                  value={filterClient}
+                  onChange={e => setFilterClient(e.target.value)}
+                  className="w-full bg-black/40 border border-white/10 rounded-2xl px-4 py-3 text-sm text-white focus:outline-none focus:border-blue-500/50 transition-all cursor-pointer"
+                >
+                  <option value="">Todos los Clientes</option>
+                  {Array.from(new Set(reports.map(r => r.client).filter(Boolean))).map(client => (
+                    <option key={client} value={client!}>{client}</option>
+                  ))}
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-[10px] uppercase tracking-widest font-bold text-gray-500 mb-2 ml-1">Variedad de Fruta</label>
+                <select
+                  value={filterVariety}
+                  onChange={e => setFilterVariety(e.target.value)}
+                  className="w-full bg-black/40 border border-white/10 rounded-2xl px-4 py-3 text-sm text-white focus:outline-none focus:border-blue-500/50 transition-all cursor-pointer"
+                >
+                  <option value="">Todas las Variedades</option>
+                  {Array.from(new Set(reports.map(r => r.variety).filter(Boolean))).map(variety => (
+                    <option key={variety} value={variety!}>{variety}</option>
+                  ))}
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-[10px] uppercase tracking-widest font-bold text-gray-500 mb-2 ml-1">Fecha Inicio</label>
+                <input
+                  type="date"
+                  value={startDate}
+                  onChange={e => setStartDate(e.target.value)}
+                  className="w-full bg-black/40 border border-white/10 rounded-2xl px-4 py-3 text-sm text-white focus:outline-none focus:border-blue-500/50 transition-all"
+                />
+              </div>
+
+              <div>
+                <label className="block text-[10px] uppercase tracking-widest font-bold text-gray-500 mb-2 ml-1">Fecha Fin</label>
+                <input
+                  type="date"
+                  value={endDate}
+                  onChange={e => setEndDate(e.target.value)}
+                  className="w-full bg-black/40 border border-white/10 rounded-2xl px-4 py-3 text-sm text-white focus:outline-none focus:border-blue-500/50 transition-all"
+                />
+              </div>
+            </div>
+            
+            <div className="flex justify-end gap-2 pt-2">
+              <button
+                onClick={() => {
+                  setFilterClient('')
+                  setFilterVariety('')
+                  const d = new Date()
+                  d.setDate(d.getDate() - 30)
+                  setStartDate(d.toISOString().split('T')[0])
+                  setEndDate(new Date().toISOString().split('T')[0])
+                }}
+                className="px-5 py-2.5 bg-white/5 border border-white/10 text-gray-400 hover:text-white rounded-xl text-xs font-bold uppercase tracking-widest transition-all"
+              >
+                Limpiar Filtros
+              </button>
+            </div>
+          </div>
+
+          {/* KPIs e Histograma */}
+          {(() => {
+            // Filtrar y ordenar datos
+            const validChartData = [...reports]
+              .filter(r => {
+                const dateMatch = (!startDate || r.report_date >= startDate) && (!endDate || r.report_date <= endDate)
+                const clientMatch = !filterClient || r.client === filterClient
+                const varietyMatch = !filterVariety || r.variety === filterVariety
+                return dateMatch && clientMatch && varietyMatch && r.temperature_value !== null
+              })
+              .sort((a, b) => a.report_date.localeCompare(b.report_date))
+
+            const temps = validChartData.map(d => d.temperature_value!)
+            const totalReports = validChartData.length
+            const avgTemp = totalReports > 0 ? temps.reduce((a, b) => a + b, 0) / totalReports : 0
+            const maxVal = totalReports > 0 ? Math.max(...temps) : 0
+            const minVal = totalReports > 0 ? Math.min(...temps) : 0
+
+            return (
+              <>
+                {/* Panel de Estadísticas Rápidas (KPIs) */}
+                <div className="grid grid-cols-1 sm:grid-cols-4 gap-4 animate-in fade-in duration-300">
+                  <div className="bg-[#0f172a] border border-white/10 rounded-2xl p-5">
+                    <p className="text-[10px] font-bold text-gray-500 uppercase tracking-widest mb-1">Registros Filtrados</p>
+                    <p className="text-3xl font-black text-white mt-1">{totalReports}</p>
+                  </div>
+                  <div className="bg-[#0f172a] border border-white/10 rounded-2xl p-5">
+                    <p className="text-[10px] font-bold text-gray-500 uppercase tracking-widest mb-1">Temperatura Promedio</p>
+                    <p className="text-3xl font-black text-indigo-400 mt-1">
+                      {totalReports > 0 ? `${avgTemp.toFixed(1)}°C` : '—'}
+                    </p>
+                  </div>
+                  <div className="bg-[#0f172a] border border-white/10 rounded-2xl p-5">
+                    <p className="text-[10px] font-bold text-gray-500 uppercase tracking-widest mb-1">Temperatura Máxima</p>
+                    <p className="text-3xl font-black text-rose-400 mt-1">
+                      {totalReports > 0 ? `${maxVal.toFixed(1)}°C` : '—'}
+                    </p>
+                  </div>
+                  <div className="bg-[#0f172a] border border-white/10 rounded-2xl p-5">
+                    <p className="text-[10px] font-bold text-gray-500 uppercase tracking-widest mb-1">Temperatura Mínima</p>
+                    <p className="text-3xl font-black text-emerald-400 mt-1">
+                      {totalReports > 0 ? `${minVal.toFixed(1)}°C` : '—'}
+                    </p>
+                  </div>
+                </div>
+
+                {/* Contenedor del Gráfico */}
+                <div className="bg-[#0f172a] border border-white/10 rounded-3xl p-6 shadow-2xl relative overflow-hidden">
+                  <div className="flex items-center justify-between mb-6">
+                    <h3 className="text-sm font-bold text-white uppercase tracking-widest flex items-center gap-2">
+                      <Thermometer className="text-blue-500 w-4 h-4" />
+                      Gráfico Histórico de Tendencia
+                    </h3>
+                    <span className="text-[10px] font-black text-gray-500 bg-white/5 px-2.5 py-1 rounded-lg border border-white/5 uppercase tracking-widest">
+                      Visualización en Tiempo Real
+                    </span>
+                  </div>
+
+                  {totalReports === 0 ? (
+                    <div className="h-72 flex flex-col items-center justify-center gap-3 text-gray-500 border border-dashed border-white/10 rounded-2xl">
+                      <AlertCircle className="w-8 h-8 text-gray-600" />
+                      <p className="font-bold text-sm">No hay registros de temperatura para los filtros especificados.</p>
+                      <p className="text-xs text-gray-600">Intenta ampliando el rango de fechas o modificando los filtros.</p>
+                    </div>
+                  ) : (
+                    <div className="relative" onMouseLeave={() => setHoveredPoint(null)}>
+                      {/* SVG del Gráfico de Área */}
+                      {(() => {
+                        const width = 800
+                        const height = 350
+                        const paddingLeft = 60
+                        const paddingRight = 40
+                        const paddingTop = 30
+                        const paddingBottom = 40
+                        const chartWidth = width - paddingLeft - paddingRight
+                        const chartHeight = height - paddingTop - paddingBottom
+
+                        let yMin = minVal
+                        let yMax = maxVal
+                        if (yMin === yMax) {
+                          yMin -= 2
+                          yMax += 2
+                        } else {
+                          const range = yMax - yMin
+                          if (range < 4) {
+                            const mid = (yMax + yMin) / 2
+                            yMin = mid - 2
+                            yMax = mid + 2
+                          } else {
+                            const margin = range * 0.15
+                            yMin -= margin
+                            yMax += margin
+                          }
+                        }
+
+                        // Líneas de grilla horizontales
+                        const yTicksCount = 5
+                        const gridLines = Array.from({ length: yTicksCount }).map((_, i) => {
+                          const val = yMin + (i * (yMax - yMin)) / (yTicksCount - 1)
+                          const y = paddingTop + chartHeight - (i * chartHeight) / (yTicksCount - 1)
+                          return { val, y }
+                        })
+
+                        // Mapeo de puntos
+                        const points: { x: number; y: number; report: TemperatureReport }[] = []
+                        let linePath = ''
+                        let areaPath = ''
+
+                        validChartData.forEach((d, i) => {
+                          const x = paddingLeft + (validChartData.length > 1 ? (i / (validChartData.length - 1)) * chartWidth : chartWidth / 2)
+                          const y = paddingTop + chartHeight - ((d.temperature_value! - yMin) / (yMax - yMin)) * chartHeight
+                          points.push({ x, y, report: d })
+
+                          if (i === 0) {
+                            linePath += `M ${x} ${y}`
+                            areaPath += `M ${x} ${paddingTop + chartHeight} L ${x} ${y}`
+                          } else {
+                            linePath += ` L ${x} ${y}`
+                            areaPath += ` L ${x} ${y}`
+                          }
+                        })
+
+                        if (validChartData.length > 1) {
+                          areaPath += ` L ${points[points.length - 1].x} ${paddingTop + chartHeight} Z`
+                        } else {
+                          areaPath = '' // Sin área para un único punto
+                        }
+
+                        // Marcadores de fecha en eje X
+                        const maxLabels = 6
+                        const step = Math.max(1, Math.floor(validChartData.length / maxLabels))
+                        const xLabels = []
+                        for (let i = 0; i < validChartData.length; i += step) {
+                          xLabels.push({ index: i, point: points[i] })
+                        }
+                        if (validChartData.length > 1 && !xLabels.some(l => l.index === validChartData.length - 1)) {
+                          xLabels.push({ index: validChartData.length - 1, point: points[points.length - 1] })
+                        }
+
+                        return (
+                          <div className="overflow-x-auto">
+                            <svg viewBox={`0 0 ${width} ${height}`} className="w-full h-auto min-w-[700px] select-none overflow-visible">
+                              <defs>
+                                <linearGradient id="areaGradient" x1="0" y1="0" x2="0" y2="1">
+                                  <stop offset="0%" stopColor="#3b82f6" stopOpacity="0.3" />
+                                  <stop offset="100%" stopColor="#3b82f6" stopOpacity="0.0" />
+                                </linearGradient>
+                                <linearGradient id="lineGradient" x1="0" y1="0" x2="1" y2="0">
+                                  <stop offset="0%" stopColor="#6366f1" />
+                                  <stop offset="50%" stopColor="#3b82f6" />
+                                  <stop offset="100%" stopColor="#10b981" />
+                                </linearGradient>
+                                <filter id="glow" x="-10%" y="-10%" width="120%" height="120%">
+                                  <feDropShadow dx="0" dy="4" stdDeviation="6" floodColor="#3b82f6" floodOpacity="0.3" />
+                                </filter>
+                              </defs>
+
+                              {/* Grilla e Intervalos de Temperatura */}
+                              {gridLines.map((line, idx) => (
+                                <g key={idx}>
+                                  <line
+                                    x1={paddingLeft}
+                                    y1={line.y}
+                                    x2={width - paddingRight}
+                                    y2={line.y}
+                                    stroke="rgba(255, 255, 255, 0.05)"
+                                    strokeDasharray="4 4"
+                                    strokeWidth="1"
+                                  />
+                                  <text
+                                    x={paddingLeft - 12}
+                                    y={line.y + 4}
+                                    textAnchor="end"
+                                    fill="#64748b"
+                                    className="text-[10px] font-black tracking-wider"
+                                  >
+                                    {line.val.toFixed(1)}°C
+                                  </text>
+                                </g>
+                              ))}
+
+                              {/* Ejes principales */}
+                              <line
+                                x1={paddingLeft}
+                                y1={paddingTop}
+                                x2={paddingLeft}
+                                y2={paddingTop + chartHeight}
+                                stroke="rgba(255, 255, 255, 0.1)"
+                                strokeWidth="1"
+                              />
+                              <line
+                                x1={paddingLeft}
+                                y1={paddingTop + chartHeight}
+                                x2={width - paddingRight}
+                                y2={paddingTop + chartHeight}
+                                stroke="rgba(255, 255, 255, 0.1)"
+                                strokeWidth="1"
+                              />
+
+                              {/* Relleno del área bajo la curva */}
+                              {areaPath && (
+                                <path
+                                  d={areaPath}
+                                  fill="url(#areaGradient)"
+                                />
+                              )}
+
+                              {/* Línea del Gráfico */}
+                              {linePath && (
+                                <path
+                                  d={linePath}
+                                  fill="none"
+                                  stroke="url(#lineGradient)"
+                                  strokeWidth="3.5"
+                                  strokeLinecap="round"
+                                  strokeLinejoin="round"
+                                  filter="url(#glow)"
+                                  className="transition-all duration-300"
+                                />
+                              )}
+
+                              {/* Puntos y Hover Interactivos */}
+                              {points.map((pt, idx) => {
+                                const isHovered = hoveredPoint?.report.id === pt.report.id
+                                return (
+                                  <g key={idx}>
+                                    {/* Círculo de efecto Hover grande */}
+                                    {isHovered && (
+                                      <circle
+                                        cx={pt.x}
+                                        cy={pt.y}
+                                        r="12"
+                                        fill="#3b82f6"
+                                        fillOpacity="0.15"
+                                        className="transition-all duration-150 animate-ping"
+                                      />
+                                    )}
+
+                                    {/* Círculo Principal */}
+                                    <circle
+                                      cx={pt.x}
+                                      cy={pt.y}
+                                      r={isHovered ? "6" : "4.5"}
+                                      fill={isHovered ? "#3b82f6" : "#0f172a"}
+                                      stroke={isHovered ? "#ffffff" : "#6366f1"}
+                                      strokeWidth={isHovered ? "2.5" : "2"}
+                                      className="transition-all duration-150 cursor-pointer"
+                                    />
+
+                                    {/* Área interactiva invisible (facilita el hover con el mouse) */}
+                                    <circle
+                                      cx={pt.x}
+                                      cy={pt.y}
+                                      r="24"
+                                      fill="transparent"
+                                      className="cursor-pointer"
+                                      onMouseEnter={(e) => {
+                                        const svgEl = e.currentTarget.ownerSVGElement
+                                        if (svgEl) {
+                                          const rect = svgEl.getBoundingClientRect()
+                                          const ratioX = rect.width / width
+                                          const ratioY = rect.height / height
+                                          setHoveredPoint({
+                                            x: pt.x * ratioX,
+                                            y: pt.y * ratioY,
+                                            report: pt.report,
+                                          })
+                                        }
+                                      }}
+                                    />
+                                  </g>
+                                )
+                              })}
+
+                              {/* Fechas en el eje X */}
+                              {xLabels.map((lbl, idx) => {
+                                if (!lbl.point) return null
+                                return (
+                                  <g key={idx}>
+                                    <line
+                                      x1={lbl.point.x}
+                                      y1={paddingTop + chartHeight}
+                                      x2={lbl.point.x}
+                                      y2={paddingTop + chartHeight + 6}
+                                      stroke="rgba(255, 255, 255, 0.15)"
+                                      strokeWidth="1"
+                                    />
+                                    <text
+                                      x={lbl.point.x}
+                                      y={paddingTop + chartHeight + 20}
+                                      textAnchor="middle"
+                                      fill="#64748b"
+                                      className="text-[9px] font-black uppercase tracking-widest"
+                                    >
+                                      {formatDateShort(lbl.point.report.report_date)}
+                                    </text>
+                                  </g>
+                                )
+                              })}
+                            </svg>
+                          </div>
+                        )
+                      })()}
+
+                      {/* Tooltip Absoluto Flotante */}
+                      {hoveredPoint && (
+                        <div
+                          style={{
+                            position: 'absolute',
+                            left: `${hoveredPoint.x}px`,
+                            top: `${hoveredPoint.y - 120}px`,
+                            transform: 'translateX(-50%)',
+                            pointerEvents: 'none',
+                          }}
+                          className="bg-[#1e293b]/95 border-2 border-blue-500/50 backdrop-blur-md rounded-2xl p-4 shadow-2xl animate-in fade-in zoom-in-95 duration-150 z-20 w-52"
+                        >
+                          {/* Flechita del tooltip */}
+                          <div className="absolute bottom-[-8px] left-1/2 transform -translate-x-1/2 w-0 h-0 border-l-[8px] border-l-transparent border-r-[8px] border-r-transparent border-t-[8px] border-t-blue-500/50" />
+                          
+                          <p className="text-[9px] font-black text-blue-400 uppercase tracking-widest mb-1.5 flex items-center justify-between">
+                            <span>{hoveredPoint.report.internal_code}</span>
+                            <span className="text-gray-500 font-bold">{formatDate(hoveredPoint.report.report_date)}</span>
+                          </p>
+                          
+                          <div className="text-2xl font-black text-white flex items-end gap-1 mb-2">
+                            {hoveredPoint.report.temperature_value}°C
+                          </div>
+                          
+                          <div className="border-t border-white/5 pt-2 space-y-1.5">
+                            <div className="flex justify-between text-[9px]">
+                              <span className="text-gray-500 font-bold uppercase">Cliente:</span>
+                              <span className="text-white font-bold truncate max-w-[120px]">{hoveredPoint.report.client || 'General'}</span>
+                            </div>
+                            <div className="flex justify-between text-[9px]">
+                              <span className="text-gray-500 font-bold uppercase">Variedad:</span>
+                              <span className="text-indigo-400 font-bold truncate max-w-[120px]">{hoveredPoint.report.variety || '—'}</span>
+                            </div>
+                            <div className="flex justify-between text-[9px]">
+                              <span className="text-gray-500 font-bold uppercase">Cámara:</span>
+                              <span className="text-white truncate max-w-[120px]">{hoveredPoint.report.chamber || 'General'}</span>
+                            </div>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </div>
+
+                {/* Tabla de registros filtrados debajo del gráfico */}
+                {totalReports > 0 && (
+                  <div className="bg-[#0f172a] border border-white/10 rounded-3xl overflow-hidden shadow-2xl mt-6 animate-in fade-in duration-300">
+                    <div className="px-6 py-4 border-b border-white/5 bg-white/[0.02] flex items-center justify-between">
+                      <h3 className="text-sm font-bold text-gray-300 uppercase tracking-widest">
+                        Registros del Filtro
+                      </h3>
+                      <span className="text-[10px] font-black text-gray-500 bg-white/5 px-2.5 py-1 rounded-lg border border-white/5">
+                        {totalReports} REGISTROS
+                      </span>
+                    </div>
+
+                    <table className="w-full text-left border-collapse">
+                      <thead>
+                        <tr className="bg-white/5 text-[10px] uppercase tracking-widest font-bold text-gray-500">
+                          <th className="px-6 py-4">Fecha</th>
+                          <th className="px-6 py-4">Código</th>
+                          <th className="px-6 py-4">Valor</th>
+                          <th className="px-6 py-4">Cámara</th>
+                          <th className="px-6 py-4">Cliente</th>
+                          <th className="px-6 py-4">Variedad</th>
+                          <th className="px-6 py-4 text-right">Acción</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-white/5">
+                        {validChartData.map((report) => {
+                          const isToday = report.report_date === today
+                          return (
+                            <tr 
+                              key={report.id} 
+                              onClick={() => router.push(`/temperaturas/${report.id}`)}
+                              className={`hover:bg-white/[0.02] transition-all cursor-pointer group ${isToday ? 'bg-blue-500/5' : ''}`}
+                            >
+                              <td className="px-6 py-4">
+                                <div className="flex items-center gap-2 text-white font-bold text-sm">
+                                  <Calendar size={14} className="text-gray-500" />
+                                  {formatDate(report.report_date)}
+                                </div>
+                              </td>
+                              <td className="px-6 py-4 text-gray-400 text-xs font-mono">{report.internal_code}</td>
+                              <td className="px-6 py-4">
+                                 <span className="px-3 py-1 bg-blue-500/10 text-blue-400 rounded-lg font-bold border border-blue-500/20">
+                                   {report.temperature_value !== null ? `${report.temperature_value}°C` : '—'}
+                                 </span>
+                              </td>
+                              <td className="px-6 py-4 text-sm text-white font-medium">
+                                {report.chamber || 'General'}
+                              </td>
+                              <td className="px-6 py-4 text-sm text-white font-medium">
+                                {report.client || 'Sin Cliente'}
+                              </td>
+                              <td className="px-6 py-4 text-gray-400 text-xs font-medium">
+                                {report.variety || '—'}
+                              </td>
+                              <td className="px-6 py-4 text-right">
+                                <ChevronRight size={18} className="text-gray-700 group-hover:text-white transition-all ml-auto" />
+                              </td>
+                            </tr>
+                          )
+                        })}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+              </>
+            )
+          })()}
         </div>
       )}
     </div>

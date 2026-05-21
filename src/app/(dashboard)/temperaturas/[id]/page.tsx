@@ -3,6 +3,7 @@
 import { useEffect, useState, useCallback } from 'react'
 import { use } from 'react'
 import Link from 'next/link'
+import { useRouter } from 'next/navigation'
 import { useAuth } from '@/context/AuthContext'
 import {
   ArrowLeft, Thermometer, CheckCircle, Clock, AlertCircle,
@@ -29,6 +30,7 @@ interface TemperatureReport {
   report_date: string
   chamber: string | null
   client: string | null
+  variety: string | null
   temperature_value: number | null
   status: string
   observation: string | null
@@ -126,6 +128,15 @@ export default function TemperatureDetailPage({ params }: { params: Promise<{ id
   const [saving, setSaving] = useState(false)
   const [previewFile, setPreviewFile] = useState<{ isOpen: boolean; url: string; name: string } | null>(null)
 
+  const [editingInfo, setEditingInfo] = useState(false)
+  const [clientValue, setClientValue] = useState('')
+  const [varietyValue, setVarietyValue] = useState('')
+  const [chamberValue, setChamberValue] = useState('')
+  const [observationValue, setObservationValue] = useState('')
+  const [deleting, setDeleting] = useState(false)
+
+  const router = useRouter()
+
   const fetchReport = useCallback(async () => {
     setLoading(true)
     const res = await fetch(`/api/temperaturas/${id}`)
@@ -133,6 +144,10 @@ export default function TemperatureDetailPage({ params }: { params: Promise<{ id
       const json = await res.json()
       setReport(json.data)
       setTempValue(json.data?.temperature_value?.toString() || '')
+      setClientValue(json.data?.client || '')
+      setVarietyValue(json.data?.variety || '')
+      setChamberValue(json.data?.chamber || '')
+      setObservationValue(json.data?.observation || '')
     }
     setLoading(false)
   }, [id])
@@ -149,6 +164,48 @@ export default function TemperatureDetailPage({ params }: { params: Promise<{ id
     await fetchReport()
     setEditingTemp(false)
     setSaving(false)
+  }
+
+  const saveInfo = async () => {
+    setSaving(true)
+    await fetch(`/api/temperaturas/${id}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        client: clientValue || null,
+        variety: varietyValue || null,
+        chamber: chamberValue || null,
+        observation: observationValue || null,
+      }),
+    })
+    await fetchReport()
+    setEditingInfo(false)
+    setSaving(false)
+  }
+
+  const handleDelete = async () => {
+    if (!confirm('¿Estás seguro de que deseas eliminar este registro de temperatura? Esta acción borrará también todos los archivos asociados en la base de datos y no se puede deshacer.')) {
+      return
+    }
+
+    setDeleting(true)
+    try {
+      const res = await fetch(`/api/temperaturas/${id}`, {
+        method: 'DELETE',
+      })
+      const data = await res.json()
+      if (res.ok) {
+        alert('Registro de temperatura eliminado exitosamente.')
+        router.push('/temperaturas')
+      } else {
+        alert(data.error || 'Error al eliminar el registro.')
+      }
+    } catch (err) {
+      console.error(err)
+      alert('Error de conexión al eliminar.')
+    } finally {
+      setDeleting(false)
+    }
   }
 
   if (loading) {
@@ -196,6 +253,16 @@ export default function TemperatureDetailPage({ params }: { params: Promise<{ id
         </Link>
         
         <div className="flex items-center gap-2">
+           {user?.role === 'admin' && (
+             <button
+               onClick={handleDelete}
+               disabled={deleting}
+               className="flex items-center gap-2 px-5 py-2.5 bg-rose-500/10 border border-rose-500/20 rounded-2xl text-rose-400 hover:bg-rose-600 hover:text-white text-xs font-bold uppercase tracking-widest transition-all active:scale-95 disabled:opacity-50"
+             >
+               <XCircle className="w-4 h-4" />
+               {deleting ? 'Eliminando...' : 'Eliminar Registro'}
+             </button>
+           )}
            <button onClick={fetchReport} className="p-2.5 rounded-xl border border-white/10 text-gray-400 hover:text-white hover:bg-white/5 transition-all">
              <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
            </button>
@@ -430,20 +497,97 @@ export default function TemperatureDetailPage({ params }: { params: Promise<{ id
         <div className="space-y-6">
            {/* Info Card */}
            <div className="bg-[#0f172a] border border-white/10 rounded-3xl p-6">
-              <h3 className="text-xs font-bold text-gray-500 uppercase tracking-widest mb-6 flex items-center gap-2">
-                 <Info size={14} className="text-blue-500" />
-                 Información Adicional
-              </h3>
-              <div className="space-y-6">
-                 <div>
-                    <span className="text-[10px] font-bold text-gray-600 uppercase tracking-widest block mb-1">Cliente Asociado</span>
-                    <p className="text-white font-medium">{report.client || 'Registro General (Sin cliente)'}</p>
-                 </div>
-                 <div>
-                    <span className="text-[10px] font-bold text-gray-600 uppercase tracking-widest block mb-1">Observaciones</span>
-                    <p className="text-gray-400 text-sm italic">{report.observation || 'Sin comentarios adicionales.'}</p>
-                 </div>
+              <div className="flex items-center justify-between mb-6">
+                 <h3 className="text-xs font-bold text-gray-500 uppercase tracking-widest flex items-center gap-2">
+                    <Info size={14} className="text-blue-500" />
+                    Información Adicional
+                 </h3>
+                 {['admin', 'jefe_frio'].includes(user?.role || '') && !editingInfo && (
+                    <button onClick={() => setEditingInfo(true)} className="p-2 bg-white/5 rounded-xl text-gray-500 hover:text-blue-400 transition-all" title="Editar Información">
+                       <Edit3 size={16} />
+                    </button>
+                 )}
               </div>
+
+              {editingInfo ? (
+                 <div className="space-y-4 animate-in fade-in duration-200">
+                    <div>
+                       <label className="block text-[10px] font-bold text-gray-500 uppercase tracking-widest mb-1.5 ml-1">Cliente Asociado</label>
+                       <input
+                          type="text"
+                          value={clientValue}
+                          onChange={e => setClientValue(e.target.value)}
+                          className="w-full bg-black/40 border border-white/10 rounded-2xl px-4 py-2.5 text-sm text-white focus:outline-none focus:border-blue-500/50"
+                          placeholder="Ej: The Growers"
+                       />
+                    </div>
+                    <div>
+                       <label className="block text-[10px] font-bold text-gray-500 uppercase tracking-widest mb-1.5 ml-1">Variedad de Fruta</label>
+                       <input
+                          type="text"
+                          value={varietyValue}
+                          onChange={e => setVarietyValue(e.target.value)}
+                          className="w-full bg-black/40 border border-white/10 rounded-2xl px-4 py-2.5 text-sm text-white focus:outline-none focus:border-blue-500/50"
+                          placeholder="Ej: Limones"
+                       />
+                    </div>
+                    <div>
+                       <label className="block text-[10px] font-bold text-gray-500 uppercase tracking-widest mb-1.5 ml-1">Ubicación / Cámara</label>
+                       <input
+                          type="text"
+                          value={chamberValue}
+                          onChange={e => setChamberValue(e.target.value)}
+                          className="w-full bg-black/40 border border-white/10 rounded-2xl px-4 py-2.5 text-sm text-white focus:outline-none focus:border-blue-500/50"
+                          placeholder="Ej: Rack"
+                       />
+                    </div>
+                    <div>
+                       <label className="block text-[10px] font-bold text-gray-500 uppercase tracking-widest mb-1.5 ml-1">Observaciones</label>
+                       <textarea
+                          value={observationValue}
+                          onChange={e => setObservationValue(e.target.value)}
+                          rows={3}
+                          className="w-full bg-black/40 border border-white/10 rounded-2xl px-4 py-2.5 text-sm text-white focus:outline-none focus:border-blue-500/50 resize-none"
+                          placeholder="Notas..."
+                       />
+                    </div>
+                    <div className="flex gap-2 pt-2">
+                       <button
+                          onClick={() => setEditingInfo(false)}
+                          className="flex-1 py-2 rounded-xl border border-white/10 text-gray-400 font-bold text-xs uppercase tracking-widest hover:bg-white/5 transition-all"
+                       >
+                          Cancelar
+                       </button>
+                       <button
+                          onClick={saveInfo}
+                          disabled={saving}
+                          className="flex-1 py-2 rounded-xl bg-blue-600 hover:bg-blue-500 text-white font-bold text-xs uppercase tracking-widest transition-all disabled:opacity-50 flex items-center justify-center gap-1"
+                       >
+                          {saving ? <RefreshCw className="w-3.5 h-3.5 animate-spin" /> : <Save className="w-3.5 h-3.5" />}
+                          Guardar
+                       </button>
+                    </div>
+                 </div>
+              ) : (
+                 <div className="space-y-6">
+                    <div>
+                       <span className="text-[10px] font-bold text-gray-600 uppercase tracking-widest block mb-1">Cliente Asociado</span>
+                       <p className="text-white font-medium">{report.client || 'Registro General (Sin cliente)'}</p>
+                    </div>
+                    <div>
+                       <span className="text-[10px] font-bold text-gray-600 uppercase tracking-widest block mb-1">Variedad de Fruta</span>
+                       <p className="text-white font-medium">{report.variety || 'No especificada'}</p>
+                    </div>
+                    <div>
+                       <span className="text-[10px] font-bold text-gray-600 uppercase tracking-widest block mb-1">Cámara / Ubicación</span>
+                       <p className="text-white font-medium">{report.chamber || 'Cámara General'}</p>
+                    </div>
+                    <div>
+                       <span className="text-[10px] font-bold text-gray-600 uppercase tracking-widest block mb-1">Observaciones</span>
+                       <p className="text-gray-400 text-sm italic">{report.observation || 'Sin comentarios adicionales.'}</p>
+                    </div>
+                 </div>
+              )}
            </div>
 
            {/* Audit / Timeline Card */}

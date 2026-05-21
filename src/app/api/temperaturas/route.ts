@@ -31,7 +31,7 @@ export async function POST(request: Request) {
     }
 
     const body = await request.json()
-    const { report_date, chamber, client, temperature_value, observation } = body
+    const { report_date, chamber, client, variety, temperature_value, observation } = body
 
     if (!report_date) {
       return NextResponse.json({ error: 'La fecha del reporte es requerida.' }, { status: 400 })
@@ -82,6 +82,7 @@ export async function POST(request: Request) {
         report_date,
         chamber: chamber || null,
         client: client || null,
+        variety: variety || null,
         temperature_value: temperature_value || null,
         observation: observation || null,
         responsible_id: userId || null,

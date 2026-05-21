@@ -44,7 +44,7 @@ export async function PATCH(
 
     const { id } = await params
     const body = await request.json()
-    const { temperature_value, chamber, client, observation } = body
+    const { temperature_value, chamber, client, variety, observation } = body
 
     // Obtener reporte actual para registrar en auditoría el cambio de valor
     const { data: oldReport } = await supabaseAdmin
@@ -59,6 +59,7 @@ export async function PATCH(
         temperature_value: temperature_value ?? undefined,
         chamber: chamber ?? undefined,
         client: client ?? undefined,
+        variety: variety ?? undefined,
         observation: observation ?? undefined,
         updated_at: new Date().toISOString(),
       })
@@ -84,6 +85,72 @@ export async function PATCH(
     return NextResponse.json({ data })
   } catch (err: any) {
     console.error('PATCH /api/temperaturas/[id] error:', err)
+    return NextResponse.json({ error: err.message || 'Error interno' }, { status: 500 })
+  }
+}
+
+export async function DELETE(
+  _request: Request,
+  { params }: { params: Promise<{ id: string }> }
+) {
+  try {
+    const headersList = await headers()
+    const userRole = headersList.get('x-user-role')
+    const userId = headersList.get('x-user-id')
+
+    // Validar que sea administrador
+    if (userRole !== 'admin') {
+      return NextResponse.json({ error: 'No tienes permisos para borrar registros de temperatura.' }, { status: 403 })
+    }
+
+    const { id } = await params
+
+    // Obtener información del reporte antes de borrar para auditoría
+    const { data: report } = await supabaseAdmin
+      .from('temperature_reports')
+      .select('internal_code, report_date')
+      .eq('id', id)
+      .single()
+
+    if (!report) {
+      return NextResponse.json({ error: 'Reporte no encontrado' }, { status: 404 })
+    }
+
+    // Borrar documentos asociados de la base de datos primero (debido a ON DELETE RESTRICT)
+    const { error: docsDeleteError } = await supabaseAdmin
+      .from('temperature_documents')
+      .delete()
+      .eq('temperature_report_id', id)
+
+    if (docsDeleteError) {
+      return NextResponse.json({ error: `Error al borrar documentos asociados: ${docsDeleteError.message}` }, { status: 500 })
+    }
+
+    // Borrar el reporte de temperatura
+    const { error: reportDeleteError } = await supabaseAdmin
+      .from('temperature_reports')
+      .delete()
+      .eq('id', id)
+
+    if (reportDeleteError) {
+      return NextResponse.json({ error: `Error al borrar el reporte: ${reportDeleteError.message}` }, { status: 500 })
+    }
+
+    // Registrar en auditoría
+    await supabaseAdmin.from('audit_log').insert({
+      user_id: userId || null,
+      action: 'DELETE_TEMPERATURE_REPORT',
+      entity_type: 'temperature_reports',
+      entity_id: id,
+      details: { 
+        internal_code: report.internal_code,
+        report_date: report.report_date
+      },
+    })
+
+    return NextResponse.json({ success: true, message: 'Registro de temperatura eliminado exitosamente.' })
+  } catch (err: any) {
+    console.error('DELETE /api/temperaturas/[id] error:', err)
     return NextResponse.json({ error: err.message || 'Error interno' }, { status: 500 })
   }
 }
