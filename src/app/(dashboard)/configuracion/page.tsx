@@ -70,21 +70,40 @@ function ConfigurationContent() {
     
     try {
       setSyncingAll(true)
-      const res = await fetch('/api/settings/drive-sync-pending', {
+      const resLotes = await fetch('/api/settings/drive-sync-pending', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ table: 'lot_documents' }) // El endpoint ya maneja lotes y despachos si se desea, o lo llamamos secuencial
+        body: JSON.stringify({ table: 'lot_documents' })
       })
+      const dataLotes = resLotes.ok ? await resLotes.json() : null
 
-      // Llamada para despachos también
-      await fetch('/api/settings/drive-sync-pending', {
+      const resDespachos = await fetch('/api/settings/drive-sync-pending', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ table: 'dispatch_documents' })
       })
+      const dataDespachos = resDespachos.ok ? await resDespachos.json() : null
       
       await fetchPendingDocs()
-      alert('Sincronización completada.')
+
+      const successLotes = dataLotes?.data?.success || 0
+      const failedLotes = dataLotes?.data?.failed || 0
+      const successDespachos = dataDespachos?.data?.success || 0
+      const failedDespachos = dataDespachos?.data?.failed || 0
+
+      const totalSuccess = successLotes + successDespachos
+      const totalFailed = failedLotes + failedDespachos
+
+      if (totalFailed > 0) {
+        alert(
+          `Sincronización finalizada con advertencias.\n\n` +
+          `✅ Éxito: ${totalSuccess} archivos sincronizados.\n` +
+          `❌ Fallidos: ${totalFailed} archivos no pudieron subirse.\n\n` +
+          `Esto generalmente ocurre si la sesión de Google Drive ha expirado. Por favor, haz clic en el botón "Actualizar Token" en la sección de Google Drive para renovar la conexión e intenta sincronizar nuevamente.`
+        )
+      } else {
+        alert(`🎉 ¡Sincronización completada con éxito!\n\nSe subieron ${totalSuccess} archivos a Google Drive correctamente.`)
+      }
     } catch (e) {
       alert('Error en la sincronización.')
     } finally {
