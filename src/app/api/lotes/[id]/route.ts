@@ -76,6 +76,32 @@ export async function POST(
     else if (document_type === 'quality') sanitizedName = `Informe Calidad ${lot.internal_code}.${ext}`
     // Omitimos el renombrado de process para conservar el nombre original del archivo de proceso (saneado)
 
+    // Verificar colisión de nombres para aplicar correlativo en lot_documents
+    const nameWithoutExt = sanitizedName.substring(0, sanitizedName.lastIndexOf('.')) || sanitizedName
+    
+    const { data: existingDocs } = await supabaseAdmin
+      .from('lot_documents')
+      .select('original_file_name')
+      .eq('lot_id', id)
+      .eq('document_type', document_type)
+      .like('original_file_name', `${nameWithoutExt}%`)
+
+    if (existingDocs && existingDocs.length > 0) {
+      const exactMatch = existingDocs.some(d => d.original_file_name === sanitizedName)
+      if (exactMatch) {
+        let maxCorrelative = 0
+        const regex = new RegExp(`^${nameWithoutExt.replace(/[-\/\\^$*+?.()|[\]{}]/g, '\\$&')}-(\\d+)\\.${ext}$`)
+        for (const doc of existingDocs) {
+          const match = doc.original_file_name.match(regex)
+          if (match) {
+            const num = parseInt(match[1])
+            if (num > maxCorrelative) maxCorrelative = num
+          }
+        }
+        sanitizedName = `${nameWithoutExt}-${maxCorrelative + 1}.${ext}`
+      }
+    }
+
     // 2. Cálculo de Versión Inteligente
     let versionQuery = supabaseAdmin
       .from('lot_documents')

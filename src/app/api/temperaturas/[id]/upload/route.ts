@@ -46,7 +46,35 @@ export async function POST(
     const buffer = Buffer.from(arrayBuffer)
 
     const timestamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19)
-    const sanitizedName = file.name.replace(/[^a-zA-Z0-9._-]/g, '_')
+    const ext = file.name.split('.').pop() || 'jpg'
+    let sanitizedName = file.name.replace(/[^a-zA-Z0-9._-]/g, '_')
+
+    // Verificar colisión de nombres para aplicar correlativo en temperature_documents
+    const nameWithoutExt = sanitizedName.substring(0, sanitizedName.lastIndexOf('.')) || sanitizedName
+    
+    const { data: existingDocs } = await supabaseAdmin
+      .from('temperature_documents')
+      .select('original_file_name')
+      .eq('temperature_report_id', id)
+      .eq('document_type', document_type)
+      .like('original_file_name', `${nameWithoutExt}%`)
+
+    if (existingDocs && existingDocs.length > 0) {
+      const exactMatch = existingDocs.some(d => d.original_file_name === sanitizedName)
+      if (exactMatch) {
+        let maxCorrelative = 0
+        const regex = new RegExp(`^${nameWithoutExt.replace(/[-\/\\^$*+?.()|[\]{}]/g, '\\$&')}-(\\d+)\\.${ext}$`)
+        for (const doc of existingDocs) {
+          const match = doc.original_file_name.match(regex)
+          if (match) {
+            const num = parseInt(match[1])
+            if (num > maxCorrelative) maxCorrelative = num
+          }
+        }
+        sanitizedName = `${nameWithoutExt}-${maxCorrelative + 1}.${ext}`
+      }
+    }
+
     const storagePath = `temperaturas/${report.internal_code}/${document_type}/${timestamp}_${sanitizedName}`
 
     // Subir a Supabase Storage
