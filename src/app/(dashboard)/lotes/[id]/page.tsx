@@ -498,7 +498,7 @@ export default function LoteDetailPage({ params }: { params: Promise<{ id: strin
                 </div>
                 <span className="text-[9px] text-gray-500 ml-5">{doc.uploaded_by_user?.display_name || 'Sistema'} • {formatDate(doc.created_at)}</span>
               </div>
-              <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+              <div className="flex items-center gap-1 md:opacity-0 md:group-hover:opacity-100 transition-opacity">
                 {doc.drive_file_url && (user?.role === 'admin' || user?.canViewDrive || !doc.storage_url) ? (
                   <button
                     onClick={() => setPreviewFile({ isOpen: true, url: doc.storage_url || doc.drive_file_url!, name: doc.original_file_name })}

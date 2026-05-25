@@ -478,7 +478,7 @@ export default function DispatchDetailPage({ params }: { params: Promise<{ id: s
                     </div>
                     <span className="text-[9px] text-gray-500 ml-5">{formatDateTime(doc.created_at)}</span>
                   </div>
-                  <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                  <div className="flex items-center gap-1 md:opacity-0 md:group-hover:opacity-100 transition-opacity">
                     {doc.drive_file_url && (user?.role === 'admin' || user?.canViewDrive || !doc.storage_url) ? (
                       <button 
                         onClick={() => {
@@ -540,7 +540,7 @@ export default function DispatchDetailPage({ params }: { params: Promise<{ id: s
                     </div>
                     <span className="text-[9px] text-gray-500 ml-5">{formatDateTime(doc.created_at)}</span>
                   </div>
-                  <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                  <div className="flex items-center gap-1 md:opacity-0 md:group-hover:opacity-100 transition-opacity">
                     {doc.drive_file_url && (user?.role === 'admin' || user?.canViewDrive || !doc.storage_url) ? (
                       <button 
                         onClick={() => {
@@ -602,7 +602,7 @@ export default function DispatchDetailPage({ params }: { params: Promise<{ id: s
                     </div>
                     <span className="text-[9px] text-gray-500 ml-5">{formatDateTime(doc.created_at)}</span>
                   </div>
-                  <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                  <div className="flex items-center gap-1 md:opacity-0 md:group-hover:opacity-100 transition-opacity">
                     {doc.drive_file_url && (user?.role === 'admin' || user?.canViewDrive || !doc.storage_url) ? (
                       <button 
                         onClick={() => {
