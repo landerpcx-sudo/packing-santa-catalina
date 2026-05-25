@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server'
 import { headers } from 'next/headers'
 import { supabaseAdmin } from '@/lib/supabase-admin'
 import { uploadFile } from '@/lib/drive'
+import { recalculateLotStatus } from '@/lib/status-helper'
 
 // POST /api/documentos/[table]/[id]/validar
 export async function POST(
@@ -59,48 +60,9 @@ export async function POST(
 
     if (error) return NextResponse.json({ error: error.message }, { status: 500 })
 
-    // Si es un documento de lote, actualizamos el estado general de la etapa
+    // Si es un documento de lote, actualizamos de forma inteligente el estado general y de etapas del lote
     if (table === 'lot_documents') {
-      const stageFieldMap: Record<string, string> = {
-        reception: 'reception_status',
-        quality: 'quality_status',
-        process: 'process_status',
-      }
-
-      const stageField = stageFieldMap[doc.document_type]
-      
-      if (stageField) {
-        // 1. Actualizar el estado de la etapa en el lote
-        await supabaseAdmin
-          .from('lots')
-          .update({ [stageField]: status })
-          .eq('id', doc.lot_id)
-          
-        // 2. Obtener los estados actuales de todas las etapas para el resumen
-        const { data: lot } = await supabaseAdmin
-          .from('lots')
-          .select('reception_status, quality_status, process_status')
-          .eq('id', doc.lot_id)
-          .single()
-
-        if (lot) {
-          const stages = [lot.reception_status, lot.quality_status, lot.process_status]
-          let newOverall = 'pending' // Por defecto si todo es pending
-
-          if (stages.every(s => s === 'validated')) {
-            newOverall = 'complete'
-          } else if (stages.some(s => s === 'uploaded' || s === 'validated' || s === 'observed')) {
-            newOverall = 'uploaded' // Significa "En Proceso / Subido" (Amarillo)
-          } else if (stages.includes('late')) {
-            newOverall = 'late'
-          }
-
-          await supabaseAdmin
-            .from('lots')
-            .update({ overall_status: newOverall })
-            .eq('id', doc.lot_id)
-        }
-      }
+      await recalculateLotStatus(doc.lot_id)
     }
 
     if (table === 'dispatch_documents') {

@@ -43,6 +43,7 @@ interface PendingData {
   lots: any[]
   dispatches: any[]
   missing_temperatures: string[]
+  users: any[]
   total: number
 }
 
@@ -51,7 +52,7 @@ function docKey(id: string, table: string) { return `${table}::${id}` }
 
 export default function PendientesPage() {
   const { user } = useAuth()
-  const [data, setData] = useState<PendingData>({ lots: [], dispatches: [], missing_temperatures: [], total: 0 })
+  const [data, setData] = useState<PendingData>({ lots: [], dispatches: [], missing_temperatures: [], users: [], total: 0 })
   const [loading, setLoading] = useState(true)
   const [activeTab, setActiveTab] = useState<'all' | 'lots' | 'dispatches'>('all')
   const [searchTerm, setSearchTerm] = useState('')
@@ -72,13 +73,109 @@ export default function PendientesPage() {
   // ─── WhatsApp ──────────────────────────────────────────
   const buildWhatsAppMessage = () => {
     const fechaHoy = new Date().toLocaleDateString('es-CL', { weekday: 'long', day: 'numeric', month: 'long' })
-    const pendLotes = data.lots.map(l => `  • Lote ${l.internal_code} (${l.client || 'sin cliente'})`).join('\n')
-    const pendDesp  = data.dispatches.map(d => `  • Despacho ${d.internal_code} (${d.client || 'sin cliente'})`).join('\n')
+    
+    // Obtener nombres dinámicos de los responsables con fallbacks
+    const getResponsableName = (role: string, defaultName: string) => {
+      if (!data.users || data.users.length === 0) return defaultName
+      const found = data.users.find((u: any) => u.role === role)
+      return found ? found.display_name : defaultName
+    }
+
+    const adminName = getResponsableName('admin', 'Lander Gamboa')
+    const jefeFrioName = getResponsableName('jefe_frio', 'Diego Villarreal')
+    const calidadName = getResponsableName('calidad', 'Deissy')
+    const cuadraturaName = getResponsableName('cuadratura', 'Carla Lazo')
+    const sagName = getResponsableName('sag', 'Javiera')
+
     const partes: string[] = []
-    if (pendLotes) partes.push(`📦 *Lotes pendientes:*\n${pendLotes}`)
-    if (pendDesp)  partes.push(`🚚 *Despachos pendientes:*\n${pendDesp}`)
+
+    // 1. Procesar lotes
+    const lotesTextos: string[] = []
+    data.lots.forEach(l => {
+      const loteTasks: string[] = []
+      
+      // Recepción
+      if (l.reception_status === 'uploaded') {
+        loteTasks.push(`  - 🔍 Validar Recepción ➜ *Responsable: Administrador ${adminName}* (Información ya subida)`)
+      } else if (l.reception_status === 'observed') {
+        loteTasks.push(`  - 📥 Corregir Recepción ➜ *Responsable: Jefe de frío ${jefeFrioName}* (Observado)`)
+      } else if (l.reception_status === 'pending' || l.reception_status === 'late') {
+        loteTasks.push(`  - 📥 Subir Informe de Recepción ➜ *Responsable: Jefe de frío ${jefeFrioName}*`)
+      }
+
+      // Calidad
+      if (l.quality_status === 'uploaded') {
+        loteTasks.push(`  - 🔍 Validar Calidad ➜ *Responsable: Administrador ${adminName}* (Información ya subida)`)
+      } else if (l.quality_status === 'observed') {
+        loteTasks.push(`  - 📥 Corregir Calidad ➜ *Responsable: Control de calidad ${calidadName}* (Observado)`)
+      } else if (l.quality_status === 'pending' || l.quality_status === 'late') {
+        loteTasks.push(`  - 📥 Subir Informe de Calidad ➜ *Responsable: Control de calidad ${calidadName}*`)
+      }
+
+      // Proceso
+      if (l.process_status === 'uploaded') {
+        loteTasks.push(`  - 🔍 Validar Proceso ➜ *Responsable: Administrador ${adminName}* (Información ya subida)`)
+      } else if (l.process_status === 'observed') {
+        loteTasks.push(`  - 📥 Corregir Proceso ➜ *Responsable: Cuadratura ${cuadraturaName}* (Observado)`)
+      } else if (l.process_status === 'pending' || l.process_status === 'late') {
+        loteTasks.push(`  - 📥 Subir Informe de Proceso ➜ *Responsable: Cuadratura ${cuadraturaName}*`)
+      }
+
+      if (loteTasks.length > 0) {
+        lotesTextos.push(`• *Lote ${l.internal_code}* (${l.client || 'sin cliente'}):\n${loteTasks.join('\n')}`)
+      }
+    })
+
+    if (lotesTextos.length > 0) {
+      partes.push(`📦 *Lotes / Recepciones:*\n${lotesTextos.join('\n\n')}`)
+    }
+
+    // 2. Procesar despachos
+    const despTextos: string[] = []
+    data.dispatches.forEach(d => {
+      const despTasks: string[] = []
+
+      // Pack list
+      if (d.pack_list_status === 'uploaded') {
+        despTasks.push(`  - 🔍 Validar Packing List ➜ *Responsable: Administrador ${adminName}* (Información ya subida)`)
+      } else if (d.pack_list_status === 'observed') {
+        despTasks.push(`  - 📥 Corregir Packing List ➜ *Responsable: Contraparte SAG ${sagName}* (Observado)`)
+      } else if (d.pack_list_status === 'pending' || d.pack_list_status === 'late') {
+        despTasks.push(`  - 📥 Subir Packing List ➜ *Responsable: Contraparte SAG ${sagName}*`)
+      }
+
+      // Fotos y termógrafos
+      const pendingPhotosDocs = pendingDocs(d.dispatch_documents || []).filter((doc: any) => 
+        doc.document_type === 'pata_pata_photo' || doc.document_type === 'thermograph_photo'
+      )
+      
+      if (d.photos_status === 'incomplete') {
+        despTasks.push(`  - 📥 Subir Fotos y Termógrafos ➜ *Responsable: Jefe de frío ${jefeFrioName}*`)
+      } else if (pendingPhotosDocs.length > 0) {
+        despTasks.push(`  - 🔍 Validar Fotos de Despacho ➜ *Responsable: Administrador ${adminName}* (Información ya subida)`)
+      }
+
+      if (despTasks.length > 0) {
+        despTextos.push(`• *Despacho ${d.internal_code}* (${d.client || 'sin cliente'}):\n${despTasks.join('\n')}`)
+      }
+    })
+
+    if (despTextos.length > 0) {
+      partes.push(`🚚 *Despachos:*\n${despTextos.join('\n\n')}`)
+    }
+
+    // 3. Procesar temperaturas
+    if (data.missing_temperatures.length > 0) {
+      const diasFormateados = data.missing_temperatures.map(dateStr => {
+        const [y, m, d] = dateStr.split('-')
+        return `${d}/${m}`
+      }).join(', ')
+      partes.push(`🌡️ *Temperaturas:*\n• ⚠️ Días sin registro (${diasFormateados}) ➜ *Responsable: Jefe de frío Diego Villarreal*`)
+    }
+
     if (partes.length === 0) return null
-    return `👋 Hola equipo,\n\nLes escribo cordialmente para recordarles que al día de hoy *${fechaHoy}* los siguientes documentos aún no han sido subidos al sistema de control documental de Packing Santa Catalina:\n\n${partes.join('\n\n')}\n\nLes agradecemos mucho si pueden subir sus reportes a la brevedad posible. Si tienen alguna dificultad o necesitan ayuda con la plataforma, no duden en consultarnos.\n\n¡Muchas gracias por su colaboración! 🙏`
+
+    return `👋 *Hola equipo,*\n\nLes escribo cordialmente para recordarles el estado de las tareas y documentos pendientes al día de hoy *${fechaHoy}* en el sistema de control documental de *Packing Santa Catalina*:\n\n${partes.join('\n\n')}\n\nLes agradecemos mucho avanzar con sus respectivas tareas a la brevedad posible. Si tienen alguna dificultad o necesitan ayuda con la plataforma, no duden en consultarnos.\n\n¡Muchas gracias por su colaboración! 🙏`
   }
 
   const handleCopyWSP = () => {
@@ -169,18 +266,22 @@ export default function PendientesPage() {
     }
   }
 
+  // Docs pendientes de cada entidad
+  const pendingDocs = (docs: DocItem[]) => docs.filter(d => d.validation_status === 'pending')
+
+  // Lotes y despachos que realmente tienen documentos pendientes de validar
+  const lotsWithPending = data.lots.filter(l => pendingDocs(l.lot_documents || []).length > 0)
+  const dispatchesWithPending = data.dispatches.filter(d => pendingDocs(d.dispatch_documents || []).length > 0)
+
   // ─── Filtros ──────────────────────────────────────────
-  const filteredLots = data.lots.filter(l =>
+  const filteredLots = lotsWithPending.filter(l =>
     l.internal_code.toLowerCase().includes(searchTerm.toLowerCase()) ||
     (l.client && l.client.toLowerCase().includes(searchTerm.toLowerCase()))
   )
-  const filteredDispatches = data.dispatches.filter(d =>
+  const filteredDispatches = dispatchesWithPending.filter(d =>
     d.internal_code.toLowerCase().includes(searchTerm.toLowerCase()) ||
     (d.client && d.client.toLowerCase().includes(searchTerm.toLowerCase()))
   )
-
-  // Docs pendientes de cada entidad
-  const pendingDocs = (docs: DocItem[]) => docs.filter(d => d.validation_status === 'pending')
 
   return (
     <div className="space-y-6 animate-in fade-in duration-500">
@@ -257,7 +358,7 @@ export default function PendientesPage() {
             <span className="text-[10px] font-black uppercase tracking-[0.2em]">Total Tareas</span>
             <AlertCircle className="w-5 h-5 opacity-50" />
           </div>
-          <p className="text-4xl font-black text-white">{data.lots.length + data.dispatches.length}</p>
+          <p className="text-4xl font-black text-white">{lotsWithPending.length + dispatchesWithPending.length}</p>
           <div className="absolute -bottom-2 -right-2 p-4 opacity-5 group-hover:scale-110 transition-transform">
             <Clock size={80} />
           </div>
@@ -270,7 +371,7 @@ export default function PendientesPage() {
             <span className="text-[10px] font-black uppercase tracking-[0.2em]">Lotes</span>
             <Package className="w-5 h-5 opacity-50" />
           </div>
-          <p className="text-4xl font-black text-white">{data.lots.length}</p>
+          <p className="text-4xl font-black text-white">{lotsWithPending.length}</p>
           <div className="absolute -bottom-2 -right-2 p-4 opacity-5 group-hover:scale-110 transition-transform">
             <Package size={80} />
           </div>
@@ -283,7 +384,7 @@ export default function PendientesPage() {
             <span className="text-[10px] font-black uppercase tracking-[0.2em]">Despachos</span>
             <Truck className="w-5 h-5 opacity-50" />
           </div>
-          <p className="text-4xl font-black text-white">{data.dispatches.length}</p>
+          <p className="text-4xl font-black text-white">{dispatchesWithPending.length}</p>
           <div className="absolute -bottom-2 -right-2 p-4 opacity-5 group-hover:scale-110 transition-transform">
             <Truck size={80} />
           </div>
@@ -333,7 +434,7 @@ export default function PendientesPage() {
             <Loader2 className="w-12 h-12 text-indigo-500 animate-spin" />
             <p className="text-gray-400 font-bold uppercase tracking-widest text-xs">Sincronizando tareas...</p>
           </div>
-        ) : (data.lots.length + data.dispatches.length) === 0 ? (
+        ) : (lotsWithPending.length + dispatchesWithPending.length) === 0 ? (
           <div className="bg-[#0f172a] border border-dashed border-white/10 rounded-[3rem] p-24 text-center shadow-inner">
             <div className="w-24 h-24 bg-emerald-500/10 text-emerald-500 rounded-full flex items-center justify-center mx-auto mb-8 shadow-2xl">
               <CheckCircle2 className="w-12 h-12" />

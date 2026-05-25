@@ -62,7 +62,7 @@ const ACCENT_GRADIENTS: Record<string, string> = {
   'text-sky-500':     'linear-gradient(135deg, rgba(14,165,233,0.06) 0%, transparent 60%)',
 }
 function StatCard({
-  title, value, subtitle, icon: Icon, accent, loading = false,
+  title, value, subtitle, icon: Icon, accent, loading = false, status = 'normal',
 }: {
   title: string
   value: number | string
@@ -70,31 +70,44 @@ function StatCard({
   icon: React.ElementType
   accent: string
   loading?: boolean
+  status?: 'success' | 'warning' | 'normal'
 }) {
   const animated = useCountUp(loading ? '—' : value)
   const gradient = ACCENT_GRADIENTS[accent] || 'none'
+  const isNormal = status === 'normal'
 
   return (
     <div
-      className="rounded-3xl p-6 flex items-start gap-5 transition-all duration-300 hover:scale-[1.03] hover:-translate-y-1 hover:shadow-2xl hover:shadow-indigo-500/5 backdrop-blur-md cursor-pointer group"
+      className={`rounded-3xl p-6 flex items-start gap-5 transition-all duration-300 hover:scale-[1.03] hover:-translate-y-1 hover:shadow-2xl hover:shadow-indigo-500/5 backdrop-blur-md cursor-pointer group ${
+        status === 'success' ? 'stat-card-success' : status === 'warning' ? 'stat-card-warning' : ''
+      }`}
       style={{
-        backgroundColor: 'var(--bg-card)',
-        border: '1px solid var(--border)',
-        backgroundImage: gradient,
+        backgroundColor: isNormal ? 'var(--bg-card)' : undefined,
+        border: isNormal ? '1px solid var(--border)' : undefined,
+        backgroundImage: isNormal ? gradient : undefined,
       }}
     >
       <div
-        className={`p-3 rounded-2xl flex-shrink-0 ${accent} bg-opacity-10 transition-transform duration-300 group-hover:scale-110`}
-        style={{ backgroundColor: 'var(--bg-badge)' }}
+        className={`p-3 rounded-2xl flex-shrink-0 transition-transform duration-300 group-hover:scale-110 ${
+          isNormal ? `${accent} bg-opacity-10` : 'stat-icon-bg'
+        }`}
+        style={{ backgroundColor: isNormal ? 'var(--bg-badge)' : undefined }}
       >
-        <Icon size={24} className={accent} />
+        <Icon size={24} className={isNormal ? accent : 'stat-icon'} />
       </div>
       <div className="min-w-0">
-        <p className="text-xs font-bold uppercase tracking-wider" style={{ color: 'var(--text-secondary)' }}>{title}</p>
+        <p
+          className={`text-xs font-bold uppercase tracking-wider ${isNormal ? '' : 'stat-title'}`}
+          style={isNormal ? { color: 'var(--text-secondary)' } : undefined}
+        >
+          {title}
+        </p>
         {loading ? (
           <div className="h-8 w-16 rounded-xl animate-pulse mt-2 bg-white/10" />
         ) : (
-          <p className={`text-3xl font-black mt-1 tracking-tight tabular-nums ${accent}`}>{animated}</p>
+          <p className={`text-3xl font-black mt-1 tracking-tight tabular-nums ${isNormal ? accent : 'stat-value'}`}>
+            {animated}
+          </p>
         )}
         {subtitle && (
           <p className="text-[11px] font-medium mt-1" style={{ color: 'var(--text-muted)' }}>{subtitle}</p>
@@ -103,6 +116,7 @@ function StatCard({
     </div>
   )
 }
+
 
 
 // ─── SectionHeader ──────────────────────────────────────────────────────────
@@ -173,6 +187,38 @@ export default function DashboardPage() {
     atrasados:  desps.filter((d: any) => d.overall_status === 'late').length.toString(),
     completos:  desps.filter((d: any) => ['complete','closed'].includes(d.overall_status)).length.toString(),
   }
+
+  // --- Estados dinámicos para los semáforos maestros (tarjetas de Total) ---
+  const lotesTotalNum = parseInt(lotesStats.total, 10) || 0
+  const lotesCompletosNum = parseInt(lotesStats.completos, 10) || 0
+  const lotesIncompletosNum = parseInt(lotesStats.incompletos, 10) || 0
+  const lotesAtrasadosNum = parseInt(lotesStats.atrasados, 10) || 0
+  const lotesRecPendingNum = parseInt(lotesStats.recPending, 10) || 0
+  const lotesQualPendingNum = parseInt(lotesStats.qualPending, 10) || 0
+  const lotesProcPendingNum = parseInt(lotesStats.procPending, 10) || 0
+
+  const lotesStatus: 'success' | 'warning' | 'normal' = 
+    lotesTotalNum === 0 ? 'normal' :
+    (lotesTotalNum === lotesCompletosNum && lotesIncompletosNum === 0 && lotesAtrasadosNum === 0 && lotesRecPendingNum === 0 && lotesQualPendingNum === 0 && lotesProcPendingNum === 0) ? 'success' : 'warning'
+
+  const despTotalNum = parseInt(despStats.total, 10) || 0
+  const despCompletosNum = parseInt(despStats.completos, 10) || 0
+  const despPendientesNum = parseInt(despStats.pendientes, 10) || 0
+  const despAtrasadosNum = parseInt(despStats.atrasados, 10) || 0
+
+  const despStatus: 'success' | 'warning' | 'normal' =
+    despTotalNum === 0 ? 'normal' :
+    (despTotalNum === despCompletosNum && despPendientesNum === 0 && despAtrasadosNum === 0) ? 'success' : 'warning'
+
+  const tempTotalNum = parseInt(tempStats.total, 10) || 0
+  const tempPendientesNum = parseInt(tempStats.pendientes, 10) || 0
+  const tempAtrasadosNum = parseInt(tempStats.atrasados, 10) || 0
+  const tempHoySinDatos = tempStats.todayReportStatus === 'Sin datos'
+
+  const tempStatus: 'success' | 'warning' | 'normal' =
+    tempTotalNum === 0 ? 'normal' :
+    (tempPendientesNum === 0 && tempAtrasadosNum === 0 && !tempHoySinDatos) ? 'success' : 'warning'
+
 
   useEffect(() => {
     if (driveStatus?.connected) setGoogleConnected(true)
@@ -283,7 +329,7 @@ export default function DashboardPage() {
       <section>
         <SectionHeader icon={Package} label="Lotes / Recepción" accent="text-emerald-500" />
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-          <StatCard title="Total lotes"   value={lotesStats.total}      loading={loading} icon={Package}      accent="text-slate-500" />
+          <StatCard title="Total lotes"   value={lotesStats.total}      loading={loading} icon={Package}      accent="text-slate-500" status={lotesStatus} />
           <StatCard title="Incompletos"   value={lotesStats.incompletos}loading={loading} icon={Clock}        accent="text-amber-500" />
           <StatCard title="Observados"    value={lotesStats.atrasados}  loading={loading} icon={AlertTriangle}accent="text-red-500" />
           <StatCard title="Completos"     value={lotesStats.completos}  loading={loading} icon={CheckCircle2} accent="text-emerald-500" />
@@ -299,7 +345,7 @@ export default function DashboardPage() {
       <section>
         <SectionHeader icon={Truck} label="Despachos" accent="text-indigo-500" />
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-          <StatCard title="Total despachos" value={despStats.total}      loading={loading} icon={Truck}        accent="text-slate-500" />
+          <StatCard title="Total despachos" value={despStats.total}      loading={loading} icon={Truck}        accent="text-slate-500" status={despStatus} />
           <StatCard title="Pendientes"       value={despStats.pendientes} loading={loading} icon={Clock}        accent="text-amber-500" />
           <StatCard title="Atrasados"        value={despStats.atrasados}  loading={loading} icon={XCircle}      accent="text-red-500" />
           <StatCard title="Completos"        value={despStats.completos}  loading={loading} icon={CheckCircle2} accent="text-emerald-500" />
@@ -310,7 +356,7 @@ export default function DashboardPage() {
       <section>
         <SectionHeader icon={Thermometer} label="Temperaturas" accent="text-sky-500" />
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-          <StatCard title="Total reportes" value={tempStats.total}      loading={loading} icon={TrendingUp} accent="text-sky-500" />
+          <StatCard title="Total reportes" value={tempStats.total}      loading={loading} icon={TrendingUp} accent="text-sky-500" status={tempStatus} />
           <StatCard title="Pendientes"     value={tempStats.pendientes} loading={loading} icon={Clock}      accent="text-amber-500" />
           <StatCard title="Atrasados"      value={tempStats.atrasados}  loading={loading} icon={XCircle}    accent="text-red-500" />
           {/* Card especial: reporte hoy */}

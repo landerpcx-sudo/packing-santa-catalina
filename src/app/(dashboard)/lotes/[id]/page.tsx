@@ -340,28 +340,44 @@ export default function LoteDetailPage({ params }: { params: Promise<{ id: strin
                 {/* Documentos subidos */}
                 {stageDocs.length > 0 && (
                   <div className="space-y-2">
-                    {stageDocs.sort((a,b) => b.version_number - a.version_number).map((doc, index) => {
-                      const isLatest = index === 0 && stageDocs.length > 1
-                      return (
-                        <div 
-                          key={doc.id} 
-                          className={`flex flex-col gap-2 border rounded-xl px-4 py-3 transition-all
-                            ${isLatest ? 'bg-green-500/5 border-green-500/30 ring-1 ring-green-500/10' : 'bg-white/3 border-white/5'}
-                          `}
-                        >
-                          <div className="flex items-center gap-3">
-                            <FileText className={`w-4 h-4 flex-shrink-0 ${isLatest ? 'text-green-400' : 'text-gray-400'}`} />
-                            <div className="flex-1 min-w-0">
-                              <p className={`text-xs font-medium truncate ${isLatest ? 'text-green-100' : 'text-white'}`}>
-                                {doc.original_file_name}
-                              </p>
-                              <div className="flex items-center gap-2">
-                                <p className={`text-[11px] ${isLatest ? 'text-green-400/70' : 'text-gray-500'}`}>
-                                  v{doc.version_number} • {doc.uploaded_by_user?.display_name || 'Sistema'} • {formatDate(doc.created_at)}
+                    {stageDocs
+                      .map(doc => {
+                        const isLatest = doc.version_number === Math.max(
+                          ...stageDocs
+                            .filter(d => d.original_file_name === doc.original_file_name)
+                            .map(d => d.version_number)
+                        )
+                        return { ...doc, isLatest }
+                      })
+                      .sort((a, b) => {
+                        // 1. Priorizar las versiones 'Latest' (Actuales)
+                        if (a.isLatest && !b.isLatest) return -1
+                        if (!a.isLatest && b.isLatest) return 1
+                        // 2. Si ambos son iguales en 'isLatest', ordenar por fecha de creación (más recientes primero)
+                        return new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
+                      })
+                      .map((doc) => {
+                        const isLatest = doc.isLatest
+                        return (
+                          <div 
+                            key={doc.id} 
+                            className={`flex flex-col gap-2 border rounded-xl px-4 py-3 transition-all
+                              ${isLatest ? 'bg-green-500/5 border-green-500/30 ring-1 ring-green-500/10' : 'bg-white/3 border-white/5'}
+                            `}
+                          >
+                            <div className="flex items-center gap-3">
+                              <FileText className={`w-4 h-4 flex-shrink-0 ${isLatest ? 'text-green-400' : 'text-gray-400'}`} />
+                              <div className="flex-1 min-w-0">
+                                <p className={`text-xs font-medium truncate ${isLatest ? 'text-green-100' : 'text-white'}`}>
+                                  {doc.original_file_name}
                                 </p>
-                                {isLatest && <span className="text-[9px] bg-green-500/20 text-green-400 px-1.5 py-0.5 rounded-full font-bold uppercase tracking-wider">Actual</span>}
+                                <div className="flex items-center gap-2">
+                                  <p className={`text-[11px] ${isLatest ? 'text-green-400/70' : 'text-gray-500'}`}>
+                                    v{doc.version_number} • {doc.uploaded_by_user?.display_name || 'Sistema'} • {formatDate(doc.created_at)}
+                                  </p>
+                                  {isLatest && <span className="text-[9px] bg-green-500/20 text-green-400 px-1.5 py-0.5 rounded-full font-bold uppercase tracking-wider">Actual</span>}
+                                </div>
                               </div>
-                            </div>
                             {doc.is_correction && (
                               <span className="text-orange-400 text-[10px] bg-orange-400/10 px-1.5 py-0.5 rounded-full flex-shrink-0">
                                 Corrección

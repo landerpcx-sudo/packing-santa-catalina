@@ -14,7 +14,7 @@ export async function GET(
       *,
       responsible:responsible_id(display_name),
       temperature_documents(
-        id, document_type, original_file_name, drive_file_url,
+        id, document_type, original_file_name, drive_file_url, storage_url, storage_path,
         status, created_at,
         uploaded_by_user:uploaded_by(display_name)
       )
@@ -44,7 +44,7 @@ export async function PATCH(
 
     const { id } = await params
     const body = await request.json()
-    const { temperature_value, chamber, client, variety, observation } = body
+    const { temperature_value, chamber, client, variety, observation, is_ambient } = body
 
     // Obtener reporte actual para registrar en auditoría el cambio de valor
     const { data: oldReport } = await supabaseAdmin
@@ -61,6 +61,7 @@ export async function PATCH(
         client: client ?? undefined,
         variety: variety ?? undefined,
         observation: observation ?? undefined,
+        is_ambient: is_ambient ?? undefined,
         updated_at: new Date().toISOString(),
       })
       .eq('id', id)

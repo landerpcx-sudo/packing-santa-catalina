@@ -1,7 +1,8 @@
 import { NextResponse } from 'next/server'
 import { headers } from 'next/headers'
 import { supabaseAdmin } from '@/lib/supabase-admin'
-import { uploadFile } from '@/lib/drive'
+import { uploadFile, createFolder } from '@/lib/drive'
+import { recalculateLotStatus } from '@/lib/status-helper'
 
 // GET - Obtener detalle de un lote con sus documentos
 export async function GET(
@@ -66,27 +67,35 @@ export async function POST(
     const arrayBuffer = await file.arrayBuffer()
     const buffer = Buffer.from(arrayBuffer)
 
-    // 1. Cálculo de Versión
-    const { data: lastVersion } = await supabaseAdmin
-      .from('lot_documents')
-      .select('version_number')
-      .eq('lot_id', id)
-      .eq('document_type', document_type)
-      .order('version_number', { ascending: false })
-      .limit(1)
-      .single()
-    
-    const version_number = (lastVersion?.version_number || 0) + 1
-    const is_correction = version_number > 1
-
-    // 2. Renombrado inteligente
+    // 1. Renombrado inteligente (se calcula primero para poder usar el nombre saneado en la versión de ser necesario)
     const timestamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19)
     const ext = file.name.split('.').pop() || 'pdf'
     let sanitizedName = file.name.replace(/[^a-zA-Z0-9._-]/g, '_')
 
     if (document_type === 'reception') sanitizedName = `Informe Recepcion ${lot.internal_code}.${ext}`
     else if (document_type === 'quality') sanitizedName = `Informe Calidad ${lot.internal_code}.${ext}`
-    else if (document_type === 'process') sanitizedName = `Informe Proceso ${lot.internal_code}.${ext}`
+    // Omitimos el renombrado de process para conservar el nombre original del archivo de proceso (saneado)
+
+    // 2. Cálculo de Versión Inteligente
+    let versionQuery = supabaseAdmin
+      .from('lot_documents')
+      .select('version_number')
+      .eq('lot_id', id)
+      .eq('document_type', document_type)
+
+    if (document_type === 'process') {
+      // Para process, si el nombre del archivo es diferente se trata de un informe paralelo (v1)
+      // Si el nombre es idéntico, se considera una corrección de ese mismo informe (v2, v3, etc.)
+      versionQuery = versionQuery.eq('original_file_name', sanitizedName)
+    }
+
+    const { data: lastVersion } = await versionQuery
+      .order('version_number', { ascending: false })
+      .limit(1)
+      .single()
+    
+    const version_number = (lastVersion?.version_number || 0) + 1
+    const is_correction = version_number > 1
 
     // Ruta en Storage con versión
     const storagePath = `lotes/${lot.internal_code}/${document_type}/v${version_number}_${timestamp}_${sanitizedName}`
@@ -170,7 +179,7 @@ export async function POST(
       return NextResponse.json({ error: dbError.message }, { status: 500 })
     }
 
-    // Actualizar estado del lote según tipo de documento y recalcular overall_status
+    // Actualizar de forma inteligente el estado general y de etapas del lote en base a los documentos existentes
     const statusFieldMap: Record<string, string> = {
       reception: 'reception_status',
       quality: 'quality_status',
@@ -178,26 +187,7 @@ export async function POST(
     }
     
     if (statusFieldMap[document_type]) {
-      // Obtener estados actuales para recalcular
-      const { data: currentLot } = await supabaseAdmin.from('lots').select('*').eq('id', id).single()
-      if (currentLot) {
-        const updates: any = { [statusFieldMap[document_type]]: 'uploaded' }
-        
-        // Lógica de estado general racionalizada
-        const s1 = updates.reception_status || currentLot.reception_status
-        const s2 = updates.quality_status || currentLot.quality_status
-        const s3 = updates.process_status || currentLot.process_status
-        
-        if (s1 === 'validated' && s2 === 'validated' && s3 === 'validated') {
-          updates.overall_status = 'complete'
-        } else if (s1 === 'pending' && s2 === 'pending' && s3 === 'pending') {
-          updates.overall_status = 'pending'
-        } else {
-          updates.overall_status = 'uploaded' // Significa "En proceso / Subido"
-        }
-
-        await supabaseAdmin.from('lots').update(updates).eq('id', id)
-      }
+      await recalculateLotStatus(id)
     }
 
     // Auditoría
@@ -238,13 +228,49 @@ export async function PATCH(
     const body = await request.json()
     const { client, producer, species, variety } = body
 
+    // Convertir campos de texto a MAYÚSCULAS
+    const clientUpper = client ? client.trim().toUpperCase() : null
+    const producerUpper = producer ? producer.trim().toUpperCase() : null
+    const varietyUpper = variety ? variety.trim().toUpperCase() : null
+
+    // Autoguardar cliente si es nuevo
+    if (clientUpper) {
+      const { data: existingClient } = await supabaseAdmin
+        .from('clients')
+        .select('*')
+        .eq('name', clientUpper)
+        .maybeSingle()
+
+      if (!existingClient) {
+        let clientDriveFolderId: string | null = null
+        let clientDriveFolderUrl: string | null = null
+        
+        try {
+          const rootFolderId = process.env.ROOT_DRIVE_FOLDER_ID!
+          const driveFolder = await createFolder(clientUpper, rootFolderId)
+          clientDriveFolderId = driveFolder.id || null
+          clientDriveFolderUrl = driveFolder.url || null
+        } catch (driveError) {
+          console.error(`Error al crear carpeta en Drive para el cliente ${clientUpper}:`, driveError)
+        }
+
+        await supabaseAdmin
+          .from('clients')
+          .insert({
+            name: clientUpper,
+            drive_folder_id: clientDriveFolderId,
+            drive_folder_url: clientDriveFolderUrl
+          })
+      }
+    }
+
     const { data: lot, error } = await supabaseAdmin
       .from('lots')
       .update({
-        client: client || null,
-        producer: producer || null,
+        client: clientUpper,
+        producer: producerUpper,
         species: species || null,
-        variety: variety || null,
+        variety: varietyUpper,
         updated_at: new Date().toISOString(),
       })
       .eq('id', id)
@@ -259,7 +285,7 @@ export async function PATCH(
       action: 'UPDATE_LOT',
       entity_type: 'lots',
       entity_id: id,
-      details: { client, producer, species, variety },
+      details: { client: clientUpper, producer: producerUpper, species, variety: varietyUpper },
     })
 
     return NextResponse.json({ data: lot })

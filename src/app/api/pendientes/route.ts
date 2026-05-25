@@ -9,8 +9,8 @@ export async function GET() {
       .select('value')
       .eq('key', 'temperature_control_start_date')
       .single()
-    
-    // 1. Obtener Lotes pendientes (con documentos subidos pero no validados)
+
+    // 1. Obtener Lotes activos (no completados ni cerrados)
     const { data: lots, error: lotsError } = await supabaseAdmin
       .from('lots')
       .select(`
@@ -21,15 +21,17 @@ export async function GET() {
         reception_status,
         quality_status,
         process_status,
+        overall_status,
         created_at,
         lot_documents(id, document_type, status, validation_status, original_file_name, storage_url, drive_file_url)
       `)
-      .or('reception_status.eq.uploaded,quality_status.eq.uploaded,process_status.eq.uploaded,reception_status.eq.observed,quality_status.eq.observed,process_status.eq.observed')
+      .neq('overall_status', 'complete')
+      .neq('overall_status', 'closed')
       .order('created_at', { ascending: false })
 
     if (lotsError) throw lotsError
 
-    // 2. Obtener Despachos pendientes
+    // 2. Obtener Despachos activos (no completados ni cerrados)
     const { data: dispatches, error: despError } = await supabaseAdmin
       .from('dispatches')
       .select(`
@@ -42,8 +44,8 @@ export async function GET() {
         created_at,
         dispatch_documents(id, document_type, status, validation_status, original_file_name, storage_url, drive_file_url)
       `)
-      .or('overall_status.eq.pending,overall_status.eq.uploaded,overall_status.eq.observed,overall_status.eq.late')
       .neq('overall_status', 'complete')
+      .neq('overall_status', 'closed')
       .order('created_at', { ascending: false })
 
     if (despError) throw despError
@@ -79,14 +81,22 @@ export async function GET() {
        }
     }
 
+    // 4. Obtener usuarios activos para mapear responsables dinámicamente
+    const { data: dbUsers } = await supabaseAdmin
+      .from('users_app')
+      .select('display_name, role')
+      .eq('active', true)
+
     return NextResponse.json({
       data: {
         lots: lots || [],
         dispatches: dispatches || [],
         missing_temperatures: missingDays,
+        users: dbUsers || [],
         total: (lots?.length || 0) + (dispatches?.length || 0) + (missingDays.length > 0 ? 1 : 0)
       }
     })
+
   } catch (err: any) {
     console.error('API Pendientes Error:', err)
     return NextResponse.json({ error: err.message }, { status: 500 })

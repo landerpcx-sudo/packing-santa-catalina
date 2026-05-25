@@ -9,7 +9,7 @@ import {
   ArrowLeft, Thermometer, CheckCircle, Clock, AlertCircle,
   XCircle, FileText, RefreshCw, ExternalLink, FolderOpen,
   Calendar, User, Cloud, Upload, Edit3, Save, Download,
-  History, Info
+  History, Info, Trash2
 } from 'lucide-react'
 import FilePreviewModal from '@/components/layout/FilePreviewModal'
 
@@ -208,6 +208,30 @@ export default function TemperatureDetailPage({ params }: { params: Promise<{ id
     }
   }
 
+  const handleDeleteDocument = async (docId: string) => {
+    if (!confirm('¿Estás seguro de que deseas eliminar este archivo del reporte de temperatura? Esta acción no se puede deshacer.')) {
+      return
+    }
+    try {
+      const res = await fetch(`/api/documentos/temperature_documents/${docId}`, {
+        method: 'DELETE',
+        headers: {
+          'x-user-id': user?.userId || '',
+          'x-user-role': user?.role || ''
+        }
+      })
+      if (res.ok) {
+        await fetchReport()
+      } else {
+        const data = await res.json()
+        alert(data.error || 'Error al eliminar el archivo.')
+      }
+    } catch (err) {
+      console.error(err)
+      alert('Error de conexión al eliminar.')
+    }
+  }
+
   if (loading) {
     return (
       <div className="flex flex-col items-center justify-center h-96 gap-4 text-gray-500">
@@ -271,13 +295,23 @@ export default function TemperatureDetailPage({ params }: { params: Promise<{ id
                 href={report.drive_folder_url}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="flex items-center gap-2 px-5 py-2.5 bg-[#2563eb]/10 border border-[#2563eb]/20 rounded-2xl text-blue-400 hover:bg-[#2563eb]/20 text-xs font-bold uppercase tracking-widest transition-all"
+                className="flex items-center gap-2 px-5 py-2.5 bg-white/5 border border-white/10 rounded-2xl text-gray-300 hover:bg-white/10 text-xs font-bold uppercase tracking-widest transition-all"
+                title="Abrir carpeta en Google Drive"
               >
-                <Cloud className="w-4 h-4" />
+                <Cloud className="w-4 h-4 text-blue-400" />
                 Ver en Google Drive
                 <ExternalLink className="w-3 h-3 opacity-50" />
               </a>
             )}
+           {['admin', 'jefe_frio'].includes(user?.role || '') && (report.temperature_documents || []).length > 0 && (
+             <a
+               href={`/api/temperaturas/${id}/download-all`}
+               className="flex items-center gap-2 px-5 py-2.5 bg-blue-600 hover:bg-blue-500 text-white rounded-2xl text-xs font-bold uppercase tracking-widest transition-all shadow-lg shadow-blue-600/10 active:scale-95"
+             >
+               <Download className="w-4 h-4" />
+               Descargar Todo (ZIP)
+             </a>
+           )}
         </div>
       </div>
 
@@ -388,30 +422,37 @@ export default function TemperatureDetailPage({ params }: { params: Promise<{ id
                                </div>
                             </div>
                             <div className="flex items-center gap-2">
-                               {doc.drive_file_url && (user?.role === 'admin' || user?.canViewDrive || !doc.storage_url) ? (
+                               {doc.storage_url ? (
                                  <button 
-                                  onClick={() => {
-                                    const isImage = /\.(jpg|jpeg|png|gif|webp|bmp)$/i.test(doc.original_file_name)
-                                    setPreviewFile({ 
-                                      isOpen: true, 
-                                      url: (isImage && doc.storage_url) ? doc.storage_url : doc.drive_file_url!, 
-                                      name: doc.original_file_name 
-                                    })
-                                  }} 
-                                  className={`p-2.5 rounded-xl transition-all flex items-center gap-2 ${!doc.storage_url ? 'bg-amber-500/10 text-amber-500 border border-amber-500/20' : 'bg-blue-500/10 text-blue-400 hover:bg-blue-500 hover:text-white'}`} 
-                                  title={!doc.storage_url ? "Archivo Archivado en Drive" : "Ver en Google Drive"}
-                                >
+                                   onClick={() => setPreviewFile({ isOpen: true, url: doc.storage_url!, name: doc.original_file_name })} 
+                                   className="p-2.5 bg-blue-500/10 text-blue-400 rounded-xl hover:bg-blue-500 hover:text-white transition-all" 
+                                   title="Ver en Supabase"
+                                 >
                                     <ExternalLink size={16} />
-                                    {!doc.storage_url && <span className="text-[10px] font-black uppercase tracking-widest">Drive</span>}
                                  </button>
-                               ) : doc.storage_url ? (
-                                 <button onClick={() => setPreviewFile({ isOpen: true, url: doc.storage_url!, name: doc.original_file_name })} className="p-2.5 bg-gray-500/10 text-gray-400 rounded-xl hover:bg-white hover:text-black transition-all" title="Ver en Supabase">
+                               ) : doc.drive_file_url ? (
+                                 <button 
+                                   onClick={() => setPreviewFile({ isOpen: true, url: doc.drive_file_url!, name: doc.original_file_name })} 
+                                   className="p-2.5 bg-amber-500/10 text-amber-500 border border-amber-500/20 rounded-xl transition-all flex items-center gap-2 hover:bg-amber-500 hover:text-white" 
+                                   title="Ver en Google Drive"
+                                 >
                                     <ExternalLink size={16} />
+                                    <span className="text-[10px] font-black uppercase tracking-widest">Drive</span>
                                  </button>
                                ) : (
-                                 <div className="p-2.5 text-gray-700">
+                                 <div className="p-2.5 text-gray-700" title="Archivo no disponible">
                                    <XCircle size={20} />
                                  </div>
+                               )}
+
+                               {user?.role === 'admin' && (
+                                 <button 
+                                   onClick={() => handleDeleteDocument(doc.id)} 
+                                   className="p-2.5 bg-rose-500/10 text-rose-400 rounded-xl hover:bg-rose-500 hover:text-white transition-all" 
+                                   title="Eliminar archivo"
+                                 >
+                                    <Trash2 size={16} />
+                                 </button>
                                )}
                             </div>
                          </div>
@@ -453,27 +494,35 @@ export default function TemperatureDetailPage({ params }: { params: Promise<{ id
                        </div>
                      </div>
                      <div className="flex items-center gap-2">
-                       {doc.drive_file_url && (user?.role === 'admin' || user?.canViewDrive || !doc.storage_url) ? (
-                         <button
-                           onClick={() => {
-                             const isImage = /\.(jpg|jpeg|png|gif|webp|bmp)$/i.test(doc.original_file_name)
-                             setPreviewFile({
-                               isOpen: true,
-                               url: (isImage && doc.storage_url) ? doc.storage_url : doc.drive_file_url!,
-                               name: doc.original_file_name
-                             })
-                           }}
-                           className={`p-2.5 rounded-xl transition-all flex items-center gap-2 ${!doc.storage_url ? 'bg-amber-500/10 text-amber-500 border border-amber-500/20' : 'bg-indigo-500/10 text-indigo-400 hover:bg-indigo-500 hover:text-white'}`}
-                           title="Ver archivo"
-                         >
-                           <ExternalLink size={16} />
-                         </button>
-                       ) : doc.storage_url ? (
-                         <button onClick={() => setPreviewFile({ isOpen: true, url: doc.storage_url!, name: doc.original_file_name })} className="p-2.5 bg-gray-500/10 text-gray-400 rounded-xl hover:bg-white hover:text-black transition-all" title="Ver archivo">
-                           <ExternalLink size={16} />
-                         </button>
-                       ) : null}
-                     </div>
+                        {doc.storage_url ? (
+                          <button 
+                            onClick={() => setPreviewFile({ isOpen: true, url: doc.storage_url!, name: doc.original_file_name })} 
+                            className="p-2.5 bg-indigo-500/10 text-indigo-400 rounded-xl hover:bg-indigo-500 hover:text-white transition-all" 
+                            title="Ver en Supabase"
+                          >
+                            <ExternalLink size={16} />
+                          </button>
+                        ) : doc.drive_file_url ? (
+                          <button 
+                            onClick={() => setPreviewFile({ isOpen: true, url: doc.drive_file_url!, name: doc.original_file_name })} 
+                            className="p-2.5 bg-amber-500/10 text-amber-500 border border-amber-500/20 rounded-xl transition-all flex items-center gap-2 hover:bg-amber-500 hover:text-white" 
+                            title="Ver en Google Drive"
+                          >
+                            <ExternalLink size={16} />
+                            <span className="text-[10px] font-black uppercase tracking-widest">Drive</span>
+                          </button>
+                        ) : null}
+
+                        {user?.role === 'admin' && (
+                          <button 
+                            onClick={() => handleDeleteDocument(doc.id)} 
+                            className="p-2.5 bg-rose-500/10 text-rose-400 rounded-xl hover:bg-rose-500 hover:text-white transition-all" 
+                            title="Eliminar archivo"
+                          >
+                            <Trash2 size={16} />
+                          </button>
+                        )}
+                      </div>
                    </div>
                  ))}
                  {(docsByType['backup'] || []).length === 0 && (

@@ -24,6 +24,7 @@ interface TemperatureReport {
   drive_folder_url: string | null
   created_at: string
   responsible?: { display_name: string } | null
+  is_ambient?: boolean
 }
 
 const STATUS_CONFIG: Record<string, { label: string; color: string; dot: string; icon: React.ReactNode }> = {
@@ -43,6 +44,7 @@ function NewReportModal({ onClose, onCreated, initialDate }: { onClose: () => vo
     variety: '',
     temperature_value: '',
     observation: '',
+    is_ambient: false,
   })
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
@@ -57,9 +59,10 @@ function NewReportModal({ onClose, onCreated, initialDate }: { onClose: () => vo
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         ...form,
-        client: form.client || null,
-        variety: form.variety || null,
+        client: form.is_ambient ? null : (form.client || null),
+        variety: form.is_ambient ? null : (form.variety || null),
         temperature_value: form.temperature_value ? parseFloat(form.temperature_value) : null,
+        is_ambient: form.is_ambient,
       }),
     })
 
@@ -96,6 +99,20 @@ function NewReportModal({ onClose, onCreated, initialDate }: { onClose: () => vo
             </div>
           )}
 
+          {/* Opción de Temperatura Ambiente */}
+          <div className="flex items-center gap-2.5 mb-4 bg-white/5 p-3.5 rounded-2xl border border-white/5 hover:border-blue-500/20 transition-all">
+            <input
+              type="checkbox"
+              id="is_ambient"
+              checked={form.is_ambient}
+              onChange={e => setForm(f => ({ ...f, is_ambient: e.target.checked }))}
+              className="w-4.5 h-4.5 rounded border-white/10 bg-black/40 text-blue-600 focus:ring-blue-500/50 cursor-pointer"
+            />
+            <label htmlFor="is_ambient" className="text-xs font-bold text-gray-300 cursor-pointer select-none">
+              ¿Es medición de Temperatura Ambiente? (Cámara General)
+            </label>
+          </div>
+
           <div>
             <label className="block text-[11px] uppercase tracking-widest font-bold text-gray-500 mb-2 ml-1">Fecha de Medición</label>
             <input
@@ -109,7 +126,7 @@ function NewReportModal({ onClose, onCreated, initialDate }: { onClose: () => vo
 
           <div className="grid grid-cols-2 gap-3">
             <div>
-              <label className="block text-[11px] uppercase tracking-widest font-bold text-gray-500 mb-2 ml-1">Cámara</label>
+              <label className="block text-[11px] uppercase tracking-widest font-bold text-gray-500 mb-2 ml-1">Cámara / Ubicación</label>
               <input
                 type="text"
                 placeholder="Ej: Cámara 1"
@@ -131,28 +148,30 @@ function NewReportModal({ onClose, onCreated, initialDate }: { onClose: () => vo
             </div>
           </div>
 
-          <div className="grid grid-cols-2 gap-3">
-            <div>
-              <label className="block text-[11px] uppercase tracking-widest font-bold text-gray-500 mb-2 ml-1">Cliente / Lote</label>
-              <input
-                type="text"
-                placeholder="Ej: The Growers"
-                value={form.client}
-                onChange={e => setForm(f => ({ ...f, client: e.target.value }))}
-                className="w-full bg-black/40 border border-white/10 rounded-2xl px-4 py-3 text-sm text-white focus:outline-none focus:border-blue-500/50 transition-all"
-              />
+          {!form.is_ambient && (
+            <div className="grid grid-cols-2 gap-3 animate-in fade-in duration-200">
+              <div>
+                <label className="block text-[11px] uppercase tracking-widest font-bold text-gray-500 mb-2 ml-1">Cliente / Lote</label>
+                <input
+                  type="text"
+                  placeholder="Ej: The Growers"
+                  value={form.client}
+                  onChange={e => setForm(f => ({ ...f, client: e.target.value }))}
+                  className="w-full bg-black/40 border border-white/10 rounded-2xl px-4 py-3 text-sm text-white focus:outline-none focus:border-blue-500/50 transition-all"
+                />
+              </div>
+              <div>
+                <label className="block text-[11px] uppercase tracking-widest font-bold text-gray-500 mb-2 ml-1">Variedad Fruta</label>
+                <input
+                  type="text"
+                  placeholder="Ej: Limones"
+                  value={form.variety}
+                  onChange={e => setForm(f => ({ ...f, variety: e.target.value }))}
+                  className="w-full bg-black/40 border border-white/10 rounded-2xl px-4 py-3 text-sm text-white focus:outline-none focus:border-blue-500/50 transition-all"
+                />
+              </div>
             </div>
-            <div>
-              <label className="block text-[11px] uppercase tracking-widest font-bold text-gray-500 mb-2 ml-1">Variedad Fruta</label>
-              <input
-                type="text"
-                placeholder="Ej: Limones"
-                value={form.variety}
-                onChange={e => setForm(f => ({ ...f, variety: e.target.value }))}
-                className="w-full bg-black/40 border border-white/10 rounded-2xl px-4 py-3 text-sm text-white focus:outline-none focus:border-blue-500/50 transition-all"
-              />
-            </div>
-          </div>
+          )}
 
           <div>
             <label className="block text-[11px] uppercase tracking-widest font-bold text-gray-500 mb-2 ml-1">Observaciones</label>
@@ -198,6 +217,7 @@ export default function TemperaturasPage() {
   const [controlStartDate, setControlStartDate] = useState<string | null>(null)
   const [viewMode, setViewMode] = useState<'list' | 'calendar' | 'chart'>('calendar')
   const [currentMonth, setCurrentMonth] = useState(new Date())
+  const [chartType, setChartType] = useState<'client' | 'ambient'>('client')
   
   // Filtros para la pestaña de Gráfico Histórico
   const [filterClient, setFilterClient] = useState('')
@@ -568,24 +588,28 @@ export default function TemperaturasPage() {
                     </div>
                     
                     <div className="mt-2 space-y-1.5 max-h-[60px] overflow-y-auto custom-scrollbar">
-                       {day.reports.map((report) => (
-                        <div 
-                          key={report.id} 
-                          onClick={(e) => { e.stopPropagation(); router.push(`/temperaturas/${report.id}`); }}
-                          className="flex items-center gap-1.5 px-1.5 py-1 bg-white/5 border border-white/5 rounded-lg hover:bg-indigo-500/20 hover:border-indigo-500/30 transition-all cursor-pointer group/item"
-                        >
-                           <div className="w-1 h-3 bg-emerald-500 rounded-full shrink-0" />
-                           <div className="min-w-0">
-                             <div className="text-[9px] font-black text-white truncate leading-none">
-                               {report.temperature_value}°C
-                             </div>
-                             <div className="text-[7px] text-gray-500 font-bold uppercase tracking-widest truncate leading-none mt-0.5 group-hover/item:text-gray-300">
-                               {report.client || report.chamber || 'Cámara'}
-                             </div>
-                           </div>
-                        </div>
-                       ))}
-                    </div>
+                      {day.reports.map((report) => {
+                          const isAmbient = report.is_ambient
+                          return (
+                            <div 
+                              key={report.id} 
+                              onClick={(e) => { e.stopPropagation(); router.push(`/temperaturas/${report.id}`); }}
+                              className={`flex items-center gap-1.5 px-1.5 py-1 bg-white/5 border border-white/5 rounded-lg hover:bg-indigo-500/20 hover:border-indigo-500/30 transition-all cursor-pointer group/item
+                                ${isAmbient ? 'border-sky-500/30 bg-sky-500/5 hover:bg-sky-500/10' : ''}`}
+                            >
+                               <div className={`w-1 h-3 rounded-full shrink-0 ${isAmbient ? 'bg-sky-400' : 'bg-emerald-500'}`} />
+                               <div className="min-w-0">
+                                 <div className="text-[9px] font-black text-white truncate leading-none">
+                                   {report.temperature_value}°C
+                                 </div>
+                                 <div className="text-[7px] text-gray-500 font-bold uppercase tracking-widest truncate leading-none mt-0.5 group-hover/item:text-gray-300">
+                                   {isAmbient ? 'Ambiente' : (report.client || 'Cámara')}
+                                 </div>
+                               </div>
+                            </div>
+                          )
+                        })}
+                     </div>
 
                     {isMissing && (
                       <div className="absolute inset-x-0 bottom-3 px-3">
@@ -658,10 +682,16 @@ export default function TemperaturasPage() {
                     </td>
                     <td className="px-6 py-4">
                       <div className="text-sm text-white font-medium">{report.chamber || 'General'}</div>
-                      <div className="text-[10px] text-gray-500 uppercase tracking-widest">{report.client || 'Sin Cliente'}</div>
+                      <div className="text-[10px] text-gray-500 uppercase tracking-widest">
+                        {report.is_ambient ? (
+                          <span className="px-2 py-0.5 rounded bg-sky-500/10 text-sky-400 border border-sky-500/20 text-[9px] font-black uppercase">Ambiente</span>
+                        ) : (
+                          report.client || 'Sin Cliente'
+                        )}
+                      </div>
                     </td>
                     <td className="px-6 py-4 text-gray-400 text-xs font-medium">
-                      {report.variety || '—'}
+                      {report.is_ambient ? '—' : (report.variety || '—')}
                     </td>
                     <td className="px-6 py-4 text-gray-400 text-xs">
                       {report.responsible?.display_name || 'Sistema'}
@@ -679,41 +709,69 @@ export default function TemperaturasPage() {
 
       {viewMode === 'chart' && (
         <div className="space-y-6">
+          {/* Selector de Tipo de Gráfico */}
+          <div className="flex bg-white/5 p-1 rounded-2xl border border-white/10 w-fit shadow-inner">
+            <button
+              onClick={() => {
+                setChartType('client')
+                setFilterClient('')
+                setFilterVariety('')
+              }}
+              className={`px-5 py-2.5 rounded-xl text-xs font-bold uppercase tracking-widest transition-all ${chartType === 'client' ? 'bg-indigo-600 text-white shadow-lg' : 'text-gray-500 hover:text-white'}`}
+            >
+              Clientes / Lotes
+            </button>
+            <button
+              onClick={() => {
+                setChartType('ambient')
+                setFilterClient('')
+                setFilterVariety('')
+              }}
+              className={`px-5 py-2.5 rounded-xl text-xs font-bold uppercase tracking-widest transition-all ${chartType === 'ambient' ? 'bg-indigo-600 text-white shadow-lg' : 'text-gray-500 hover:text-white'}`}
+            >
+              Temperatura Ambiente
+            </button>
+          </div>
+
           {/* Filtros */}
           <div className="bg-[#0f172a] border border-white/10 rounded-3xl p-6 shadow-xl space-y-4">
             <h3 className="text-sm font-bold text-white uppercase tracking-widest flex items-center gap-2 mb-2">
               <span className="w-1.5 h-3 bg-blue-500 rounded-full" />
-              Filtros de Búsqueda Histórica
+              Filtros de Búsqueda Histórica ({chartType === 'client' ? 'Clientes' : 'Ambiente'})
             </h3>
             
-            <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-              <div>
-                <label className="block text-[10px] uppercase tracking-widest font-bold text-gray-500 mb-2 ml-1">Cliente / Lote</label>
-                <select
-                  value={filterClient}
-                  onChange={e => setFilterClient(e.target.value)}
-                  className="w-full bg-black/40 border border-white/10 rounded-2xl px-4 py-3 text-sm text-white focus:outline-none focus:border-blue-500/50 transition-all cursor-pointer"
-                >
-                  <option value="">Todos los Clientes</option>
-                  {Array.from(new Set(reports.map(r => r.client).filter(Boolean))).map(client => (
-                    <option key={client} value={client!}>{client}</option>
-                  ))}
-                </select>
-              </div>
+            <div className={`grid grid-cols-1 ${chartType === 'client' ? 'md:grid-cols-4' : 'md:grid-cols-2'} gap-4`}>
+              {chartType === 'client' && (
+                <>
+                  <div>
+                    <label className="block text-[10px] uppercase tracking-widest font-bold text-gray-500 mb-2 ml-1">Cliente / Lote</label>
+                    <select
+                      value={filterClient}
+                      onChange={e => setFilterClient(e.target.value)}
+                      className="w-full bg-black/40 border border-white/10 rounded-2xl px-4 py-3 text-sm text-white focus:outline-none focus:border-blue-500/50 transition-all cursor-pointer"
+                    >
+                      <option value="">Todos los Clientes</option>
+                      {Array.from(new Set(reports.filter(r => !r.is_ambient).map(r => r.client).filter(Boolean))).map(client => (
+                        <option key={client} value={client!}>{client}</option>
+                      ))}
+                    </select>
+                  </div>
 
-              <div>
-                <label className="block text-[10px] uppercase tracking-widest font-bold text-gray-500 mb-2 ml-1">Variedad de Fruta</label>
-                <select
-                  value={filterVariety}
-                  onChange={e => setFilterVariety(e.target.value)}
-                  className="w-full bg-black/40 border border-white/10 rounded-2xl px-4 py-3 text-sm text-white focus:outline-none focus:border-blue-500/50 transition-all cursor-pointer"
-                >
-                  <option value="">Todas las Variedades</option>
-                  {Array.from(new Set(reports.map(r => r.variety).filter(Boolean))).map(variety => (
-                    <option key={variety} value={variety!}>{variety}</option>
-                  ))}
-                </select>
-              </div>
+                  <div>
+                    <label className="block text-[10px] uppercase tracking-widest font-bold text-gray-500 mb-2 ml-1">Variedad de Fruta</label>
+                    <select
+                      value={filterVariety}
+                      onChange={e => setFilterVariety(e.target.value)}
+                      className="w-full bg-black/40 border border-white/10 rounded-2xl px-4 py-3 text-sm text-white focus:outline-none focus:border-blue-500/50 transition-all cursor-pointer"
+                    >
+                      <option value="">Todas las Variedades</option>
+                      {Array.from(new Set(reports.filter(r => !r.is_ambient).map(r => r.variety).filter(Boolean))).map(variety => (
+                        <option key={variety} value={variety!}>{variety}</option>
+                      ))}
+                    </select>
+                  </div>
+                </>
+              )}
 
               <div>
                 <label className="block text-[10px] uppercase tracking-widest font-bold text-gray-500 mb-2 ml-1">Fecha Inicio</label>
@@ -759,9 +817,10 @@ export default function TemperaturasPage() {
             const validChartData = [...reports]
               .filter(r => {
                 const dateMatch = (!startDate || r.report_date >= startDate) && (!endDate || r.report_date <= endDate)
-                const clientMatch = !filterClient || r.client === filterClient
-                const varietyMatch = !filterVariety || r.variety === filterVariety
-                return dateMatch && clientMatch && varietyMatch && r.temperature_value !== null
+                const typeMatch = chartType === 'ambient' ? r.is_ambient : !r.is_ambient
+                const clientMatch = chartType === 'ambient' ? true : (!filterClient || r.client === filterClient)
+                const varietyMatch = chartType === 'ambient' ? true : (!filterVariety || r.variety === filterVariety)
+                return dateMatch && typeMatch && clientMatch && varietyMatch && r.temperature_value !== null
               })
               .sort((a, b) => a.report_date.localeCompare(b.report_date))
 
@@ -1082,14 +1141,18 @@ export default function TemperaturasPage() {
                           </div>
                           
                           <div className="border-t border-white/5 pt-2 space-y-1.5">
-                            <div className="flex justify-between text-[9px]">
-                              <span className="text-gray-500 font-bold uppercase">Cliente:</span>
-                              <span className="text-white font-bold truncate max-w-[120px]">{hoveredPoint.report.client || 'General'}</span>
-                            </div>
-                            <div className="flex justify-between text-[9px]">
-                              <span className="text-gray-500 font-bold uppercase">Variedad:</span>
-                              <span className="text-indigo-400 font-bold truncate max-w-[120px]">{hoveredPoint.report.variety || '—'}</span>
-                            </div>
+                            {chartType === 'client' && (
+                              <div className="flex justify-between text-[9px]">
+                                <span className="text-gray-500 font-bold uppercase">Cliente:</span>
+                                <span className="text-white font-bold truncate max-w-[120px]">{hoveredPoint.report.client || 'General'}</span>
+                              </div>
+                            )}
+                            {chartType === 'client' && (
+                              <div className="flex justify-between text-[9px]">
+                                <span className="text-gray-500 font-bold uppercase">Variedad:</span>
+                                <span className="text-indigo-400 font-bold truncate max-w-[120px]">{hoveredPoint.report.variety || '—'}</span>
+                              </div>
+                            )}
                             <div className="flex justify-between text-[9px]">
                               <span className="text-gray-500 font-bold uppercase">Cámara:</span>
                               <span className="text-white truncate max-w-[120px]">{hoveredPoint.report.chamber || 'General'}</span>
@@ -1120,8 +1183,8 @@ export default function TemperaturasPage() {
                           <th className="px-6 py-4">Código</th>
                           <th className="px-6 py-4">Valor</th>
                           <th className="px-6 py-4">Cámara</th>
-                          <th className="px-6 py-4">Cliente</th>
-                          <th className="px-6 py-4">Variedad</th>
+                          {chartType === 'client' && <th className="px-6 py-4">Cliente</th>}
+                          {chartType === 'client' && <th className="px-6 py-4">Variedad</th>}
                           <th className="px-6 py-4 text-right">Acción</th>
                         </tr>
                       </thead>
@@ -1149,12 +1212,16 @@ export default function TemperaturasPage() {
                               <td className="px-6 py-4 text-sm text-white font-medium">
                                 {report.chamber || 'General'}
                               </td>
-                              <td className="px-6 py-4 text-sm text-white font-medium">
-                                {report.client || 'Sin Cliente'}
-                              </td>
-                              <td className="px-6 py-4 text-gray-400 text-xs font-medium">
-                                {report.variety || '—'}
-                              </td>
+                              {chartType === 'client' && (
+                                <td className="px-6 py-4 text-sm text-white font-medium">
+                                  {report.client || 'Sin Cliente'}
+                                </td>
+                              )}
+                              {chartType === 'client' && (
+                                <td className="px-6 py-4 text-gray-400 text-xs font-medium">
+                                  {report.variety || '—'}
+                                </td>
+                              )}
                               <td className="px-6 py-4 text-right">
                                 <ChevronRight size={18} className="text-gray-700 group-hover:text-white transition-all ml-auto" />
                               </td>

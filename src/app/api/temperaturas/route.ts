@@ -31,42 +31,55 @@ export async function POST(request: Request) {
     }
 
     const body = await request.json()
-    const { report_date, chamber, client, variety, temperature_value, observation } = body
+    const { report_date, chamber, client, variety, temperature_value, observation, is_ambient = false } = body
 
     if (!report_date) {
       return NextResponse.json({ error: 'La fecha del reporte es requerida.' }, { status: 400 })
     }
 
-    // Generar código interno: TEMP-2026-05-16-CLIENTE
-    const clientSuffix = client ? `-${client.toUpperCase().replace(/\s+/g, '_')}` : ''
-    const internal_code = `TEMP-${report_date}${clientSuffix}`
+    // Generar código interno: TEMP-2026-05-16-CLIENTE o TEMP-2026-05-16-AMBIENTE
+    let internal_code = ''
+    if (is_ambient) {
+      internal_code = `TEMP-${report_date}-AMBIENTE`
+    } else {
+      const clientSuffix = client ? `-${client.toUpperCase().replace(/\s+/g, '_')}` : ''
+      internal_code = `TEMP-${report_date}${clientSuffix}`
+    }
 
-    // Verificar que no exista reporte para esa fecha Y cliente
+    // Verificar que no exista reporte para esa fecha Y tipo (ambiente o cliente específico)
     const query = supabaseAdmin
       .from('temperature_reports')
       .select('id')
       .eq('report_date', report_date)
+      .eq('is_ambient', is_ambient)
     
-    if (client) {
-      query.eq('client', client)
-    } else {
-      query.is('client', null)
+    if (!is_ambient) {
+      if (client) {
+        query.eq('client', client)
+      } else {
+        query.is('client', null)
+      }
     }
 
     const { data: existing } = await query.single()
 
     if (existing) {
-      return NextResponse.json({ error: `Ya existe un reporte de temperatura para el ${report_date}${client ? ` del cliente ${client}` : ''}.` }, { status: 409 })
+      if (is_ambient) {
+        return NextResponse.json({ error: `Ya existe un reporte de temperatura ambiente para el ${report_date}.` }, { status: 409 })
+      } else {
+        return NextResponse.json({ error: `Ya existe un reporte de temperatura para el ${report_date}${client ? ` del cliente ${client}` : ''}.` }, { status: 409 })
+      }
     }
 
     // Crear carpeta en Drive dentro de la carpeta raíz de temperaturas
-    // Por ahora usamos la misma raíz y se crea sub-carpeta por fecha
     const rootFolderId = process.env.ROOT_DRIVE_FOLDER_ID!
     let driveFolderId: string | null = null
     let driveFolderUrl: string | null = null
 
     try {
-      const folderName = `TEMP-${report_date}${client ? ` - ${client}` : ''}`
+      const folderName = is_ambient 
+        ? `TEMP-${report_date} - AMBIENTE`
+        : `TEMP-${report_date}${client ? ` - ${client}` : ''}`
       const driveFolder = await createFolder(folderName, rootFolderId)
       driveFolderId = driveFolder.id!
       driveFolderUrl = driveFolder.url!
@@ -81,14 +94,15 @@ export async function POST(request: Request) {
         internal_code,
         report_date,
         chamber: chamber || null,
-        client: client || null,
-        variety: variety || null,
+        client: is_ambient ? null : (client || null),
+        variety: is_ambient ? null : (variety || null),
         temperature_value: temperature_value || null,
         observation: observation || null,
         responsible_id: userId || null,
         drive_folder_id: driveFolderId,
         drive_folder_url: driveFolderUrl,
         status: 'pending',
+        is_ambient,
       })
       .select()
       .single()

@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { headers } from 'next/headers'
 import { supabaseAdmin } from '@/lib/supabase-admin'
+import { recalculateLotStatus } from '@/lib/status-helper'
 
 // POST /api/documentos/bulk-validate
 // Body: { docs: [{ id: string, table: 'lot_documents' | 'dispatch_documents' }] }
@@ -60,31 +61,15 @@ export async function POST(request: Request) {
       } else {
         lotDocIds.forEach(id => results.push({ id, ok: true }))
 
-        // Re-calcular overall_status de los lotes afectados
+        // Re-calcular estados individuales y overall_status de los lotes afectados de forma inteligente
         const { data: updatedDocs } = await supabaseAdmin
           .from('lot_documents')
-          .select('lot_id, document_type')
+          .select('lot_id')
           .in('id', lotDocIds)
 
         const lotIds = [...new Set(updatedDocs?.map(d => d.lot_id) || [])]
         for (const lotId of lotIds) {
-          const { data: lot } = await supabaseAdmin
-            .from('lots')
-            .select('reception_status, quality_status, process_status')
-            .eq('id', lotId)
-            .single()
-          if (!lot) continue
-
-          const stages = [lot.reception_status, lot.quality_status, lot.process_status]
-          let newOverall = 'pending'
-          if (stages.every(s => s === 'validated')) {
-            newOverall = 'complete'
-          } else if (stages.some(s => ['uploaded', 'validated', 'observed'].includes(s))) {
-            newOverall = 'uploaded'
-          } else if (stages.includes('late')) {
-            newOverall = 'late'
-          }
-          await supabaseAdmin.from('lots').update({ overall_status: newOverall }).eq('id', lotId)
+          await recalculateLotStatus(lotId)
         }
       }
     }

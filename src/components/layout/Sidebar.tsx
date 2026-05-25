@@ -13,6 +13,7 @@ import {
   Truck,
   ClipboardList,
   Users,
+  Briefcase,
   Settings,
   ScrollText,
   LogOut,
@@ -26,6 +27,7 @@ import {
 const NAV_ITEMS = [
   { href: '/dashboard', label: 'Dashboard', icon: LayoutDashboard, roles: ['admin', 'jefe_frio', 'calidad', 'cuadratura', 'sag', 'despacho', 'gerencia', 'agronomo'] },
   { href: '/lotes', label: 'Lotes / Recepción', icon: Package, roles: ['admin', 'jefe_frio', 'calidad', 'cuadratura', 'gerencia', 'agronomo'] },
+  { href: '/clientes', label: 'Clientes', icon: Briefcase, roles: ['admin', 'gerencia', 'agronomo'] },
   { href: '/temperaturas', label: 'Temperaturas', icon: Thermometer, roles: ['admin', 'jefe_frio', 'gerencia', 'agronomo'] },
   { href: '/despachos', label: 'Despachos', icon: Truck, roles: ['admin', 'jefe_frio', 'sag', 'despacho', 'gerencia', 'agronomo'] },
   { href: '/pendientes', label: 'Pendientes', icon: ClipboardList, roles: ['admin'] },

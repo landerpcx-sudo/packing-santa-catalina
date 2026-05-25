@@ -50,6 +50,42 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'El número de lote es requerido.' }, { status: 400 })
     }
 
+    // Convertir campos de texto ingresados manualmente a MAYÚSCULAS
+    const clientUpper = client ? client.trim().toUpperCase() : null
+    const producerUpper = producer ? producer.trim().toUpperCase() : null
+    const varietyUpper = variety ? variety.trim().toUpperCase() : null
+
+    // Autoguardar cliente si es nuevo
+    if (clientUpper) {
+      const { data: existingClient } = await supabaseAdmin
+        .from('clients')
+        .select('*')
+        .eq('name', clientUpper)
+        .maybeSingle()
+
+      if (!existingClient) {
+        let clientDriveFolderId: string | null = null
+        let clientDriveFolderUrl: string | null = null
+        
+        try {
+          const rootFolderId = process.env.ROOT_DRIVE_FOLDER_ID!
+          const driveFolder = await createFolder(clientUpper, rootFolderId)
+          clientDriveFolderId = driveFolder.id || null
+          clientDriveFolderUrl = driveFolder.url || null
+        } catch (driveError) {
+          console.error(`Error al crear carpeta en Drive para el cliente ${clientUpper}:`, driveError)
+        }
+
+        await supabaseAdmin
+          .from('clients')
+          .insert({
+            name: clientUpper,
+            drive_folder_id: clientDriveFolderId,
+            drive_folder_url: clientDriveFolderUrl
+          })
+      }
+    }
+
     const year = new Date().getFullYear()
     const paddedNumber = lot_number.toString().padStart(4, '0')
     const internal_code = `LOT-${year}-${paddedNumber}`
@@ -77,7 +113,7 @@ export async function POST(request: Request) {
     }
 
     try {
-      const folderName = `${internal_code} - ${display_name}${client ? ` - ${client}` : ''}`
+      const folderName = `${internal_code} - ${display_name}${clientUpper ? ` - ${clientUpper}` : ''}`
       const driveFolder = await createFolder(folderName, rootFolderId)
       driveFolderId = driveFolder.id!
       driveFolderUrl = driveFolder.url!
@@ -110,10 +146,10 @@ export async function POST(request: Request) {
         internal_code,
         lot_number: lot_number.toString(),
         display_name,
-        client: client || null,
-        producer: producer || null,
+        client: clientUpper,
+        producer: producerUpper,
         species: species || null,
-        variety: variety || null,
+        variety: varietyUpper,
         created_by: userId || null,
         drive_folder_id: driveFolderId,
         drive_folder_url: driveFolderUrl,

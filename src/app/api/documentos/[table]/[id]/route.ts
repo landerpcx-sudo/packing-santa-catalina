@@ -1,6 +1,8 @@
 import { NextResponse } from 'next/server'
 import { headers } from 'next/headers'
 import { supabaseAdmin } from '@/lib/supabase-admin'
+import { recalculateLotStatus } from '@/lib/status-helper'
+import { trashFolder } from '@/lib/drive'
 
 // DELETE /api/documentos/[table]/[id]
 export async function DELETE(
@@ -17,11 +19,11 @@ export async function DELETE(
       return NextResponse.json({ error: 'No tienes permisos para eliminar documentos.' }, { status: 403 })
     }
 
-    if (!['lot_documents', 'dispatch_documents'].includes(table)) {
+    if (!['lot_documents', 'dispatch_documents', 'client_documents', 'temperature_documents'].includes(table)) {
       return NextResponse.json({ error: 'Tabla no válida.' }, { status: 400 })
     }
 
-    // Obtener info del documento antes de borrar para limpiar storage
+    // Obtener info del documento antes de borrar para limpiar storage y Drive
     const { data: doc, error: fetchError } = await supabaseAdmin
       .from(table)
       .select('*')
@@ -32,7 +34,16 @@ export async function DELETE(
       return NextResponse.json({ error: 'Documento no encontrado.' }, { status: 404 })
     }
 
-    // 1. Borrar de la base de datos
+    // 1. Eliminar de Google Drive si tiene drive_file_id
+    if (doc.drive_file_id) {
+      try {
+        await trashFolder(doc.drive_file_id)
+      } catch (driveErr: any) {
+        console.error(`AVISO: Error al mover archivo de Drive a la papelera (ID: ${doc.drive_file_id}):`, driveErr.message)
+      }
+    }
+
+    // 2. Borrar de la base de datos
     const { error: dbError } = await supabaseAdmin
       .from(table)
       .delete()
@@ -40,12 +51,12 @@ export async function DELETE(
 
     if (dbError) return NextResponse.json({ error: dbError.message }, { status: 500 })
 
-    // 2. Borrar del storage si existe path
+    // 3. Borrar del storage si existe path
     if (doc.storage_path) {
       await supabaseAdmin.storage.from('documentos').remove([doc.storage_path])
     }
 
-    // 3. Actualizar contadores y recalcular estado general según la tabla
+    // 4. Actualizar contadores y recalcular estado general según la tabla
     if (table === 'dispatch_documents') {
       const fieldName = doc.document_type === 'pata_pata_photo' 
         ? 'pata_pata_photos_count' 
@@ -79,41 +90,24 @@ export async function DELETE(
         await supabaseAdmin.from('dispatches').update(updates).eq('id', doc.dispatch_id)
       }
     } else if (table === 'lot_documents') {
-      const stageFieldMap: Record<string, string> = {
-        reception: 'reception_status',
-        quality: 'quality_status',
-        process: 'process_status',
-      }
-      const field = stageFieldMap[doc.document_type]
-      if (field) {
-        // Verificar si quedan otros documentos del mismo tipo antes de volver a pending
-        const { count } = await supabaseAdmin
-          .from('lot_documents')
-          .select('*', { count: 'exact', head: true })
-          .eq('lot_id', doc.lot_id)
-          .eq('document_type', doc.document_type)
+      // Recalcular estados de lote de forma inteligente tras eliminación
+      await recalculateLotStatus(doc.lot_id)
+    } else if (table === 'temperature_documents') {
+      // Si se elimina un daily_report de temperatura, verificar si quedan más daily_reports.
+      // Si no quedan, revertir el estado del reporte de temperatura a 'pending'.
+      if (doc.document_type === 'daily_report') {
+        const { data: remainingDocs } = await supabaseAdmin
+          .from('temperature_documents')
+          .select('id')
+          .eq('temperature_report_id', doc.temperature_report_id)
+          .eq('document_type', 'daily_report')
+          .neq('id', id)
 
-        if (count === 0) {
-          // Si ya no quedan documentos de este tipo, la etapa vuelve a pending
-          const { data: lot } = await supabaseAdmin.from('lots').select('*').eq('id', doc.lot_id).single()
-          if (lot) {
-            const updates: any = { [field]: 'pending' }
-            
-            // Recalcular overall_status
-            const s1 = updates.reception_status || lot.reception_status
-            const s2 = updates.quality_status || lot.quality_status
-            const s3 = updates.process_status || lot.process_status
-
-            if (s1 === 'validated' && s2 === 'validated' && s3 === 'validated') {
-              updates.overall_status = 'complete'
-            } else if (s1 === 'pending' && s2 === 'pending' && s3 === 'pending') {
-              updates.overall_status = 'pending'
-            } else {
-              updates.overall_status = 'uploaded'
-            }
-
-            await supabaseAdmin.from('lots').update(updates).eq('id', doc.lot_id)
-          }
+        if (!remainingDocs || remainingDocs.length === 0) {
+          await supabaseAdmin
+            .from('temperature_reports')
+            .update({ status: 'pending' })
+            .eq('id', doc.temperature_report_id)
         }
       }
     }
@@ -124,7 +118,12 @@ export async function DELETE(
       action: 'DELETE_DOCUMENT',
       entity_type: table,
       entity_id: id,
-      details: { document_type: doc.document_type, file_name: doc.original_file_name },
+      details: { 
+        document_type: doc.document_type || 'client_document', 
+        file_name: doc.original_file_name,
+        drive_file_id: doc.drive_file_id,
+        storage_path: doc.storage_path
+      },
     })
 
     return NextResponse.json({ success: true })

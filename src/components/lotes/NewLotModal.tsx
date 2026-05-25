@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { X, Package, User, Leaf, Tag } from 'lucide-react'
 
 interface NewLotModalProps {
@@ -20,6 +20,27 @@ export default function NewLotModal({ onClose, onSuccess, initialData }: NewLotM
     species: initialData?.species || 'Manzana',
     variety: initialData?.variety || '',
   })
+
+  const [suggestions, setSuggestions] = useState<{
+    clients: string[]
+    producers: string[]
+    varieties: string[]
+  }>({ clients: [], producers: [], varieties: [] })
+
+  useEffect(() => {
+    fetch('/api/catalogos')
+      .then(res => res.json())
+      .then(data => {
+        if (data && !data.error) {
+          setSuggestions({
+            clients: data.clients || [],
+            producers: data.producers || [],
+            varieties: data.varieties || [],
+          })
+        }
+      })
+      .catch(err => console.error('Error cargando catálogos:', err))
+  }, [])
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -130,9 +151,15 @@ export default function NewLotModal({ onClose, onSuccess, initialData }: NewLotM
                   type="text"
                   placeholder="Nombre del cliente"
                   value={form.client}
-                  onChange={(e) => setForm({ ...form, client: e.target.value })}
+                  onChange={(e) => setForm({ ...form, client: e.target.value.toUpperCase() })}
                   className={inputClass + ' pl-10'}
+                  list="clients-list"
                 />
+                <datalist id="clients-list">
+                  {suggestions.clients.map(c => (
+                    <option key={c} value={c} />
+                  ))}
+                </datalist>
               </div>
             </div>
 
@@ -145,9 +172,15 @@ export default function NewLotModal({ onClose, onSuccess, initialData }: NewLotM
                   type="text"
                   placeholder="Nombre del productor"
                   value={form.producer}
-                  onChange={(e) => setForm({ ...form, producer: e.target.value })}
+                  onChange={(e) => setForm({ ...form, producer: e.target.value.toUpperCase() })}
                   className={inputClass + ' pl-10'}
+                  list="producers-list"
                 />
+                <datalist id="producers-list">
+                  {suggestions.producers.map(p => (
+                    <option key={p} value={p} />
+                  ))}
+                </datalist>
               </div>
             </div>
           </div>
@@ -185,9 +218,15 @@ export default function NewLotModal({ onClose, onSuccess, initialData }: NewLotM
                   type="text"
                   placeholder="ej: Fuji, Williams"
                   value={form.variety}
-                  onChange={(e) => setForm({ ...form, variety: e.target.value })}
+                  onChange={(e) => setForm({ ...form, variety: e.target.value.toUpperCase() })}
                   className={inputClass + ' pl-10'}
+                  list="varieties-list"
                 />
+                <datalist id="varieties-list">
+                  {suggestions.varieties.map(v => (
+                    <option key={v} value={v} />
+                  ))}
+                </datalist>
               </div>
             </div>
           </div>
