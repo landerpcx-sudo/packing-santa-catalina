@@ -43,24 +43,31 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'La fecha del reporte es requerida.' }, { status: 400 })
     }
 
-    // Generar código interno: TEMP-2026-05-16-CLIENTE-VARIEDAD o TEMP-2026-05-16-AMBIENTE
+    // Generar código interno: TEMP-2026-05-16-CLIENTE-VARIEDAD o TEMP-2026-05-16-AMBIENTE-CAMARA
     let internal_code = ''
     if (is_ambient) {
-      internal_code = `TEMP-${report_date}-AMBIENTE`
+      const chamberSuffix = chamber ? `-${chamber.toUpperCase().replace(/\s+/g, '_')}` : ''
+      internal_code = `TEMP-${report_date}-AMBIENTE${chamberSuffix}`
     } else {
       const clientSuffix = client ? `-${client.toUpperCase().replace(/\s+/g, '_')}` : ''
       const varietySuffix = variety ? `-${variety.toUpperCase().replace(/\s+/g, '_')}` : ''
       internal_code = `TEMP-${report_date}${clientSuffix}${varietySuffix}`
     }
 
-    // Verificar que no exista reporte para esa fecha Y tipo (ambiente o cliente + variedad específicos)
+    // Verificar que no exista reporte para esa fecha Y tipo (ambiente por cámara o cliente + variedad específicos)
     const query = supabaseAdmin
       .from('temperature_reports')
       .select('id')
       .eq('report_date', report_date)
       .eq('is_ambient', is_ambient)
     
-    if (!is_ambient) {
+    if (is_ambient) {
+      if (chamber) {
+        query.eq('chamber', chamber)
+      } else {
+        query.is('chamber', null)
+      }
+    } else {
       if (client) {
         query.eq('client', client)
       } else {
@@ -78,7 +85,9 @@ export async function POST(request: Request) {
 
     if (existing) {
       if (is_ambient) {
-        return NextResponse.json({ error: `Ya existe un reporte de temperatura ambiente para el ${report_date}.` }, { status: 409 })
+        return NextResponse.json({ 
+          error: `Ya existe un reporte de temperatura ambiente para el ${report_date}${chamber ? ` en la ${chamber}` : ''}.` 
+        }, { status: 409 })
       } else {
         return NextResponse.json({ 
           error: `Ya existe un reporte de temperatura para el ${report_date}${client ? ` del cliente ${client}` : ''}${variety ? ` (variedad ${variety})` : ''}.` 
@@ -93,7 +102,7 @@ export async function POST(request: Request) {
 
     try {
       const folderName = is_ambient 
-        ? `TEMP-${report_date} - AMBIENTE`
+        ? `TEMP-${report_date} - AMBIENTE${chamber ? ` - ${chamber}` : ''}`
         : `TEMP-${report_date}${client ? ` - ${client}` : ''}${variety ? ` - ${variety}` : ''}`
       const driveFolder = await createFolder(folderName, rootFolderId)
       driveFolderId = driveFolder.id!

@@ -234,6 +234,7 @@ export default function TemperaturasPage() {
   // Filtros para la pestaña de Gráfico Histórico
   const [filterClient, setFilterClient] = useState('')
   const [filterVariety, setFilterVariety] = useState('')
+  const [filterChamber, setFilterChamber] = useState('')
   const [startDate, setStartDate] = useState(() => {
     const d = new Date()
     d.setDate(d.getDate() - 30)
@@ -736,6 +737,7 @@ export default function TemperaturasPage() {
                 setChartType('client')
                 setFilterClient('')
                 setFilterVariety('')
+                setFilterChamber('')
               }}
               className={`px-5 py-2.5 rounded-xl text-xs font-bold uppercase tracking-widest transition-all ${chartType === 'client' ? 'bg-indigo-600 text-white shadow-lg' : 'text-gray-500 hover:text-white'}`}
             >
@@ -746,6 +748,7 @@ export default function TemperaturasPage() {
                 setChartType('ambient')
                 setFilterClient('')
                 setFilterVariety('')
+                setFilterChamber('')
               }}
               className={`px-5 py-2.5 rounded-xl text-xs font-bold uppercase tracking-widest transition-all ${chartType === 'ambient' ? 'bg-indigo-600 text-white shadow-lg' : 'text-gray-500 hover:text-white'}`}
             >
@@ -760,7 +763,7 @@ export default function TemperaturasPage() {
               Filtros de Búsqueda Histórica ({chartType === 'client' ? 'Clientes' : 'Ambiente'})
             </h3>
             
-            <div className={`grid grid-cols-1 ${chartType === 'client' ? 'md:grid-cols-4' : 'md:grid-cols-2'} gap-4`}>
+            <div className={`grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 ${chartType === 'client' ? 'lg:grid-cols-5' : 'lg:grid-cols-3'} gap-4`}>
               {chartType === 'client' && (
                 <>
                   <div>
@@ -794,6 +797,20 @@ export default function TemperaturasPage() {
               )}
 
               <div>
+                <label className="block text-[10px] uppercase tracking-widest font-bold text-gray-500 mb-2 ml-1">Cámara / Ubicación</label>
+                <select
+                  value={filterChamber}
+                  onChange={e => setFilterChamber(e.target.value)}
+                  className="w-full bg-black/40 border border-white/10 rounded-2xl px-4 py-3 text-sm text-white focus:outline-none focus:border-blue-500/50 transition-all cursor-pointer"
+                >
+                  <option value="">Todas las Cámaras</option>
+                  {Array.from(new Set(reports.map(r => r.chamber).filter(Boolean))).sort().map(chamber => (
+                    <option key={chamber} value={chamber!}>{chamber}</option>
+                  ))}
+                </select>
+              </div>
+
+              <div>
                 <label className="block text-[10px] uppercase tracking-widest font-bold text-gray-500 mb-2 ml-1">Fecha Inicio</label>
                 <input
                   type="date"
@@ -819,6 +836,7 @@ export default function TemperaturasPage() {
                 onClick={() => {
                   setFilterClient('')
                   setFilterVariety('')
+                  setFilterChamber('')
                   const d = new Date()
                   d.setDate(d.getDate() - 30)
                   setStartDate(d.toISOString().split('T')[0])
@@ -840,7 +858,8 @@ export default function TemperaturasPage() {
                 const typeMatch = chartType === 'ambient' ? r.is_ambient : !r.is_ambient
                 const clientMatch = chartType === 'ambient' ? true : (!filterClient || r.client === filterClient)
                 const varietyMatch = chartType === 'ambient' ? true : (!filterVariety || r.variety === filterVariety)
-                return dateMatch && typeMatch && clientMatch && varietyMatch && r.temperature_value !== null
+                const chamberMatch = !filterChamber || r.chamber === filterChamber
+                return dateMatch && typeMatch && clientMatch && varietyMatch && chamberMatch && r.temperature_value !== null
               })
               .sort((a, b) => a.report_date.localeCompare(b.report_date))
 
