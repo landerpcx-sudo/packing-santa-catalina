@@ -36,7 +36,7 @@ const STATUS_CONFIG: Record<string, { label: string; color: string; dot: string;
 }
 
 // Modal de creación de nuevo reporte
-function NewReportModal({ onClose, onCreated, initialDate }: { onClose: () => void; onCreated: () => void; initialDate?: string }) {
+function NewReportModal({ onClose, onCreated, initialDate, availableClients = [] }: { onClose: () => void; onCreated: () => void; initialDate?: string; availableClients?: string[] }) {
   const [form, setForm] = useState({
     report_date: initialDate || new Date().toISOString().split('T')[0],
     chamber: '',
@@ -59,8 +59,10 @@ function NewReportModal({ onClose, onCreated, initialDate }: { onClose: () => vo
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         ...form,
-        client: form.is_ambient ? null : (form.client || null),
-        variety: form.is_ambient ? null : (form.variety || null),
+        client: form.is_ambient ? null : (form.client ? form.client.trim().toUpperCase() : null),
+        variety: form.is_ambient ? null : (form.variety ? form.variety.trim().toUpperCase() : null),
+        chamber: form.chamber ? form.chamber.trim().toUpperCase() : null,
+        observation: form.observation ? form.observation.trim().toUpperCase() : null,
         temperature_value: form.temperature_value ? parseFloat(form.temperature_value) : null,
         is_ambient: form.is_ambient,
       }),
@@ -129,9 +131,10 @@ function NewReportModal({ onClose, onCreated, initialDate }: { onClose: () => vo
               <label className="block text-[11px] uppercase tracking-widest font-bold text-gray-500 mb-2 ml-1">Cámara / Ubicación</label>
               <input
                 type="text"
-                placeholder="Ej: Cámara 1"
+                placeholder="Ej: CAMARA 1"
                 value={form.chamber}
                 onChange={e => setForm(f => ({ ...f, chamber: e.target.value }))}
+                style={{ textTransform: 'uppercase' }}
                 className="w-full bg-black/40 border border-white/10 rounded-2xl px-4 py-3 text-sm text-white focus:outline-none focus:border-blue-500/50 transition-all"
               />
             </div>
@@ -154,19 +157,27 @@ function NewReportModal({ onClose, onCreated, initialDate }: { onClose: () => vo
                 <label className="block text-[11px] uppercase tracking-widest font-bold text-gray-500 mb-2 ml-1">Cliente / Lote</label>
                 <input
                   type="text"
-                  placeholder="Ej: The Growers"
+                  list="clients-list"
+                  placeholder="Ej: THE GROWERS"
                   value={form.client}
                   onChange={e => setForm(f => ({ ...f, client: e.target.value }))}
+                  style={{ textTransform: 'uppercase' }}
                   className="w-full bg-black/40 border border-white/10 rounded-2xl px-4 py-3 text-sm text-white focus:outline-none focus:border-blue-500/50 transition-all"
                 />
+                <datalist id="clients-list">
+                  {availableClients.map(c => (
+                    <option key={c} value={c} />
+                  ))}
+                </datalist>
               </div>
               <div>
                 <label className="block text-[11px] uppercase tracking-widest font-bold text-gray-500 mb-2 ml-1">Variedad Fruta</label>
                 <input
                   type="text"
-                  placeholder="Ej: Limones"
+                  placeholder="Ej: LIMONES"
                   value={form.variety}
                   onChange={e => setForm(f => ({ ...f, variety: e.target.value }))}
+                  style={{ textTransform: 'uppercase' }}
                   className="w-full bg-black/40 border border-white/10 rounded-2xl px-4 py-3 text-sm text-white focus:outline-none focus:border-blue-500/50 transition-all"
                 />
               </div>
@@ -180,6 +191,7 @@ function NewReportModal({ onClose, onCreated, initialDate }: { onClose: () => vo
               rows={2}
               value={form.observation}
               onChange={e => setForm(f => ({ ...f, observation: e.target.value }))}
+              style={{ textTransform: 'uppercase' }}
               className="w-full bg-black/40 border border-white/10 rounded-2xl px-4 py-3 text-sm text-white focus:outline-none focus:border-blue-500/50 transition-all resize-none"
             />
           </div>
@@ -234,6 +246,7 @@ export default function TemperaturasPage() {
     report: TemperatureReport
   } | null>(null)
   
+  const [availableClients, setAvailableClients] = useState<string[]>([])
   const router = useRouter()
   const today = new Date().toISOString().split('T')[0]
 
@@ -242,6 +255,7 @@ export default function TemperaturasPage() {
     try {
       const res = await fetch('/api/temperaturas?limit=100')
       const configRes = await fetch('/api/settings/temperature-control')
+      const catalogosRes = await fetch('/api/catalogos')
       
       if (res.ok) {
         const json = await res.json()
@@ -252,6 +266,11 @@ export default function TemperaturasPage() {
       if (configRes.ok) {
         const config = await configRes.json()
         if (config.value) setControlStartDate(config.value)
+      }
+
+      if (catalogosRes.ok) {
+        const json = await catalogosRes.json()
+        if (json.clients) setAvailableClients(json.clients)
       }
     } finally {
       setLoading(false)
@@ -332,6 +351,7 @@ export default function TemperaturasPage() {
           onClose={() => { setShowModal(false); setSelectedDate(undefined); }} 
           onCreated={fetchReports} 
           initialDate={selectedDate}
+          availableClients={availableClients}
         />
       )}
 

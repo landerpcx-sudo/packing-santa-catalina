@@ -31,7 +31,13 @@ export async function POST(request: Request) {
     }
 
     const body = await request.json()
-    const { report_date, chamber, client, variety, temperature_value, observation, is_ambient = false } = body
+    const { report_date, temperature_value, is_ambient = false } = body
+
+    // Normalizar a MAYÚSCULAS y remover espacios extra de las entradas digitadas
+    const client = is_ambient ? null : (body.client ? body.client.trim().toUpperCase() : null)
+    const chamber = body.chamber ? body.chamber.trim().toUpperCase() : null
+    const variety = is_ambient ? null : (body.variety ? body.variety.trim().toUpperCase() : null)
+    const observation = body.observation ? body.observation.trim().toUpperCase() : null
 
     if (!report_date) {
       return NextResponse.json({ error: 'La fecha del reporte es requerida.' }, { status: 400 })
