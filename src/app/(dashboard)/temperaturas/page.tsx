@@ -576,7 +576,7 @@ export default function TemperaturasPage() {
                        <span className={`text-xs font-bold ${isToday ? 'bg-blue-500 text-white w-6 h-6 rounded-lg flex items-center justify-center' : 'text-gray-500 group-hover:text-white'}`}>
                          {day.day}
                        </span>
-                       {day.reports.length > 1 && !isFuture && ['admin', 'jefe_frio'].includes(user?.role || '') && (
+                       {day.reports.length >= 1 && !isFuture && ['admin', 'jefe_frio'].includes(user?.role || '') && (
                           <button 
                             onClick={(e) => { e.stopPropagation(); setSelectedDate(day.date); setShowModal(true); }}
                             className="p-1 bg-blue-600/20 text-blue-400 rounded-lg hover:bg-blue-600 hover:text-white transition-all shadow-sm"

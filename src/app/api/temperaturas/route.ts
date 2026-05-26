@@ -37,16 +37,17 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'La fecha del reporte es requerida.' }, { status: 400 })
     }
 
-    // Generar código interno: TEMP-2026-05-16-CLIENTE o TEMP-2026-05-16-AMBIENTE
+    // Generar código interno: TEMP-2026-05-16-CLIENTE-VARIEDAD o TEMP-2026-05-16-AMBIENTE
     let internal_code = ''
     if (is_ambient) {
       internal_code = `TEMP-${report_date}-AMBIENTE`
     } else {
       const clientSuffix = client ? `-${client.toUpperCase().replace(/\s+/g, '_')}` : ''
-      internal_code = `TEMP-${report_date}${clientSuffix}`
+      const varietySuffix = variety ? `-${variety.toUpperCase().replace(/\s+/g, '_')}` : ''
+      internal_code = `TEMP-${report_date}${clientSuffix}${varietySuffix}`
     }
 
-    // Verificar que no exista reporte para esa fecha Y tipo (ambiente o cliente específico)
+    // Verificar que no exista reporte para esa fecha Y tipo (ambiente o cliente + variedad específicos)
     const query = supabaseAdmin
       .from('temperature_reports')
       .select('id')
@@ -59,6 +60,12 @@ export async function POST(request: Request) {
       } else {
         query.is('client', null)
       }
+
+      if (variety) {
+        query.eq('variety', variety)
+      } else {
+        query.is('variety', null)
+      }
     }
 
     const { data: existing } = await query.single()
@@ -67,7 +74,9 @@ export async function POST(request: Request) {
       if (is_ambient) {
         return NextResponse.json({ error: `Ya existe un reporte de temperatura ambiente para el ${report_date}.` }, { status: 409 })
       } else {
-        return NextResponse.json({ error: `Ya existe un reporte de temperatura para el ${report_date}${client ? ` del cliente ${client}` : ''}.` }, { status: 409 })
+        return NextResponse.json({ 
+          error: `Ya existe un reporte de temperatura para el ${report_date}${client ? ` del cliente ${client}` : ''}${variety ? ` (variedad ${variety})` : ''}.` 
+        }, { status: 409 })
       }
     }
 
@@ -79,7 +88,7 @@ export async function POST(request: Request) {
     try {
       const folderName = is_ambient 
         ? `TEMP-${report_date} - AMBIENTE`
-        : `TEMP-${report_date}${client ? ` - ${client}` : ''}`
+        : `TEMP-${report_date}${client ? ` - ${client}` : ''}${variety ? ` - ${variety}` : ''}`
       const driveFolder = await createFolder(folderName, rootFolderId)
       driveFolderId = driveFolder.id!
       driveFolderUrl = driveFolder.url!
