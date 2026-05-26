@@ -108,7 +108,8 @@ CREATE TABLE IF NOT EXISTS temperature_reports (
   observation TEXT,
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
   updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-  UNIQUE(report_date)
+  is_ambient BOOLEAN NOT NULL DEFAULT FALSE,
+  CONSTRAINT temperature_reports_date_client_variety_key UNIQUE NULLS NOT DISTINCT (report_date, client, variety, chamber)
 );
 
 -- ============================================================
