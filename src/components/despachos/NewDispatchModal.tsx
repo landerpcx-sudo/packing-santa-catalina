@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { X, Truck, Calendar, MapPin, Building2, Package } from 'lucide-react'
 
 interface Props {
@@ -13,7 +13,8 @@ export default function NewDispatchModal({ onClose, onSuccess, initialData }: Pr
   const isEdit = !!initialData
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
-  
+  const [clients, setClients] = useState<string[]>([])
+
   const [formData, setFormData] = useState({
     dispatch_code: initialData?.dispatch_code || '',
     client: initialData?.client || '',
@@ -21,6 +22,17 @@ export default function NewDispatchModal({ onClose, onSuccess, initialData }: Pr
     expected_pallets: initialData?.expected_pallets?.toString() || '',
     dispatch_date: initialData?.dispatch_date ? initialData.dispatch_date.split('T')[0] : new Date().toISOString().split('T')[0]
   })
+
+  useEffect(() => {
+    fetch('/api/catalogos')
+      .then(res => res.json())
+      .then(data => {
+        if (data && !data.error) {
+          setClients(data.clients || [])
+        }
+      })
+      .catch(err => console.error('Error cargando catálogo en despachos:', err))
+  }, [])
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -98,11 +110,23 @@ export default function NewDispatchModal({ onClose, onSuccess, initialData }: Pr
                 <Truck className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-500" />
                 <input
                   type="text"
+                  maxLength={3}
                   required
                   disabled={isEdit}
                   value={formData.dispatch_code}
-                  onChange={(e) => setFormData({ ...formData, dispatch_code: e.target.value })}
-                  placeholder="Ej: 089"
+                  onChange={(e) => {
+                    const val = e.target.value.replace(/[^0-9]/g, '')
+                    setFormData({ ...formData, dispatch_code: val })
+                  }}
+                  onBlur={() => {
+                    if (formData.dispatch_code) {
+                      setFormData({ 
+                        ...formData, 
+                        dispatch_code: formData.dispatch_code.toString().trim().padStart(3, '0') 
+                      })
+                    }
+                  }}
+                  placeholder="Ej: 001"
                   className={`w-full bg-white/5 border border-white/10 rounded-xl pl-10 pr-4 py-2.5 text-white placeholder-gray-500 text-sm focus:outline-none focus:border-indigo-400/50 transition-all ${isEdit ? 'opacity-50 cursor-not-allowed' : ''}`}
                 />
               </div>
@@ -149,13 +173,17 @@ export default function NewDispatchModal({ onClose, onSuccess, initialData }: Pr
               </label>
               <div className="relative">
                 <Building2 className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-500" />
-                <input
-                  type="text"
+                <select
+                  required
                   value={formData.client}
                   onChange={(e) => setFormData({ ...formData, client: e.target.value })}
-                  placeholder="Ej: Talamaya"
-                  className="w-full bg-white/5 border border-white/10 rounded-xl pl-10 pr-4 py-2.5 text-white placeholder-gray-500 text-sm focus:outline-none focus:border-indigo-400/50 transition-all"
-                />
+                  className="w-full bg-white/5 border border-white/10 rounded-xl pl-10 pr-4 py-2.5 text-white placeholder-gray-500 text-sm focus:outline-none focus:border-indigo-400/50 transition-all appearance-none cursor-pointer"
+                >
+                  <option value="" className="bg-[#1a1f2e]">Selecciona un cliente</option>
+                  {clients.map(c => (
+                    <option key={c} value={c} className="bg-[#1a1f2e]">{c}</option>
+                  ))}
+                </select>
               </div>
             </div>
 

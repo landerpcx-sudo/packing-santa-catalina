@@ -47,7 +47,7 @@ export async function POST(request: Request) {
     }
 
     const year = new Date().getFullYear()
-    const paddedNumber = dispatch_code.toString().padStart(4, '0')
+    const paddedNumber = dispatch_code.toString().trim().padStart(3, '0')
     const internal_code = `DES-${year}-${paddedNumber}`
 
     const { data: existing } = await supabaseAdmin
