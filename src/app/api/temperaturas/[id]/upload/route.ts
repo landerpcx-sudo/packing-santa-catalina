@@ -3,6 +3,13 @@ import { headers } from 'next/headers'
 import { supabaseAdmin } from '@/lib/supabase-admin'
 import { uploadFile } from '@/lib/drive'
 
+function cleanStorageKey(key: string): string {
+  return key
+    .normalize('NFD') // Descompone los caracteres acentuados
+    .replace(/[\u0300-\u036f]/g, '') // Elimina los diacríticos (acentos)
+    .replace(/[^a-zA-Z0-9.\/_#-]/g, '_') // Sanea todo lo que no sea seguro
+}
+
 export async function POST(
   request: Request,
   { params }: { params: Promise<{ id: string }> }
@@ -75,7 +82,8 @@ export async function POST(
       }
     }
 
-    const storagePath = `temperaturas/${report.internal_code}/${document_type}/${timestamp}_${sanitizedName}`
+    const rawStoragePath = `temperaturas/${report.internal_code}/${document_type}/${timestamp}_${sanitizedName}`
+    const storagePath = cleanStorageKey(rawStoragePath)
 
     // Subir a Supabase Storage
     const { data: storageData, error: storageError } = await supabaseAdmin.storage
