@@ -87,9 +87,9 @@ export async function POST(request: Request) {
     }
 
     const year = new Date().getFullYear()
-    const paddedNumber = lot_number.toString().padStart(4, '0')
+    const paddedNumber = lot_number.toString().trim().padStart(3, '0')
     const internal_code = `LOT-${year}-${paddedNumber}`
-    const display_name = `Lote ${lot_number}`
+    const display_name = `Lote ${paddedNumber}`
 
     const { data: existing } = await supabaseAdmin
       .from('lots')
@@ -98,10 +98,47 @@ export async function POST(request: Request) {
       .single()
 
     if (existing) {
-      return NextResponse.json({ error: `El Lote ${lot_number} ya existe.` }, { status: 409 })
+      return NextResponse.json({ error: `El Lote ${paddedNumber} ya existe.` }, { status: 409 })
     }
 
-    const rootFolderId = process.env.ROOT_DRIVE_FOLDER_ID!
+    // Buscar la subcarpeta "Recepciones" del cliente
+    let targetParentFolderId = process.env.ROOT_DRIVE_FOLDER_ID!
+    
+    if (clientUpper) {
+      const { data: clientRecord } = await supabaseAdmin
+        .from('clients')
+        .select('id, name, drive_folder_id, drive_folder_receptions_id')
+        .eq('name', clientUpper)
+        .maybeSingle()
+      
+      if (clientRecord) {
+        let recFolderId = clientRecord.drive_folder_receptions_id
+        
+        if (!recFolderId && clientRecord.drive_folder_id) {
+          // Si no está el ID guardado, creamos la subcarpeta Recepciones bajo demanda
+          try {
+            console.log(`Creando subcarpeta Recepciones para cliente ${clientUpper}...`)
+            const subFolder = await createFolder('Recepciones', clientRecord.drive_folder_id)
+            recFolderId = subFolder.id || null
+            if (recFolderId) {
+              await supabaseAdmin
+                .from('clients')
+                .update({ drive_folder_receptions_id: recFolderId })
+                .eq('id', clientRecord.id)
+            }
+          } catch (err: any) {
+            console.warn(`No se pudo crear subcarpeta Recepciones: ${err.message}`)
+          }
+        }
+        
+        if (recFolderId) {
+          targetParentFolderId = recFolderId
+        } else if (clientRecord.drive_folder_id) {
+          targetParentFolderId = clientRecord.drive_folder_id
+        }
+      }
+    }
+
     let driveFolderId: string | null = null
     let driveFolderUrl: string | null = null
     let subfolderIds: Record<string, string | null> = {
@@ -114,7 +151,7 @@ export async function POST(request: Request) {
 
     try {
       const folderName = `${internal_code} - ${display_name}${clientUpper ? ` - ${clientUpper}` : ''}`
-      const driveFolder = await createFolder(folderName, rootFolderId)
+      const driveFolder = await createFolder(folderName, targetParentFolderId)
       driveFolderId = driveFolder.id!
       driveFolderUrl = driveFolder.url!
 

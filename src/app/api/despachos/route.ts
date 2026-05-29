@@ -60,18 +60,55 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: `El Despacho ${internal_code} ya existe.` }, { status: 409 })
     }
 
-    const rootFolderId = process.env.ROOT_DRIVE_FOLDER_ID!
+    const clientUpper = client ? client.trim().toUpperCase() : null
+
+    let targetParentFolderId = process.env.ROOT_DRIVE_FOLDER_ID!
+    
+    if (clientUpper) {
+      const { data: clientRecord } = await supabaseAdmin
+        .from('clients')
+        .select('id, name, drive_folder_id, drive_folder_dispatches_id')
+        .eq('name', clientUpper)
+        .maybeSingle()
+      
+      if (clientRecord) {
+        let despFolderId = clientRecord.drive_folder_dispatches_id
+        
+        if (!despFolderId && clientRecord.drive_folder_id) {
+          // Si no está el ID guardado, creamos la subcarpeta Despachos bajo demanda
+          try {
+            console.log(`Creando subcarpeta Despachos para cliente ${clientUpper}...`)
+            const subFolder = await createFolder('Despachos', clientRecord.drive_folder_id)
+            despFolderId = subFolder.id || null
+            if (despFolderId) {
+              await supabaseAdmin
+                .from('clients')
+                .update({ drive_folder_dispatches_id: despFolderId })
+                .eq('id', clientRecord.id)
+            }
+          } catch (err: any) {
+            console.warn(`No se pudo crear subcarpeta Despachos: ${err.message}`)
+          }
+        }
+        
+        if (despFolderId) {
+          targetParentFolderId = despFolderId
+        } else if (clientRecord.drive_folder_id) {
+          targetParentFolderId = clientRecord.drive_folder_id
+        }
+      }
+    }
+
     let driveFolderId: string | null = null
     let driveFolderUrl: string | null = null
 
-    if (rootFolderId) {
-      try {
-        const rootRes = await createFolder(internal_code, rootFolderId)
-        driveFolderId = rootRes.id ?? null
-        driveFolderUrl = rootRes.url ?? null
-      } catch (e) {
-        console.warn('Drive folder creation failed for dispatch', e)
-      }
+    try {
+      const folderName = `${internal_code}${clientUpper ? ` - ${clientUpper}` : ''}`
+      const rootRes = await createFolder(folderName, targetParentFolderId)
+      driveFolderId = rootRes.id ?? null
+      driveFolderUrl = rootRes.url ?? null
+    } catch (e) {
+      console.warn('Drive folder creation failed for dispatch', e)
     }
 
     const { data: dispatch, error } = await supabaseAdmin
@@ -79,7 +116,7 @@ export async function POST(request: Request) {
       .insert({
         internal_code,
         dispatch_code,
-        client: client || null,
+        client: clientUpper || null,
         destination: destination || null,
         expected_pallets: expected_pallets ? parseInt(expected_pallets) : null,
         dispatch_date: dispatch_date || new Date().toISOString().split('T')[0],

@@ -48,6 +48,18 @@ function NewReportModal({ onClose, onCreated, initialDate, availableClients = []
   })
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
+  const [availableChambers, setAvailableChambers] = useState<any[]>([])
+
+  useEffect(() => {
+    fetch('/api/chambers')
+      .then(res => res.json())
+      .then(data => {
+        if (data && data.data) {
+          setAvailableChambers(data.data)
+        }
+      })
+      .catch(err => console.error('Error cargando cámaras:', err))
+  }, [])
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -129,14 +141,17 @@ function NewReportModal({ onClose, onCreated, initialDate, availableClients = []
           <div className="grid grid-cols-2 gap-3">
             <div>
               <label className="block text-[11px] uppercase tracking-widest font-bold text-gray-500 mb-2 ml-1">Cámara / Ubicación</label>
-              <input
-                type="text"
-                placeholder="Ej: CAMARA 1"
+              <select
+                required
                 value={form.chamber}
                 onChange={e => setForm(f => ({ ...f, chamber: e.target.value }))}
-                style={{ textTransform: 'uppercase' }}
-                className="w-full bg-black/40 border border-white/10 rounded-2xl px-4 py-3 text-sm text-white focus:outline-none focus:border-blue-500/50 transition-all"
-              />
+                className="w-full bg-black/40 border border-white/10 rounded-2xl px-4 py-3 text-sm text-white focus:outline-none focus:border-blue-500/50 transition-all appearance-none cursor-pointer"
+              >
+                <option value="" className="bg-[#0f172a]">Selecciona Cámara</option>
+                {availableChambers.map(ch => (
+                  <option key={ch.id} value={ch.name} className="bg-[#0f172a]">{ch.name}</option>
+                ))}
+              </select>
             </div>
             <div>
               <label className="block text-[11px] uppercase tracking-widest font-bold text-gray-500 mb-2 ml-1">Valor (°C)</label>
@@ -155,20 +170,17 @@ function NewReportModal({ onClose, onCreated, initialDate, availableClients = []
             <div className="grid grid-cols-2 gap-3 animate-in fade-in duration-200">
               <div>
                 <label className="block text-[11px] uppercase tracking-widest font-bold text-gray-500 mb-2 ml-1">Cliente / Lote</label>
-                <input
-                  type="text"
-                  list="clients-list"
-                  placeholder="Ej: THE GROWERS"
+                <select
+                  required
                   value={form.client}
                   onChange={e => setForm(f => ({ ...f, client: e.target.value }))}
-                  style={{ textTransform: 'uppercase' }}
-                  className="w-full bg-black/40 border border-white/10 rounded-2xl px-4 py-3 text-sm text-white focus:outline-none focus:border-blue-500/50 transition-all"
-                />
-                <datalist id="clients-list">
+                  className="w-full bg-black/40 border border-white/10 rounded-2xl px-4 py-3 text-sm text-white focus:outline-none focus:border-blue-500/50 transition-all appearance-none cursor-pointer"
+                >
+                  <option value="" className="bg-[#0f172a]">Selecciona Cliente</option>
                   {availableClients.map(c => (
-                    <option key={c} value={c} />
+                    <option key={c} value={c} className="bg-[#0f172a]">{c}</option>
                   ))}
-                </datalist>
+                </select>
               </div>
               <div>
                 <label className="block text-[11px] uppercase tracking-widest font-bold text-gray-500 mb-2 ml-1">Variedad Fruta</label>

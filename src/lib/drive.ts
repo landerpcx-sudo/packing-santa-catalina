@@ -112,3 +112,36 @@ export async function trashFolder(folderId: string) {
     throw err
   }
 }
+
+export async function moveFolderOrFile(fileId: string, newParentId: string) {
+  try {
+    const drive = await getDriveClient()
+    
+    // 1. Obtener los padres actuales del archivo/carpeta
+    const file = await drive.files.get({
+      fileId,
+      fields: 'parents',
+      supportsAllDrives: true
+    })
+    
+    const previousParents = file.data.parents?.join(',') || ''
+    
+    console.log(`Moviendo ID de Drive: ${fileId} de padre(s): [${previousParents}] a nuevo padre: ${newParentId}...`)
+    
+    // 2. Actualizar padres (añadir nuevo, remover anteriores)
+    const updated = await drive.files.update({
+      fileId,
+      addParents: newParentId,
+      removeParents: previousParents || undefined,
+      fields: 'id, parents',
+      supportsAllDrives: true
+    })
+    
+    console.log(`Movido con éxito en Drive. ID: ${fileId}`)
+    return updated.data
+  } catch (err: any) {
+    console.error(`Error al mover carpeta/archivo en Drive: ${err.message}`)
+    throw err
+  }
+}
+

@@ -121,19 +121,27 @@ export default function NewLotModal({ onClose, onSuccess, initialData }: NewLotM
             <div className="relative">
               <Package className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-500" />
               <input
-                type="number"
-                min="1"
+                type="text"
+                maxLength={3}
                 required
                 disabled={isEdit}
-                placeholder="ej: 226"
+                placeholder="ej: 009"
                 value={form.lot_number}
-                onChange={(e) => setForm({ ...form, lot_number: e.target.value })}
+                onChange={(e) => {
+                  const val = e.target.value.replace(/[^0-9]/g, '')
+                  setForm({ ...form, lot_number: val })
+                }}
+                onBlur={() => {
+                  if (form.lot_number) {
+                    setForm({ ...form, lot_number: form.lot_number.toString().trim().padStart(3, '0') })
+                  }
+                }}
                 className={`${inputClass} pl-10 ${isEdit ? 'opacity-50 cursor-not-allowed' : ''}`}
               />
             </div>
             {!isEdit && form.lot_number && (
               <p className="text-green-400 text-xs mt-1 ml-1">
-                Código: LOT-{new Date().getFullYear()}-{form.lot_number.toString().padStart(4, '0')}
+                Código: LOT-{new Date().getFullYear()}-{form.lot_number.toString().padStart(3, '0')}
               </p>
             )}
             {isEdit && (
@@ -147,19 +155,17 @@ export default function NewLotModal({ onClose, onSuccess, initialData }: NewLotM
               <label className="block text-gray-400 text-xs font-medium mb-1.5 ml-1">Cliente</label>
               <div className="relative">
                 <User className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-500" />
-                <input
-                  type="text"
-                  placeholder="Nombre del cliente"
+                <select
                   value={form.client}
-                  onChange={(e) => setForm({ ...form, client: e.target.value.toUpperCase() })}
-                  className={inputClass + ' pl-10'}
-                  list="clients-list"
-                />
-                <datalist id="clients-list">
+                  onChange={(e) => setForm({ ...form, client: e.target.value })}
+                  className={inputClass + ' pl-10 appearance-none cursor-pointer'}
+                  required
+                >
+                  <option value="" className="bg-[#111827]">Selecciona un cliente</option>
                   {suggestions.clients.map(c => (
-                    <option key={c} value={c} />
+                    <option key={c} value={c} className="bg-[#111827]">{c}</option>
                   ))}
-                </datalist>
+                </select>
               </div>
             </div>
 

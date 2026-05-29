@@ -16,7 +16,8 @@ import {
   FileCheck,
   Loader2,
   Send,
-  Thermometer
+  Thermometer,
+  Plus
 } from 'lucide-react'
 
 function ConfigurationContent() {
@@ -33,9 +34,20 @@ function ConfigurationContent() {
   const [tempStartDate, setTempStartDate] = useState('')
   const [savingTemp, setSavingTemp] = useState(false)
 
+  // Cámaras de Frío
+  const [chambers, setChambers] = useState<any[]>([])
+  const [loadingChambers, setLoadingChambers] = useState(false)
+  const [newChamberName, setNewChamberName] = useState('')
+  const [savingChamber, setSavingChamber] = useState(false)
+
+  // Reorganización
+  const [reorganizing, setReorganizing] = useState(false)
+  const [reorganizeResult, setReorganizeResult] = useState<any>(null)
+
   useEffect(() => {
     fetchStatus()
     fetchTempSettings()
+    fetchChambers()
     
     const connected = searchParams.get('google_connected')
     const error = searchParams.get('google_error')
@@ -52,6 +64,88 @@ function ConfigurationContent() {
       fetchPendingDocs()
     }
   }, [googleConnected])
+
+  const fetchChambers = async () => {
+    setLoadingChambers(true)
+    try {
+      const res = await fetch('/api/chambers')
+      if (res.ok) {
+        const json = await res.json()
+        setChambers(json.data || [])
+      }
+    } catch (e) {
+      console.error('Error fetching chambers:', e)
+    } finally {
+      setLoadingChambers(false)
+    }
+  }
+
+  const handleAddChamber = async (e: React.FormEvent) => {
+    e.preventDefault()
+    if (!newChamberName.trim()) return
+    setSavingChamber(true)
+    try {
+      const res = await fetch('/api/chambers', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name: newChamberName })
+      })
+      if (res.ok) {
+        setNewChamberName('')
+        fetchChambers()
+        alert('Cámara creada correctamente.')
+      } else {
+        const err = await res.json()
+        alert(`Error: ${err.error || 'No se pudo crear la cámara.'}`)
+      }
+    } catch {
+      alert('Error de conexión.')
+    } finally {
+      setSavingChamber(false)
+    }
+  }
+
+  const handleToggleChamber = async (id: string, active: boolean) => {
+    try {
+      const res = await fetch(`/api/chambers/${id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ active })
+      })
+      if (res.ok) {
+        fetchChambers()
+      } else {
+        alert('Error al actualizar el estado de la cámara.')
+      }
+    } catch {
+      alert('Error de conexión.')
+    }
+  }
+
+  const handleReorganizeDrive = async () => {
+    if (!confirm('🚨 ATENCIÓN: Esta acción reorganizará todas las carpetas en Google Drive por cliente (creando subcarpetas Recepciones, Despachos y Financiero) y moverá los archivos existentes de forma 100% segura. Los enlaces y visualizadores en la app seguirán funcionando sin problemas. ¿Deseas iniciar la reorganización?')) {
+      return
+    }
+
+    setReorganizing(true)
+    setReorganizeResult(null)
+    try {
+      const res = await fetch('/api/admin/reorganize-drive', { 
+        method: 'POST' 
+      })
+      const json = await res.json()
+      if (res.ok) {
+        setReorganizeResult(json.report)
+        alert('🎉 ¡Reorganización de carpetas de Google Drive completada con éxito!')
+      } else {
+        alert(`Error: ${json.error || 'Ocurrió un error inesperado.'}`)
+      }
+    } catch {
+      alert('Error de conexión.')
+    } finally {
+      setReorganizing(false)
+    }
+  }
 
   const fetchPendingDocs = async () => {
     try {
@@ -331,6 +425,88 @@ function ConfigurationContent() {
         </div>
       </section>
 
+      {/* Cámaras de Frío */}
+      <section className="bg-[#1e293b] border border-white/10 rounded-3xl overflow-hidden shadow-2xl">
+        <div className="p-8">
+          <div className="flex items-start gap-5">
+            <div className="p-4 rounded-2xl bg-teal-500/10 text-teal-400">
+              <Thermometer className="w-10 h-10" />
+            </div>
+            <div className="flex-1">
+              <h2 className="text-xl font-bold text-white">Cámaras en Frío</h2>
+              <p className="text-gray-400 mt-2">
+                Define las cámaras disponibles para registrar las mediciones diarias de temperatura. 
+                Los usuarios sólo podrán elegir de esta lista para evitar errores de digitación.
+              </p>
+
+              {/* Crear nueva cámara */}
+              <form onSubmit={handleAddChamber} className="mt-6 flex gap-3 max-w-md">
+                <input
+                  type="text"
+                  required
+                  placeholder="Ej: CÁMARA 3"
+                  value={newChamberName}
+                  onChange={(e) => setNewChamberName(e.target.value.toUpperCase())}
+                  className="flex-1 bg-black/40 border border-white/10 rounded-xl px-4 py-3 text-sm text-white focus:outline-none focus:border-teal-500/50 transition-all"
+                />
+                <button
+                  type="submit"
+                  disabled={savingChamber || !newChamberName.trim()}
+                  className="px-6 py-3 bg-teal-600 hover:bg-teal-500 disabled:opacity-50 text-white font-bold rounded-xl transition-all flex items-center gap-2 text-sm uppercase tracking-wider shrink-0"
+                >
+                  {savingChamber ? <Loader2 className="animate-spin" size={18} /> : <Plus size={18} />}
+                  Agregar
+                </button>
+              </form>
+
+              {/* Listado de cámaras */}
+              <div className="mt-8">
+                <h4 className="text-[10px] font-black uppercase tracking-widest text-gray-500 mb-4 ml-1">
+                  Cámaras Configuradas
+                </h4>
+                {loadingChambers ? (
+                  <div className="flex items-center gap-2 py-4 text-gray-400 text-sm">
+                    <Loader2 size={16} className="animate-spin text-teal-500" />
+                    Cargando cámaras...
+                  </div>
+                ) : chambers.length === 0 ? (
+                  <p className="text-gray-500 text-sm py-4 italic">No hay cámaras de frío registradas.</p>
+                ) : (
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 max-w-2xl">
+                    {chambers.map((chamber) => (
+                      <div
+                        key={chamber.id}
+                        className="bg-black/30 border border-white/5 rounded-2xl p-4 flex items-center justify-between transition-all hover:border-white/10"
+                      >
+                        <div>
+                          <p className="text-sm font-bold text-white tracking-wide">{chamber.name}</p>
+                          <p className="text-[10px] text-gray-500 mt-0.5">
+                            {chamber.active ? '🟢 Activa' : '🔴 Inactiva'}
+                          </p>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <button
+                            type="button"
+                            onClick={() => handleToggleChamber(chamber.id, !chamber.active)}
+                            className={`px-3 py-1.5 rounded-lg text-[10px] font-bold uppercase tracking-wider transition-all border ${
+                              chamber.active
+                                ? 'bg-red-500/10 border-red-500/20 text-red-400 hover:bg-red-500/20'
+                                : 'bg-green-500/10 border-green-500/20 text-green-400 hover:bg-green-500/20'
+                            }`}
+                          >
+                            {chamber.active ? 'Desactivar' : 'Activar'}
+                          </button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
       {/* Pending Sync Section */}
       {googleConnected && (
         <section className="bg-[#0f172a] border border-indigo-500/20 rounded-3xl overflow-hidden shadow-xl animate-in fade-in slide-in-from-bottom-4 duration-500">
@@ -381,6 +557,97 @@ function ConfigurationContent() {
           </div>
         </section>
       )}
+      {/* Reorganización de Drive (Herramientas de Mantenimiento) */}
+      <section className="bg-[#1e293b] border border-white/10 rounded-3xl overflow-hidden shadow-2xl">
+        <div className="p-8">
+          <div className="flex items-start gap-5">
+            <div className="p-4 rounded-2xl bg-amber-500/10 text-amber-500">
+              <Cloud className="w-10 h-10" />
+            </div>
+            <div className="flex-1">
+              <h2 className="text-xl font-bold text-white">Mantenimiento y Estructura de Archivos</h2>
+              <p className="text-gray-400 mt-2 max-w-xl">
+                Reorganiza programáticamente las carpetas de Google Drive de todos los clientes creados. 
+                Crea las subcarpetas <b>Recepciones</b>, <b>Despachos</b> y <b>Financiero</b> para cada uno, 
+                y agrupa de forma segura los lotes, despachos y facturas existentes sin alterar sus IDs ni romper accesos.
+              </p>
+
+              <div className="mt-6 flex flex-col gap-4 max-w-xl">
+                <button
+                  type="button"
+                  onClick={handleReorganizeDrive}
+                  disabled={reorganizing}
+                  className="w-fit px-8 py-4 bg-amber-600 hover:bg-amber-500 disabled:opacity-50 text-white font-bold rounded-2xl transition-all shadow-lg shadow-amber-900/30 flex items-center gap-3 text-sm uppercase tracking-wider shrink-0 hover:scale-[1.02] active:scale-[0.98]"
+                >
+                  {reorganizing ? <Loader2 className="animate-spin" size={18} /> : <Cloud size={18} />}
+                  Reestructurar Google Drive por Cliente
+                </button>
+
+                {reorganizing && (
+                  <p className="text-amber-400 text-xs animate-pulse font-medium">
+                    ⚠️ Moviendo carpetas y archivos en Google Drive de forma segura, por favor no cierres esta página...
+                  </p>
+                )}
+
+                {reorganizeResult && (
+                  <div className="mt-4 bg-[#0B0F19] border border-white/10 rounded-2xl p-5 max-h-[300px] overflow-y-auto space-y-4">
+                    <h4 className="text-xs font-bold text-white uppercase tracking-widest border-b border-white/10 pb-2">
+                      Reporte de Reorganización:
+                    </h4>
+                    {reorganizeResult.map((rep: any, idx: number) => (
+                      <div key={idx} className="space-y-2 text-xs">
+                        <p className="font-bold text-teal-400 uppercase tracking-wide">💼 {rep.clientName}</p>
+                        
+                        {rep.createdSubfolders.length > 0 && (
+                          <p className="text-gray-400 pl-4">
+                            📁 Subcarpetas creadas: <span className="text-white font-medium">{rep.createdSubfolders.join(', ')}</span>
+                          </p>
+                        )}
+                        
+                        {rep.movedLots.length > 0 && (
+                          <div className="pl-4">
+                            <p className="text-gray-400">📦 Lotes movidos a Recepciones ({rep.movedLots.length}):</p>
+                            <ul className="list-disc list-inside text-gray-500 pl-2">
+                              {rep.movedLots.map((l: string, i: number) => <li key={i}>{l}</li>)}
+                            </ul>
+                          </div>
+                        )}
+
+                        {rep.movedDispatches.length > 0 && (
+                          <div className="pl-4">
+                            <p className="text-gray-400">🚚 Despachos movidos a Despachos ({rep.movedDispatches.length}):</p>
+                            <ul className="list-disc list-inside text-gray-500 pl-2">
+                              {rep.movedDispatches.map((d: string, i: number) => <li key={i}>{d}</li>)}
+                            </ul>
+                          </div>
+                        )}
+
+                        {rep.movedDocuments.length > 0 && (
+                          <div className="pl-4">
+                            <p className="text-gray-400">📄 Archivos financieros movidos ({rep.movedDocuments.length}):</p>
+                            <ul className="list-disc list-inside text-gray-500 pl-2">
+                              {rep.movedDocuments.map((doc: string, i: number) => <li key={i}>{doc}</li>)}
+                            </ul>
+                          </div>
+                        )}
+
+                        {rep.errors.length > 0 && (
+                          <div className="pl-4 text-red-400">
+                            <p className="font-semibold">❌ Errores detectados:</p>
+                            <ul className="list-disc list-inside pl-2">
+                              {rep.errors.map((e: string, i: number) => <li key={i}>{e}</li>)}
+                            </ul>
+                          </div>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
 
       {/* Info Areas */}
       <section className="grid grid-cols-1 md:grid-cols-2 gap-6">

@@ -48,7 +48,7 @@ export async function POST(
     // Obtener el cliente y su carpeta de Drive
     const { data: client, error: clientError } = await supabaseAdmin
       .from('clients')
-      .select('id, name, drive_folder_id')
+      .select('id, name, drive_folder_id, drive_folder_financial_id')
       .eq('id', id)
       .single()
 
@@ -109,10 +109,29 @@ export async function POST(
     let driveFileId: string | null = null
     let driveFileUrl: string | null = null
 
-    if (client.drive_folder_id) {
+    let targetFolderId = client.drive_folder_financial_id
+    if (!targetFolderId && client.drive_folder_id) {
+      try {
+        const { createFolder } = await import('@/lib/drive')
+        console.log(`Creando subcarpeta Financiero bajo demanda para cliente ${client.name}...`)
+        const subFolder = await createFolder('Financiero', client.drive_folder_id)
+        targetFolderId = subFolder.id || null
+        if (targetFolderId) {
+          await supabaseAdmin
+            .from('clients')
+            .update({ drive_folder_financial_id: targetFolderId })
+            .eq('id', id)
+        }
+      } catch (err: any) {
+        console.warn(`No se pudo crear subcarpeta Financiero, se usará raíz: ${err.message}`)
+        targetFolderId = client.drive_folder_id
+      }
+    }
+
+    if (targetFolderId) {
       try {
         // En Clientes mantendremos exactamente el nombre original del archivo subido
-        const driveFile = await uploadFile(buffer, file.name, file.type, client.drive_folder_id)
+        const driveFile = await uploadFile(buffer, file.name, file.type, targetFolderId)
         driveFileId = driveFile.id || null
         driveFileUrl = driveFile.url || null
       } catch (driveErr: any) {

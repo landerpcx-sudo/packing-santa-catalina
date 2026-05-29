@@ -52,17 +52,33 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: `El cliente ${nameUpper} ya existe.` }, { status: 409 })
     }
 
-    // Crear carpeta en Google Drive
+    // Crear carpeta en Google Drive y sus subcarpetas
     const rootFolderId = process.env.ROOT_DRIVE_FOLDER_ID!
     let driveFolderId: string | null = null
     let driveFolderUrl: string | null = null
+    let driveFolderReceptionsId: string | null = null
+    let driveFolderDispatchesId: string | null = null
+    let driveFolderFinancialId: string | null = null
 
     try {
       const driveFolder = await createFolder(nameUpper, rootFolderId)
       driveFolderId = driveFolder.id || null
       driveFolderUrl = driveFolder.url || null
+
+      if (driveFolderId) {
+        // Crear subcarpetas
+        const [recFolder, despFolder, finFolder] = await Promise.all([
+          createFolder('Recepciones', driveFolderId),
+          createFolder('Despachos', driveFolderId),
+          createFolder('Financiero', driveFolderId)
+        ])
+        
+        driveFolderReceptionsId = recFolder.id || null
+        driveFolderDispatchesId = despFolder.id || null
+        driveFolderFinancialId = finFolder.id || null
+      }
     } catch (driveError: any) {
-      console.error(`Error creando carpeta en Drive para el cliente ${nameUpper}:`, driveError)
+      console.error(`Error creando carpeta y subcarpetas en Drive para el cliente ${nameUpper}:`, driveError)
     }
 
     // Insertar en Base de Datos
@@ -71,7 +87,10 @@ export async function POST(request: Request) {
       .insert({
         name: nameUpper,
         drive_folder_id: driveFolderId,
-        drive_folder_url: driveFolderUrl
+        drive_folder_url: driveFolderUrl,
+        drive_folder_receptions_id: driveFolderReceptionsId,
+        drive_folder_dispatches_id: driveFolderDispatchesId,
+        drive_folder_financial_id: driveFolderFinancialId
       })
       .select()
       .single()
