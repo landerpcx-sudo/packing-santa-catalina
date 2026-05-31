@@ -42,6 +42,9 @@ export async function GET() {
         photos_status,
         overall_status,
         created_at,
+        expected_pallets,
+        pata_pata_photos_count,
+        thermograph_photos_count,
         dispatch_documents(id, document_type, status, validation_status, original_file_name, storage_url, drive_file_url)
       `)
       .neq('overall_status', 'complete')

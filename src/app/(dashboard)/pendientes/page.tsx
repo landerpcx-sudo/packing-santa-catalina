@@ -82,10 +82,29 @@ export default function PendientesPage() {
     }
 
     const adminName = getResponsableName('admin', 'Lander Gamboa')
-    const jefeFrioName = getResponsableName('jefe_frio', 'Diego Villarreal')
-    const calidadName = getResponsableName('calidad', 'Deissy')
+    const jefeFrioName = getResponsableName('jefe_frio', 'Alejandro')
+    const calidadName = getResponsableName('calidad', 'Deissy Contreras')
     const cuadraturaName = getResponsableName('cuadratura', 'Carla Lazo')
-    const sagName = getResponsableName('sag', 'Javiera')
+    const sagName = getResponsableName('sag', 'Javiera Martínez')
+
+    // Verificar plazos de gracia para alertas de WhatsApp
+    const isTaskOverdue = (createdAtStr: string, delayType: '24h_next_day_12pm' | '7days') => {
+      if (!createdAtStr) return true
+      const created = new Date(createdAtStr)
+      const now = new Date()
+      
+      if (delayType === '24h_next_day_12pm') {
+        const nextDay = new Date(created)
+        nextDay.setDate(nextDay.getDate() + 1)
+        nextDay.setHours(12, 0, 0, 0)
+        return now.getTime() >= nextDay.getTime()
+      } else if (delayType === '7days') {
+        const limit = new Date(created)
+        limit.setDate(limit.getDate() + 7)
+        return now.getTime() >= limit.getTime()
+      }
+      return true
+    }
 
     const partes: string[] = []
 
@@ -94,31 +113,37 @@ export default function PendientesPage() {
     data.lots.forEach(l => {
       const loteTasks: string[] = []
       
-      // Recepción
-      if (l.reception_status === 'uploaded') {
-        loteTasks.push(`  - 🔍 Validar Recepción ➜ *Responsable: Administrador ${adminName}* (Información ya subida)`)
-      } else if (l.reception_status === 'observed') {
-        loteTasks.push(`  - 📥 Corregir Recepción ➜ *Responsable: Jefe de frío ${jefeFrioName}* (Observado)`)
-      } else if (l.reception_status === 'pending' || l.reception_status === 'late') {
-        loteTasks.push(`  - 📥 Subir Informe de Recepción ➜ *Responsable: Jefe de frío ${jefeFrioName}*`)
+      // Recepción (Jefe de Frío) - Plazo: Al día siguiente a las 12:00 hs
+      if (isTaskOverdue(l.created_at, '24h_next_day_12pm')) {
+        if (l.reception_status === 'uploaded') {
+          loteTasks.push(`  - 🔍 Validar Recepción ➜ *Responsable: Administrador ${adminName}* (Información ya subida)`)
+        } else if (l.reception_status === 'observed') {
+          loteTasks.push(`  - 📥 Corregir Recepción ➜ *Responsable: Jefe de frío ${jefeFrioName}* (Observado)`)
+        } else if (l.reception_status === 'pending' || l.reception_status === 'late') {
+          loteTasks.push(`  - 📥 Subir Informe de Recepción ➜ *Responsable: Jefe de frío ${jefeFrioName}*`)
+        }
       }
 
-      // Calidad
-      if (l.quality_status === 'uploaded') {
-        loteTasks.push(`  - 🔍 Validar Calidad ➜ *Responsable: Administrador ${adminName}* (Información ya subida)`)
-      } else if (l.quality_status === 'observed') {
-        loteTasks.push(`  - 📥 Corregir Calidad ➜ *Responsable: Control de calidad ${calidadName}* (Observado)`)
-      } else if (l.quality_status === 'pending' || l.quality_status === 'late') {
-        loteTasks.push(`  - 📥 Subir Informe de Calidad ➜ *Responsable: Control de calidad ${calidadName}*`)
+      // Calidad (Control de Calidad) - Plazo: Al día siguiente a las 12:00 hs
+      if (isTaskOverdue(l.created_at, '24h_next_day_12pm')) {
+        if (l.quality_status === 'uploaded') {
+          loteTasks.push(`  - 🔍 Validar Calidad ➜ *Responsable: Administrador ${adminName}* (Información ya subida)`)
+        } else if (l.quality_status === 'observed') {
+          loteTasks.push(`  - 📥 Corregir Calidad ➜ *Responsable: Control de calidad ${calidadName}* (Observado)`)
+        } else if (l.quality_status === 'pending' || l.quality_status === 'late') {
+          loteTasks.push(`  - 📥 Subir Informe de Calidad ➜ *Responsable: Control de calidad ${calidadName}*`)
+        }
       }
 
-      // Proceso
-      if (l.process_status === 'uploaded') {
-        loteTasks.push(`  - 🔍 Validar Proceso ➜ *Responsable: Administrador ${adminName}* (Información ya subida)`)
-      } else if (l.process_status === 'observed') {
-        loteTasks.push(`  - 📥 Corregir Proceso ➜ *Responsable: Cuadratura ${cuadraturaName}* (Observado)`)
-      } else if (l.process_status === 'pending' || l.process_status === 'late') {
-        loteTasks.push(`  - 📥 Subir Informe de Proceso ➜ *Responsable: Cuadratura ${cuadraturaName}*`)
+      // Proceso (Cuadratura) - Plazo: 1 semana (7 días)
+      if (isTaskOverdue(l.created_at, '7days')) {
+        if (l.process_status === 'uploaded') {
+          loteTasks.push(`  - 🔍 Validar Proceso ➜ *Responsable: Administrador ${adminName}* (Información ya subida)`)
+        } else if (l.process_status === 'observed') {
+          loteTasks.push(`  - 📥 Corregir Proceso ➜ *Responsable: Cuadratura ${cuadraturaName}* (Observado)`)
+        } else if (l.process_status === 'pending' || l.process_status === 'late') {
+          loteTasks.push(`  - 📥 Subir Informe de Proceso ➜ *Responsable: Cuadratura ${cuadraturaName}*`)
+        }
       }
 
       if (loteTasks.length > 0) {
@@ -135,24 +160,33 @@ export default function PendientesPage() {
     data.dispatches.forEach(d => {
       const despTasks: string[] = []
 
-      // Pack list
-      if (d.pack_list_status === 'uploaded') {
-        despTasks.push(`  - 🔍 Validar Packing List ➜ *Responsable: Administrador ${adminName}* (Información ya subida)`)
-      } else if (d.pack_list_status === 'observed') {
-        despTasks.push(`  - 📥 Corregir Packing List ➜ *Responsable: Contraparte SAG ${sagName}* (Observado)`)
-      } else if (d.pack_list_status === 'pending' || d.pack_list_status === 'late') {
-        despTasks.push(`  - 📥 Subir Packing List ➜ *Responsable: Contraparte SAG ${sagName}*`)
+      // Pack list (Contraparte SAG) - Plazo: Al día siguiente a las 12:00 hs
+      if (isTaskOverdue(d.created_at, '24h_next_day_12pm')) {
+        if (d.pack_list_status === 'uploaded') {
+          despTasks.push(`  - 🔍 Validar Packing List ➜ *Responsable: Administrador ${adminName}* (Información ya subida)`)
+        } else if (d.pack_list_status === 'observed') {
+          despTasks.push(`  - 📥 Corregir Packing List ➜ *Responsable: Contraparte SAG ${sagName}* (Observado)`)
+        } else if (d.pack_list_status === 'pending' || d.pack_list_status === 'late') {
+          despTasks.push(`  - 📥 Subir Packing List ➜ *Responsable: Contraparte SAG ${sagName}*`)
+        }
       }
 
-      // Fotos y termógrafos
-      const pendingPhotosDocs = pendingDocs(d.dispatch_documents || []).filter((doc: any) => 
-        doc.document_type === 'pata_pata_photo' || doc.document_type === 'thermograph_photo'
-      )
-      
-      if (d.photos_status === 'incomplete') {
-        despTasks.push(`  - 📥 Subir Fotos y Termógrafos ➜ *Responsable: Jefe de frío ${jefeFrioName}*`)
-      } else if (pendingPhotosDocs.length > 0) {
-        despTasks.push(`  - 🔍 Validar Fotos de Despacho ➜ *Responsable: Administrador ${adminName}* (Información ya subida)`)
+      // Fotos y termógrafos (Jefe de Frío) - Plazo: Al día siguiente a las 12:00 hs
+      if (isTaskOverdue(d.created_at, '24h_next_day_12pm')) {
+        const minPata = Math.ceil((d.expected_pallets || 0) / 2)
+        const pataComplete = (d.pata_pata_photos_count || 0) >= minPata
+        const thermoComplete = (d.thermograph_photos_count || 0) >= 2
+        const photosComplete = pataComplete && thermoComplete
+
+        const pendingPhotosDocs = pendingDocs(d.dispatch_documents || []).filter((doc: any) => 
+          doc.document_type === 'pata_pata_photo' || doc.document_type === 'thermograph_photo'
+        )
+        
+        if (!photosComplete) {
+          despTasks.push(`  - 📥 Subir Fotos y Termógrafos ➜ *Responsable: Jefe de frío ${jefeFrioName}*`)
+        } else if (pendingPhotosDocs.length > 0) {
+          despTasks.push(`  - 🔍 Validar Fotos de Despacho ➜ *Responsable: Administrador ${adminName}* (Información ya subida)`)
+        }
       }
 
       if (despTasks.length > 0) {
@@ -164,13 +198,13 @@ export default function PendientesPage() {
       partes.push(`🚚 *Despachos:*\n${despTextos.join('\n\n')}`)
     }
 
-    // 3. Procesar temperaturas
+    // 3. Procesar temperaturas (Jefe de Frío Alejandro)
     if (data.missing_temperatures.length > 0) {
       const diasFormateados = data.missing_temperatures.map(dateStr => {
         const [y, m, d] = dateStr.split('-')
         return `${d}/${m}`
       }).join(', ')
-      partes.push(`🌡️ *Temperaturas:*\n• ⚠️ Días sin registro (${diasFormateados}) ➜ *Responsable: Jefe de frío Diego Villarreal*`)
+      partes.push(`🌡️ *Temperaturas:*\n• ⚠️ Días sin registro (${diasFormateados}) ➜ *Responsable: Jefe de frío ${jefeFrioName}*`)
     }
 
     if (partes.length === 0) return null
