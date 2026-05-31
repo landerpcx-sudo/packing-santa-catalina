@@ -215,9 +215,12 @@ export default function DashboardPage() {
   const tempAtrasadosNum = parseInt(tempStats.atrasados, 10) || 0
   const tempHoySinDatos = tempStats.todayReportStatus === 'Sin datos'
 
+  // Omitir el requerimiento del reporte de hoy para el semáforo verde en fin de semana (Sábado = 6, Domingo = 0)
+  const isWeekend = new Date().getDay() === 0 || new Date().getDay() === 6
+
   const tempStatus: 'success' | 'warning' | 'normal' =
     tempTotalNum === 0 ? 'normal' :
-    (tempPendientesNum === 0 && tempAtrasadosNum === 0 && !tempHoySinDatos) ? 'success' : 'warning'
+    (tempPendientesNum === 0 && tempAtrasadosNum === 0 && (!tempHoySinDatos || isWeekend)) ? 'success' : 'warning'
 
 
   useEffect(() => {

@@ -1,6 +1,7 @@
 import Sidebar from '@/components/layout/Sidebar'
 import PageWrapper from '@/components/layout/PageWrapper'
 import BottomNav from '@/components/layout/BottomNav'
+import AdminNotificationListener from '@/components/layout/AdminNotificationListener'
 import { ReactNode } from 'react'
 
 export default function DashboardLayout({ children }: { children: ReactNode }) {
@@ -9,6 +10,7 @@ export default function DashboardLayout({ children }: { children: ReactNode }) {
       className="min-h-screen flex transition-colors duration-300"
       style={{ backgroundColor: 'var(--bg-app)' }}
     >
+      <AdminNotificationListener />
       <Sidebar />
       <main className="flex-1 min-w-0 lg:ml-0">
         <div className="p-4 lg:p-8 pt-16 lg:pt-8 pb-24 lg:pb-8">
