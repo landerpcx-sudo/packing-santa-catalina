@@ -18,9 +18,11 @@ export default function AdminNotificationListener() {
     // Solo activar si el usuario actual es Administrador
     if (!user || user.role !== 'admin') return
 
-    // Inicializar la hora de partida con la hora actual en formato ISO para no disparar alertas viejas
+    // Inicializar la hora de partida con la hora actual restándole 10 segundos
+    // para cubrir cualquier discrepancia mínima de reloj con el servidor Supabase
     if (!lastCheckedRef.current) {
-      lastCheckedRef.current = new Date().toISOString()
+      const tenSecsAgo = new Date(Date.now() - 10000)
+      lastCheckedRef.current = tenSecsAgo.toISOString()
     }
 
     const checkAuditorias = async () => {
@@ -41,8 +43,15 @@ export default function AdminNotificationListener() {
         // Procesamos de los más antiguos a los más nuevos
         const pendingLogs = logs
           .filter((log: any) => {
-            // Solo logs posteriores a la última verificación
-            const isNew = log.created_at > (lastCheckedRef.current || '')
+            if (!log.created_at) return false
+
+            // Comparación de tiempo numérica extremadamente robusta (.getTime())
+            // Evita fallos lexicográficos de strings entre +00:00 (Supabase) y Z (JS local)
+            const logTime = new Date(log.created_at).getTime()
+            const lastTime = lastCheckedRef.current ? new Date(lastCheckedRef.current).getTime() : 0
+            
+            const isNew = logTime > lastTime
+
             // Solo acciones de subida de archivos
             const isUploadAction = [
               'UPLOAD_DOCUMENT',
@@ -50,8 +59,11 @@ export default function AdminNotificationListener() {
               'UPLOAD_TEMPERATURE_DOCUMENT',
               'UPLOAD_CLIENT_DOCUMENT'
             ].includes(log.action)
+            
             // Solo acciones realizadas por OTROS usuarios (no Lander)
-            const isOtherUser = log.user_id !== user.userId && log.user?.username !== user.username
+            const isOtherUser = log.user_id !== user.userId && 
+                                log.user?.username !== user.username &&
+                                log.user?.display_name !== user.displayName
 
             return isNew && isUploadAction && isOtherUser
           })
@@ -72,6 +84,7 @@ export default function AdminNotificationListener() {
           else if (docType === 'quality') docLabel = 'el informe de Calidad'
           else if (docType === 'process') docLabel = 'el informe de Proceso'
           else if (docType === 'daily_report') docLabel = 'el reporte de Temperaturas'
+          else if (docType === 'backup') docLabel = 'un documento de Respaldo'
 
           // 2. Generar el mensaje de alerta
           let message = ''
@@ -105,7 +118,9 @@ export default function AdminNotificationListener() {
           toast.info(message, 6000)
           
           // Actualizar el puntero del log más reciente
-          if (log.created_at > (newLastChecked || '')) {
+          const logTime = new Date(log.created_at).getTime()
+          const currentNewestTime = newLastChecked ? new Date(newLastChecked).getTime() : 0
+          if (logTime > currentNewestTime) {
             newLastChecked = log.created_at
           }
         })
