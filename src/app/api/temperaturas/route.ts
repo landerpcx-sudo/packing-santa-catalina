@@ -125,7 +125,7 @@ export async function POST(request: Request) {
         responsible_id: userId || null,
         drive_folder_id: driveFolderId,
         drive_folder_url: driveFolderUrl,
-        status: 'pending',
+        status: temperature_value !== undefined && temperature_value !== null ? 'uploaded' : 'pending',
         is_ambient,
       })
       .select()

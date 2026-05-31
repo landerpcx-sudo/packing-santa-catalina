@@ -161,7 +161,7 @@ export default function PendientesPage() {
       const despTasks: string[] = []
 
       // Pack list (Contraparte SAG) - Plazo: Al día siguiente a las 12:00 hs
-      if (isTaskOverdue(d.created_at, '24h_next_day_12pm')) {
+      if (isTaskOverdue(d.dispatch_date || d.created_at, '24h_next_day_12pm')) {
         if (d.pack_list_status === 'uploaded') {
           despTasks.push(`  - 🔍 Validar Packing List ➜ *Responsable: Administrador ${adminName}* (Información ya subida)`)
         } else if (d.pack_list_status === 'observed') {
@@ -172,7 +172,7 @@ export default function PendientesPage() {
       }
 
       // Fotos y termógrafos (Jefe de Frío) - Plazo: Al día siguiente a las 12:00 hs
-      if (isTaskOverdue(d.created_at, '24h_next_day_12pm')) {
+      if (isTaskOverdue(d.dispatch_date || d.created_at, '24h_next_day_12pm')) {
         const minPata = Math.ceil((d.expected_pallets || 0) / 2)
         const pataComplete = (d.pata_pata_photos_count || 0) >= minPata
         const thermoComplete = (d.thermograph_photos_count || 0) >= 2

@@ -53,17 +53,32 @@ export async function PATCH(
       .eq('id', id)
       .single()
 
+    const updates: any = {
+      chamber: chamber ?? undefined,
+      client: client ?? undefined,
+      variety: variety ?? undefined,
+      observation: observation ?? undefined,
+      is_ambient: is_ambient ?? undefined,
+      updated_at: new Date().toISOString(),
+    }
+
+    if (temperature_value !== undefined) {
+      updates.temperature_value = temperature_value
+      if (temperature_value !== null) {
+        updates.status = 'uploaded'
+      } else {
+        const { count } = await supabaseAdmin
+          .from('temperature_documents')
+          .select('id', { count: 'exact', head: true })
+          .eq('temperature_report_id', id)
+          .eq('document_type', 'daily_report')
+        updates.status = count && count > 0 ? 'uploaded' : 'pending'
+      }
+    }
+
     const { data, error } = await supabaseAdmin
       .from('temperature_reports')
-      .update({
-        temperature_value: temperature_value ?? undefined,
-        chamber: chamber ?? undefined,
-        client: client ?? undefined,
-        variety: variety ?? undefined,
-        observation: observation ?? undefined,
-        is_ambient: is_ambient ?? undefined,
-        updated_at: new Date().toISOString(),
-      })
+      .update(updates)
       .eq('id', id)
       .select()
       .single()

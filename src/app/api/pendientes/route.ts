@@ -38,6 +38,7 @@ export async function GET() {
         id,
         internal_code,
         client,
+        dispatch_date,
         pack_list_status,
         photos_status,
         overall_status,
