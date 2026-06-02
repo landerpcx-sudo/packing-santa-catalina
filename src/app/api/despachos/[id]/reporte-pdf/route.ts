@@ -297,7 +297,7 @@ export async function GET(
           .text('Documento generado automáticamente por la Plataforma de Trazabilidad Documental de Packing Santa Catalina. Prohibida su modificación externa.', 40, 720, { width: 515, align: 'center' })
 
 
-        // --- PÁGINAS DE FOTOS PATA A PATA (6 POR PÁGINA) ---
+        // --- PÁGINAS DE FOTOS PATA A PATA (6 POR PÁGINA: GRID 2x3) ---
         if (pataPataImages.length > 0) {
           let currentPhotoIndex = 0
 
@@ -312,13 +312,13 @@ export async function GET(
             
             doc.moveTo(40, 55).lineTo(555, 55).lineWidth(1).strokeColor('#cbd5e1').stroke()
 
-            // Renderizar hasta 6 fotos (3 columnas x 2 filas)
-            const cols = 3
-            const rows = 2
-            const cellW = 155
-            const cellH = 116
-            const gapX = 25
-            const gapY = 40
+            // Grid de 2 columnas y 3 filas (6 fotos por página, ocupando muy bien la hoja)
+            const cols = 2
+            const rows = 3
+            const cellW = 240
+            const cellH = 160
+            const gapX = 35
+            const gapY = 65
             const startX = 40
             const startY = 75
 
@@ -328,19 +328,17 @@ export async function GET(
                 const x = startX + c * (cellW + gapX)
                 const y = startY + r * (cellH + gapY)
 
-                // Marco de la imagen
+                // Marco de la celda de la imagen
                 doc.rect(x - 2, y - 2, cellW + 4, cellH + 4).lineWidth(0.5).strokeColor('#e2e8f0').stroke()
 
-                // Insertar imagen de forma segura
+                // Insertar imagen usando fit para conservar aspect ratio sin deformar
                 try {
                   doc.image(photo.buffer, x, y, {
-                    width: cellW,
-                    height: cellH,
+                    fit: [cellW, cellH],
                     align: 'center',
                     valign: 'center'
                   })
                 } catch (imgErr) {
-                  // Si falla, dibujar un cuadro gris indicando error en la imagen
                   doc.rect(x, y, cellW, cellH).fill('#f1f5f9')
                   doc.fillColor('#ef4444')
                     .fontSize(8)
@@ -352,7 +350,7 @@ export async function GET(
                 doc.fillColor('#475569')
                   .fontSize(7)
                   .font('Roboto-Bold')
-                  .text(`Pallet: ${photo.name.replace(/\.[^/.]+$/, "").substring(0, 24)}`, x, y + cellH + 6, { width: cellW, lineBreak: false })
+                  .text(`Pallet: ${photo.name.replace(/\.[^/.]+$/, "").substring(0, 28)}`, x, y + cellH + 6, { width: cellW, lineBreak: false })
                 
                 doc.fillColor('#94a3b8')
                   .fontSize(6)
@@ -378,22 +376,21 @@ export async function GET(
           
           doc.moveTo(40, 55).lineTo(555, 55).lineWidth(1).strokeColor('#cbd5e1').stroke()
 
-          // Renderizar termógrafos (usualmente 2, los ponemos uno al lado del otro)
-          const cellW = 230
-          const cellH = 172
+          // Renderizar termógrafos uno al lado del otro
+          const cellW = 240
+          const cellH = 180
           const startY = 85
 
           let idx = 0
           for (const photo of thermographImages.slice(0, 2)) {
-            const x = idx === 0 ? 40 : 325
+            const x = idx === 0 ? 40 : 315
 
             // Marco
             doc.rect(x - 2, startY - 2, cellW + 4, cellH + 4).lineWidth(0.5).strokeColor('#e2e8f0').stroke()
 
             try {
               doc.image(photo.buffer, x, startY, {
-                width: cellW,
-                height: cellH,
+                fit: [cellW, cellH],
                 align: 'center',
                 valign: 'center'
               })
@@ -420,7 +417,7 @@ export async function GET(
         }
 
 
-        // --- PÁGINAS DE OTROS RESPALDOS (SI SON IMÁGENES) ---
+        // --- PÁGINAS DE OTROS RESPALDOS (SI SON IMÁGENES: GRID 2x2) ---
         if (backupImages.length > 0) {
           doc.addPage()
 
@@ -432,14 +429,13 @@ export async function GET(
           
           doc.moveTo(40, 55).lineTo(555, 55).lineWidth(1).strokeColor('#cbd5e1').stroke()
 
-          // Grid similar a pata pata pero con fotos de respaldo
           let currentBackPhotoIndex = 0
           const cols = 2
           const rows = 2
-          const cellW = 230
-          const cellH = 172
-          const gapX = 55
-          const gapY = 50
+          const cellW = 240
+          const cellH = 160
+          const gapX = 35
+          const gapY = 65
           const startX = 40
           const startY = 85
 
@@ -454,8 +450,7 @@ export async function GET(
 
               try {
                 doc.image(photo.buffer, x, y, {
-                  width: cellW,
-                  height: cellH,
+                  fit: [cellW, cellH],
                   align: 'center',
                   valign: 'center'
                 })
@@ -488,6 +483,11 @@ export async function GET(
         for (let i = range.start; i < range.start + range.count; i++) {
           doc.switchToPage(i)
           
+          // Guardar margen anterior y reducirlo temporalmente a 10 pt para
+          // que PDFKit no haga salto automático de página al escribir en y: 812
+          const oldBottomMargin = doc.page.margins.bottom
+          doc.page.margins.bottom = 10
+
           // Línea divisoria del pie
           doc.moveTo(40, 805).lineTo(555, 805).lineWidth(0.5).strokeColor('#cbd5e1').stroke()
 
@@ -510,6 +510,9 @@ export async function GET(
               812,
               { align: 'right', width: 515 }
             )
+          
+          // Restaurar margen para que el documento no altere su comportamiento general
+          doc.page.margins.bottom = oldBottomMargin
         }
 
         doc.end()
