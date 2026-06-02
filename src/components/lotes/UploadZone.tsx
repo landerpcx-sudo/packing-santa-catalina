@@ -50,14 +50,14 @@ export default function UploadZone({
         const cleanLabel = documentLabel.replace(/ \(.*\)/, '') // Elimina cosas como "(PDF)"
         const newName = `${cleanLabel} ${lotCode}.${ext}`
         
-        // Comprimir la imagen si pesa más de 3MB
-        if (uploadFile.size > 3 * 1024 * 1024) {
+        // Comprimir la imagen si es mayor a 100KB para optimizar almacenamiento y velocidad
+        if (uploadFile.size > 100 * 1024) {
           setState('uploading')
-          setMessage('Comprimiendo imagen...')
+          setMessage('Comprimiendo imagen (optimizando para PDF)...')
           try {
             const options = {
-              maxSizeMB: 2,
-              maxWidthOrHeight: 1920,
+              maxSizeMB: 0.4, // Máximo 400KB
+              maxWidthOrHeight: 1200, // Resolución nítida y óptima para el PDF A4
               useWebWorker: true
             }
             const compressedBlob = await imageCompression(uploadFile, options)
