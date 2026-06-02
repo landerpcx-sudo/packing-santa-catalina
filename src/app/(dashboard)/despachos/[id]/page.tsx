@@ -260,6 +260,13 @@ export default function DispatchDetailPage({ params }: { params: Promise<{ id: s
               </a>
             )}
             <a
+              href={`/api/despachos/${dispatch.id}/reporte-pdf`}
+              className="flex items-center gap-2 px-3 py-1.5 bg-indigo-500/10 border border-indigo-500/20 rounded-xl text-indigo-400 hover:text-indigo-300 hover:bg-indigo-500/20 transition-all text-sm font-medium"
+            >
+              <FileText className="w-4 h-4" />
+              Reporte PDF
+            </a>
+            <a
               href={`/api/despachos/${dispatch.id}/download-all`}
               className="flex items-center gap-2 px-3 py-1.5 bg-blue-500/10 border border-blue-500/20 rounded-xl text-blue-400 hover:text-blue-300 hover:bg-blue-500/20 transition-all text-sm"
             >
