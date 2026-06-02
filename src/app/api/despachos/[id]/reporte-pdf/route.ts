@@ -153,7 +153,8 @@ export async function GET(
         const doc = new PDFDocument({
           size: 'A4',
           margin: 40,
-          bufferPages: true
+          bufferPages: true,
+          autoFirstPage: false
         })
 
         const chunks: any[] = []
@@ -173,6 +174,9 @@ export async function GET(
           console.error('Error registrando fuentes locales:', fontErr)
           // Si por alguna razón falla, PDFKit intentará usar sus fuentes internas
         }
+
+        // Agregar la primera página de forma manual asegurando que herede la fuente Roboto configurada
+        doc.addPage()
 
         // --- PÁGINA 1: PORTADA ---
         // Intentar cargar logo local
