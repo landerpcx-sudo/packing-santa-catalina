@@ -161,6 +161,19 @@ export async function GET(
         doc.on('end', () => resolve(Buffer.concat(chunks)))
         doc.on('error', err => reject(err))
 
+        // Registrar fuentes locales para evitar error ENOENT (Helvetica.afm) en Vercel
+        const regularFontPath = path.join(process.cwd(), 'public', 'fonts', 'Roboto-Regular.ttf')
+        const boldFontPath = path.join(process.cwd(), 'public', 'fonts', 'Roboto-Bold.ttf')
+        
+        try {
+          doc.registerFont('Roboto', regularFontPath)
+          doc.registerFont('Roboto-Bold', boldFontPath)
+          doc.font('Roboto')
+        } catch (fontErr) {
+          console.error('Error registrando fuentes locales:', fontErr)
+          // Si por alguna razón falla, PDFKit intentará usar sus fuentes internas
+        }
+
         // --- PÁGINA 1: PORTADA ---
         // Intentar cargar logo local
         const logoPath = path.join(process.cwd(), 'public', 'logo.png')
@@ -174,18 +187,18 @@ export async function GET(
           doc.image(logoPath, 40, 40, { width: 100 })
           doc.fillColor('#1e3a8a')
             .fontSize(16)
-            .font('Helvetica-Bold')
+            .font('Roboto-Bold')
             .text('PACKING SANTA CATALINA', 160, 42)
         } else {
           doc.fillColor('#1e3a8a')
             .fontSize(18)
-            .font('Helvetica-Bold')
+            .font('Roboto-Bold')
             .text('PACKING SANTA CATALINA', 40, 42)
         }
 
         doc.fillColor('#475569')
           .fontSize(10)
-          .font('Helvetica-Bold')
+          .font('Roboto-Bold')
           .text('INFORME CONSOLIDADO DE DESPACHO / DISPATCH REPORT', logoExists ? 160 : 40, 65)
 
         // Línea divisoria superior
@@ -194,7 +207,7 @@ export async function GET(
         // Título de Ficha Técnica
         doc.fillColor('#1e293b')
           .fontSize(12)
-          .font('Helvetica-Bold')
+          .font('Roboto-Bold')
           .text('DATOS DE CONTROL DE DESPACHO', 40, 135)
 
         // Tabla / Grid de datos técnicos (Cajas grises elegantes)
@@ -204,12 +217,12 @@ export async function GET(
           
           doc.fillColor('#64748b')
             .fontSize(8)
-            .font('Helvetica-Bold')
+            .font('Roboto-Bold')
             .text(label.toUpperCase(), x + 8, y + 8)
 
           doc.fillColor('#0f172a')
             .fontSize(10)
-            .font('Helvetica')
+            .font('Roboto')
             .text(value || '—', x + 8, y + 20, { width: w - 16, lineBreak: false })
         }
 
@@ -243,18 +256,18 @@ export async function GET(
         doc.rect(40, 320, 515, 35).lineWidth(0.5).strokeColor(statusBorder).stroke()
         doc.fillColor(statusTextCol)
           .fontSize(10)
-          .font('Helvetica-Bold')
+          .font('Roboto-Bold')
           .text(statusText, 40, 332, { align: 'center', width: 515 })
 
         // Información de auditoría o firmas
         doc.fillColor('#1e293b')
           .fontSize(11)
-          .font('Helvetica-Bold')
+          .font('Roboto-Bold')
           .text('SELLO DE CONTROL Y CONFORMIDAD', 40, 385)
 
         doc.fillColor('#475569')
           .fontSize(9)
-          .font('Helvetica')
+          .font('Roboto')
           .text('Este documento certifica la correcta ejecución del protocolo de trazabilidad de despacho establecido por Packing Santa Catalina. Las firmas y/o el sello del sistema que figuran a continuación garantizan el registro fotográfico y documental almacenado digitalmente.', 40, 405, { width: 515, align: 'justify' })
 
         // Líneas para firma (abajo en la portada)
@@ -262,11 +275,11 @@ export async function GET(
           doc.moveTo(x, y).lineTo(x + 180, y).lineWidth(0.5).strokeColor('#94a3b8').stroke()
           doc.fillColor('#475569')
             .fontSize(8)
-            .font('Helvetica-Bold')
+            .font('Roboto-Bold')
             .text(label, x, y + 8, { width: 180, align: 'center' })
           doc.fillColor('#94a3b8')
             .fontSize(7)
-            .font('Helvetica')
+            .font('Roboto')
             .text('Firma y Aclaración', x, y + 18, { width: 180, align: 'center' })
         }
 
@@ -276,7 +289,7 @@ export async function GET(
         // Nota legal pequeña al final de la portada
         doc.fillColor('#94a3b8')
           .fontSize(7)
-          .font('Helvetica')
+          .font('Roboto')
           .text('Documento generado automáticamente por la Plataforma de Trazabilidad Documental de Packing Santa Catalina. Prohibida su modificación externa.', 40, 720, { width: 515, align: 'center' })
 
 
@@ -290,7 +303,7 @@ export async function GET(
             // Cabecera de la página de fotos
             doc.fillColor('#1e3a8a')
               .fontSize(12)
-              .font('Helvetica-Bold')
+              .font('Roboto-Bold')
               .text('REGISTRO FOTOGRÁFICO: PATA A PATA / PALLETS', 40, 40)
             
             doc.moveTo(40, 55).lineTo(555, 55).lineWidth(1).strokeColor('#cbd5e1').stroke()
@@ -327,19 +340,19 @@ export async function GET(
                   doc.rect(x, y, cellW, cellH).fill('#f1f5f9')
                   doc.fillColor('#ef4444')
                     .fontSize(8)
-                    .font('Helvetica-Bold')
+                    .font('Roboto-Bold')
                     .text('[Error al cargar imagen]', x, y + cellH / 2 - 4, { align: 'center', width: cellW })
                 }
 
                 // Metadata de la imagen debajo
                 doc.fillColor('#475569')
                   .fontSize(7)
-                  .font('Helvetica-Bold')
+                  .font('Roboto-Bold')
                   .text(`Pallet: ${photo.name.replace(/\.[^/.]+$/, "").substring(0, 24)}`, x, y + cellH + 6, { width: cellW, lineBreak: false })
                 
                 doc.fillColor('#94a3b8')
                   .fontSize(6)
-                  .font('Helvetica')
+                  .font('Roboto')
                   .text(`Fecha: ${photo.date}`, x, y + cellH + 16, { width: cellW })
 
                 currentPhotoIndex++
@@ -356,7 +369,7 @@ export async function GET(
           // Cabecera
           doc.fillColor('#1e3a8a')
             .fontSize(12)
-            .font('Helvetica-Bold')
+            .font('Roboto-Bold')
             .text('REGISTRO FOTOGRÁFICO: TERMÓGRAFOS / TEMPERATURE LOG', 40, 40)
           
           doc.moveTo(40, 55).lineTo(555, 55).lineWidth(1).strokeColor('#cbd5e1').stroke()
@@ -384,18 +397,18 @@ export async function GET(
               doc.rect(x, startY, cellW, cellH).fill('#f1f5f9')
               doc.fillColor('#ef4444')
                 .fontSize(8)
-                .font('Helvetica-Bold')
+                .font('Roboto-Bold')
                 .text('[Error al cargar imagen]', x, startY + cellH / 2 - 4, { align: 'center', width: cellW })
             }
 
             doc.fillColor('#475569')
               .fontSize(8)
-              .font('Helvetica-Bold')
+              .font('Roboto-Bold')
               .text(photo.name.replace(/\.[^/.]+$/, "").substring(0, 32), x, startY + cellH + 8, { width: cellW, lineBreak: false })
             
             doc.fillColor('#94a3b8')
               .fontSize(7)
-              .font('Helvetica')
+              .font('Roboto')
               .text(`Registrado: ${photo.date}`, x, startY + cellH + 20, { width: cellW })
 
             idx++
@@ -410,7 +423,7 @@ export async function GET(
           // Cabecera
           doc.fillColor('#1e3a8a')
             .fontSize(12)
-            .font('Helvetica-Bold')
+            .font('Roboto-Bold')
             .text('REGISTRO FOTOGRÁFICO: OTROS / RESPALDOS ADICIONALES', 40, 40)
           
           doc.moveTo(40, 55).lineTo(555, 55).lineWidth(1).strokeColor('#cbd5e1').stroke()
@@ -446,18 +459,18 @@ export async function GET(
                 doc.rect(x, y, cellW, cellH).fill('#f1f5f9')
                 doc.fillColor('#ef4444')
                   .fontSize(8)
-                  .font('Helvetica-Bold')
+                  .font('Roboto-Bold')
                   .text('[Error al cargar imagen]', x, y + cellH / 2 - 4, { align: 'center', width: cellW })
               }
 
               doc.fillColor('#475569')
                 .fontSize(8)
-                .font('Helvetica-Bold')
+                .font('Roboto-Bold')
                 .text(photo.name.replace(/\.[^/.]+$/, "").substring(0, 32), x, y + cellH + 8, { width: cellW, lineBreak: false })
               
               doc.fillColor('#94a3b8')
                 .fontSize(7)
-                .font('Helvetica')
+                .font('Roboto')
                 .text(`Cargado: ${photo.date}`, x, y + cellH + 20, { width: cellW })
 
               currentBackPhotoIndex++
@@ -476,7 +489,7 @@ export async function GET(
 
           doc.fillColor('#94a3b8')
             .fontSize(7)
-            .font('Helvetica')
+            .font('Roboto')
             .text(
               `Dossier Consolidado Despacho - Packing Santa Catalina - Código: ${dispatch.dispatch_code}`,
               40,
@@ -486,7 +499,7 @@ export async function GET(
 
           doc.fillColor('#94a3b8')
             .fontSize(7)
-            .font('Helvetica')
+            .font('Roboto')
             .text(
               `Página ${i + 1} de ${range.count}`,
               40,
