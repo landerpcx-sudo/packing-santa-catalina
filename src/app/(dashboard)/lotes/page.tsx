@@ -398,8 +398,9 @@ export default function LotesPage() {
                     <div className="h-3 bg-white/5 rounded w-1/2" />
                   </div>
                 </div>
-                <div className="col-span-2 hidden md:block">
+                <div className="col-span-2 hidden md:block space-y-1.5">
                   <div className="h-4 bg-white/5 rounded w-2/3" />
+                  <div className="h-3 bg-white/5 rounded w-1/2" />
                 </div>
                 <div className="col-span-2 hidden lg:block">
                   <div className="h-4 bg-white/5 rounded w-1/3" />
@@ -462,7 +463,8 @@ export default function LotesPage() {
 
                 {/* Cliente */}
                 <div className="col-span-2 hidden md:block">
-                  <p className="text-gray-300 text-sm truncate">{lot.client || '—'}</p>
+                  <p className="text-gray-300 text-sm font-medium truncate">{lot.client || '—'}</p>
+                  {lot.producer && <p className="text-gray-500 text-[10px] leading-tight truncate" title={`Productor: ${lot.producer}`}>{lot.producer}</p>}
                 </div>
 
                 {/* Especie */}
