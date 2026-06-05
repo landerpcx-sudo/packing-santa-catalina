@@ -63,6 +63,27 @@ export default function LoginPage() {
           backgroundSize: '48px 48px',
         }} />
 
+        {/* Partículas flotantes decorativas */}
+        {[...Array(8)].map((_, i) => (
+          <div
+            key={i}
+            className="absolute rounded-full pointer-events-none"
+            style={{
+              width: `${4 + Math.random() * 6}px`,
+              height: `${4 + Math.random() * 6}px`,
+              left: `${10 + Math.random() * 80}%`,
+              bottom: `${10 + Math.random() * 30}%`,
+              backgroundColor: i % 2 === 0 ? 'rgba(52, 211, 153, 0.3)' : 'rgba(99, 102, 241, 0.25)',
+              animation: `${i % 2 === 0 ? 'float-particle' : 'float-particle-alt'} ${8 + i * 2}s ease-in-out infinite`,
+              animationDelay: `${i * 1.5}s`,
+              filter: 'blur(1px)',
+            }}
+          />
+        ))}
+
+        {/* Scanline tech effect */}
+        <div className="absolute inset-0 pointer-events-none scanline-effect" />
+
         {/* Logo */}
         <div className="relative z-10">
           <div className="flex items-center gap-3 mb-2">
@@ -132,6 +153,12 @@ export default function LoginPage() {
         }} />
 
         <div className="relative w-full max-w-md">
+
+          {/* Noise texture overlay for form area */}
+          <div className="absolute -inset-8 pointer-events-none opacity-[0.02] mix-blend-overlay" style={{
+            backgroundImage: `url("data:image/svg+xml,%3Csvg viewBox='0 0 128 128' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='1' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E")`,
+            backgroundSize: '128px 128px',
+          }} />
 
           {/* Logo móvil */}
           <div className="flex flex-col items-center mb-10 lg:hidden">
@@ -228,14 +255,16 @@ export default function LoginPage() {
               id="btn-login"
               type="submit"
               disabled={loading}
-              className="w-full py-3.5 px-6 rounded-2xl font-bold text-white text-sm flex items-center justify-center gap-3 transition-all duration-200 active:scale-[0.98] disabled:opacity-60 disabled:cursor-not-allowed mt-2"
+              className="w-full py-3.5 px-6 rounded-2xl font-bold text-white text-sm flex items-center justify-center gap-3 transition-all duration-200 active:scale-[0.98] disabled:opacity-60 disabled:cursor-not-allowed mt-2 relative overflow-hidden"
               style={{
                 background: loading
                   ? 'rgba(52,211,153,0.4)'
                   : 'linear-gradient(135deg, #059669 0%, #10b981 100%)',
-                boxShadow: loading ? 'none' : '0 8px 32px rgba(16,185,129,0.25)',
+                boxShadow: loading ? 'none' : '0 8px 32px rgba(16,185,129,0.25), inset 0 1px 0 rgba(255,255,255,0.15)',
               }}
             >
+              {/* Inner light highlight on button */}
+              <div className="absolute top-0 left-0 right-0 h-px bg-gradient-to-r from-transparent via-white/20 to-transparent pointer-events-none" />
               {loading ? (
                 <>
                   <svg className="animate-spin h-4 w-4" viewBox="0 0 24 24" fill="none">

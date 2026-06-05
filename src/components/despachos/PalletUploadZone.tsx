@@ -4,6 +4,7 @@ import { useState, useCallback } from 'react'
 import { useDropzone } from 'react-dropzone'
 import imageCompression from 'browser-image-compression'
 import { Upload, Image as ImageIcon, XCircle, CheckCircle, Loader2, ExternalLink } from 'lucide-react'
+import { triggerConfetti } from '@/components/layout/Confetti'
 
 interface PalletUploadZoneProps {
   dispatchId: string
@@ -68,6 +69,7 @@ export default function PalletUploadZone({ dispatchId, onUploadSuccess }: Pallet
       setMessage(`Foto de pallet(s) ${folios} subida correctamente.`)
       setFolio1('')
       setFolio2('')
+      triggerConfetti()
       onUploadSuccess()
 
       setTimeout(() => {
@@ -123,7 +125,7 @@ export default function PalletUploadZone({ dispatchId, onUploadSuccess }: Pallet
         {...getRootProps()}
         className={`
           relative border-2 border-dashed rounded-xl p-4 cursor-pointer transition-all text-center
-          ${isDragActive ? 'border-indigo-400/80 bg-indigo-500/5' : 'border-white/10 hover:border-white/25 bg-white/2'}
+          ${isDragActive ? 'border-indigo-400/80 bg-indigo-500/5 upload-zone-drag-active-pallet' : 'border-white/10 hover:border-white/25 bg-white/2'}
           ${state === 'uploading' ? 'opacity-50 cursor-not-allowed' : ''}
         `}
       >

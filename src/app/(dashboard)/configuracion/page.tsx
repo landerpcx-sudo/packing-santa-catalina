@@ -29,6 +29,8 @@ function ConfigurationContent() {
   const [disconnecting, setDisconnecting] = useState(false)
   const [pendingDocs, setPendingDocs] = useState<{ lots: any[], dispatches: any[], total: number }>({ lots: [], dispatches: [], total: 0 })
   const [syncingAll, setSyncingAll] = useState(false)
+  const [syncProgress, setSyncProgress] = useState({ current: 0, total: 0 })
+  const [currentSyncingName, setCurrentSyncingName] = useState('')
   
   // Temperature Settings
   const [tempStartDate, setTempStartDate] = useState('')
@@ -162,46 +164,76 @@ function ConfigurationContent() {
   const handleSyncAll = async () => {
     if (!pendingDocs.total) return
     
-    try {
-      setSyncingAll(true)
-      const resLotes = await fetch('/api/settings/drive-sync-pending', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ table: 'lot_documents' })
-      })
-      const dataLotes = resLotes.ok ? await resLotes.json() : null
+    // Crear el arreglo de tareas individuales
+    const tasks = [
+      ...(pendingDocs.lots || []).map(d => ({ id: d.id, name: d.original_file_name, table: 'lot_documents' })),
+      ...(pendingDocs.dispatches || []).map(d => ({ id: d.id, name: d.original_file_name, table: 'dispatch_documents' }))
+    ]
 
-      const resDespachos = await fetch('/api/settings/drive-sync-pending', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ table: 'dispatch_documents' })
-      })
-      const dataDespachos = resDespachos.ok ? await resDespachos.json() : null
-      
-      await fetchPendingDocs()
+    setSyncingAll(true)
+    setSyncProgress({ current: 0, total: tasks.length })
+    
+    let successCount = 0
+    let failedCount = 0
 
-      const successLotes = dataLotes?.data?.success || 0
-      const failedLotes = dataLotes?.data?.failed || 0
-      const successDespachos = dataDespachos?.data?.success || 0
-      const failedDespachos = dataDespachos?.data?.failed || 0
-
-      const totalSuccess = successLotes + successDespachos
-      const totalFailed = failedLotes + failedDespachos
-
-      if (totalFailed > 0) {
-        alert(
-          `Sincronización finalizada con advertencias.\n\n` +
-          `✅ Éxito: ${totalSuccess} archivos sincronizados.\n` +
-          `❌ Fallidos: ${totalFailed} archivos no pudieron subirse.\n\n` +
-          `Esto generalmente ocurre si la sesión de Google Drive ha expirado. Por favor, haz clic en el botón "Actualizar Token" en la sección de Google Drive para renovar la conexión e intenta sincronizar nuevamente.`
-        )
-      } else {
-        alert(`🎉 ¡Sincronización completada con éxito!\n\nSe subieron ${totalSuccess} archivos a Google Drive correctamente.`)
+    // Función para procesar un documento individual
+    const syncDoc = async (task: { id: string, name: string, table: string }) => {
+      setCurrentSyncingName(task.name || 'Archivo')
+      try {
+        const res = await fetch('/api/settings/drive-sync-pending', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ docId: task.id, table: task.table })
+        })
+        if (res.ok) {
+          const json = await res.json()
+          // En caso de éxito el endpoint devuelve { data: { success: 1, failed: 0 } }
+          if (json.data && json.data.success > 0) {
+            successCount++
+          } else {
+            failedCount++
+          }
+        } else {
+          failedCount++
+        }
+      } catch (err) {
+        failedCount++
+      } finally {
+        setSyncProgress(prev => ({ ...prev, current: Math.min(prev.current + 1, tasks.length) }))
       }
-    } catch (e) {
-      alert('Error en la sincronización.')
-    } finally {
-      setSyncingAll(false)
+    }
+
+    // Ejecutar con límite de concurrencia de 3 (Promise Pool)
+    const limit = 3
+    const executing = new Set<Promise<any>>()
+    const pool = []
+
+    for (const task of tasks) {
+      let p: Promise<any>
+      p = syncDoc(task).then(() => executing.delete(p))
+      pool.push(p)
+      executing.add(p)
+      if (executing.size >= limit) {
+        await Promise.race(executing)
+      }
+    }
+    
+    // Esperar a que terminen los últimos de la cola
+    await Promise.all(pool)
+
+    await fetchPendingDocs()
+    setSyncingAll(false)
+    setCurrentSyncingName('')
+
+    if (failedCount > 0) {
+      alert(
+        `Sincronización finalizada con advertencias.\n\n` +
+        `✅ Éxito: ${successCount} archivos sincronizados.\n` +
+        `❌ Fallidos: ${failedCount} archivos no pudieron subirse.\n\n` +
+        `Si algunos archivos fallaron, podría deberse a que no pudimos estructurar sus carpetas en Drive. Por favor, actualiza el token de Google e inténtalo de nuevo.`
+      )
+    } else {
+      alert(`🎉 ¡Sincronización completada con éxito!\n\nSe subieron todos los ${successCount} archivos a Google Drive correctamente.`)
     }
   }
 
@@ -509,47 +541,78 @@ function ConfigurationContent() {
 
       {/* Pending Sync Section */}
       {googleConnected && (
-        <section className="bg-[#0f172a] border border-indigo-500/20 rounded-3xl overflow-hidden shadow-xl animate-in fade-in slide-in-from-bottom-4 duration-500">
+        <section 
+          className="relative overflow-hidden border border-indigo-500/20 rounded-3xl shadow-xl transition-all duration-300"
+          style={{
+            background: 'linear-gradient(135deg, var(--bg-card) 0%, rgba(99, 102, 241, 0.04) 100%)',
+            backdropFilter: 'blur(20px)'
+          }}
+        >
           <div className="p-8">
-            <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
-              <div className="flex items-start gap-5">
-                <div className={`p-4 rounded-2xl ${pendingDocs.total > 0 ? 'bg-amber-500/10 text-amber-500' : 'bg-emerald-500/10 text-emerald-500'}`}>
-                  {pendingDocs.total > 0 ? <AlertTriangle className="w-8 h-8" /> : <FileCheck className="w-8 h-8" />}
+            <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-6">
+              <div className="flex items-start gap-5 flex-1">
+                <div className={`p-4 rounded-2xl flex-shrink-0 transition-transform duration-300 ${pendingDocs.total > 0 ? 'bg-amber-500/10 text-amber-500' : 'bg-emerald-500/10 text-emerald-500'}`}>
+                  {pendingDocs.total > 0 ? <AlertTriangle className="w-8 h-8 animate-pulse" /> : <FileCheck className="w-8 h-8" />}
                 </div>
-                <div>
-                  <h2 className="text-xl font-bold text-white">Sincronización de Archivos Pendientes</h2>
-                  <p className="text-gray-400 mt-1">
+                <div className="min-w-0 flex-1">
+                  <h2 className="text-xl font-black tracking-tight text-white">Sincronización de Archivos Pendientes</h2>
+                  <p className="text-sm text-gray-400 mt-1">
                     {pendingDocs.total > 0 
-                      ? `Hay ${pendingDocs.total} archivos que solo están en Supabase y no han llegado a Google Drive.`
-                      : 'Todos los archivos están correctamente respaldados en Google Drive.'}
+                      ? `Hay ${pendingDocs.total} archivos registrados en Supabase que aún no han sido respaldados en Google Drive.`
+                      : 'Todos los documentos están sincronizados con Google Drive correctamente.'}
                   </p>
+                  
+                  {syncingAll && (
+                    <div className="mt-4 space-y-2">
+                      <div className="w-full bg-white/5 rounded-full h-2 overflow-hidden border border-white/5 relative">
+                        <div 
+                          className="bg-gradient-to-r from-blue-500 via-indigo-500 to-emerald-500 h-full rounded-full transition-all duration-300"
+                          style={{ width: `${(syncProgress.current / syncProgress.total) * 100}%` }}
+                        />
+                      </div>
+                      <div className="flex flex-wrap items-center justify-between gap-2 text-[11px] font-bold uppercase tracking-wider text-gray-400">
+                        <span className="text-blue-400 lowercase italic normal-case truncate max-w-[280px]">
+                          Subiendo: {currentSyncingName}
+                        </span>
+                        <span>
+                          {syncProgress.current} / {syncProgress.total} ({Math.round((syncProgress.current / syncProgress.total) * 100)}%)
+                        </span>
+                      </div>
+                    </div>
+                  )}
                 </div>
               </div>
-
-              {pendingDocs.total > 0 && (
+ 
+              {pendingDocs.total > 0 && !syncingAll && (
                 <button
                   onClick={handleSyncAll}
-                  disabled={syncingAll}
-                  className="flex items-center justify-center gap-2 px-8 py-3 bg-indigo-600 hover:bg-indigo-500 disabled:bg-indigo-600/50 text-white font-bold rounded-xl shadow-lg shadow-indigo-600/20 transition-all active:scale-95"
+                  className="flex items-center justify-center gap-2 px-8 py-3.5 bg-gradient-to-r from-indigo-600 to-blue-600 hover:from-indigo-500 hover:to-blue-500 text-white font-bold rounded-2xl shadow-lg shadow-indigo-600/20 transition-all hover:scale-[1.02] active:scale-[0.98] cursor-pointer"
                 >
-                  {syncingAll ? <Loader2 size={18} className="animate-spin" /> : <Send size={18} />}
+                  <Send size={16} />
                   Sincronizar {pendingDocs.total} Archivos
                 </button>
               )}
-            </div>
 
-            {pendingDocs.total > 0 && (
+              {syncingAll && (
+                <div className="flex items-center gap-2.5 px-6 py-3 bg-indigo-500/10 text-indigo-400 border border-indigo-500/20 font-bold rounded-2xl select-none min-w-[200px] justify-center">
+                  <Loader2 size={16} className="animate-spin" />
+                  Sincronizando...
+                </div>
+              )}
+            </div>
+ 
+            {pendingDocs.total > 0 && !syncingAll && (
               <div className="mt-6 grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <div className="bg-white/5 rounded-2xl p-4 border border-white/5">
+                <div className="bg-white/5 rounded-2xl p-4 border border-white/5 transition-all hover:border-white/10 hover:bg-white/8">
                   <div className="flex items-center justify-between">
-                    <span className="text-xs font-bold uppercase tracking-widest text-gray-500">Documentos de Lotes</span>
-                    <span className="text-lg font-bold text-white">{pendingDocs.lots.length}</span>
+                    <span className="text-xs font-bold uppercase tracking-wider text-gray-400">Documentos de Lotes</span>
+                    <span className="text-lg font-black text-white">{pendingDocs.lots?.length || 0}</span>
                   </div>
                 </div>
-                <div className="bg-white/5 rounded-2xl p-4 border border-white/5">
+                <div className="bg-white/5 rounded-2xl p-4 border border-white/5 transition-all hover:border-white/10 hover:bg-white/8">
                   <div className="flex items-center justify-between">
-                    <span className="text-xs font-bold uppercase tracking-widest text-gray-500">Documentos de Despachos</span>
-                    <span className="text-lg font-bold text-white">{pendingDocs.dispatches.length}</span>
+                    <span className="text-xs font-bold uppercase tracking-wider text-gray-400">Documentos de Despachos</span>
+                    <span className="text-lg font-black text-white">{pendingDocs.dispatches?.length || 0}</span>
                   </div>
                 </div>
               </div>

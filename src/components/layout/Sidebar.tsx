@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { useAuth } from '@/context/AuthContext'
@@ -38,18 +38,33 @@ const NAV_ITEMS = [
 
 export default function Sidebar() {
   const [mobileOpen, setMobileOpen] = useState(false)
+  const [isOnline, setIsOnline] = useState(true)
   const pathname = usePathname()
   const { user, logout } = useAuth()
   const { theme, toggleTheme, isDark } = useTheme()
+
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      setIsOnline(navigator.onLine)
+      const handleOnline = () => setIsOnline(true)
+      const handleOffline = () => setIsOnline(false)
+      window.addEventListener('online', handleOnline)
+      window.addEventListener('offline', handleOffline)
+      return () => {
+        window.removeEventListener('online', handleOnline)
+        window.removeEventListener('offline', handleOffline)
+      }
+    }
+  }, [])
 
   const filteredNav = NAV_ITEMS.filter(item =>
     user?.role && item.roles.includes(user.role)
   )
 
   const SidebarContent = () => (
-    <div className="flex flex-col h-full" style={{ backgroundColor: 'var(--bg-sidebar)' }}>
+    <div className="flex flex-col h-full relative scanline-effect" style={{ backgroundColor: 'var(--bg-sidebar)' }}>
       {/* Logo */}
-      <div className="p-6" style={{ borderBottom: '1px solid var(--sidebar-border)' }}>
+      <div className="p-6">
         <div className="flex items-center justify-center mb-2">
           <img
             src={isDark ? '/logo.png' : '/logo-color.png'}
@@ -61,31 +76,45 @@ export default function Sidebar() {
           Control Documental
         </p>
       </div>
+      <div className="sidebar-divider" />
 
       {/* User info */}
-      <div className="px-4 py-4" style={{ borderBottom: '1px solid var(--sidebar-border)' }}>
+      <div className="px-4 py-3.5">
         <div className="flex items-center gap-3">
-          <div
-            className="w-9 h-9 rounded-full flex items-center justify-center flex-shrink-0"
-            style={{ backgroundColor: 'var(--nav-active-bg)', border: '1px solid var(--nav-active-border)' }}
-          >
-            <span className="font-semibold text-sm" style={{ color: 'var(--nav-active-text)' }}>
-              {user?.displayName?.charAt(0).toUpperCase()}
-            </span>
+          <div className="relative flex-shrink-0">
+            <div
+              className="w-9 h-9 rounded-full flex items-center justify-center shadow-lg shadow-emerald-500/10"
+              style={{
+                background: 'linear-gradient(135deg, var(--nav-active-text) 0%, #0284c7 100%)',
+                border: '1px solid rgba(255, 255, 255, 0.1)'
+              }}
+            >
+              <span className="font-bold text-sm text-white drop-shadow-sm">
+                {user?.displayName?.charAt(0).toUpperCase()}
+              </span>
+            </div>
+            <span
+              className={`absolute bottom-0 right-0 block w-2.5 h-2.5 rounded-full border-2 border-[#090e1a] ${
+                isOnline ? 'indicator-online' : 'indicator-offline'
+              }`}
+              title={isOnline ? 'Conexión activa' : 'Sin conexión'}
+            />
           </div>
           <div className="min-w-0">
-            <p className="font-medium text-sm truncate" style={{ color: 'var(--text-primary)' }}>
+            <p className="font-semibold text-sm truncate" style={{ color: 'var(--text-primary)' }}>
               {user?.displayName}
             </p>
-            <p className="text-xs truncate" style={{ color: 'var(--text-muted)' }}>
+            <p className="text-[11px] font-medium truncate" style={{ color: 'var(--text-muted)' }}>
               {user?.role ? ROLE_DISPLAY_NAMES[user.role as Role] : ''}
             </p>
           </div>
         </div>
       </div>
 
+      <div className="sidebar-divider" />
+
       {/* Navegación */}
-      <nav className="flex-1 px-3 py-4 space-y-0.5 overflow-y-auto">
+      <nav className="flex-1 px-3 py-3 space-y-0.5 overflow-y-auto">
         {filteredNav.map(item => {
           const Icon = item.icon
           const isActive = pathname === item.href || pathname.startsWith(item.href + '/')
@@ -94,7 +123,9 @@ export default function Sidebar() {
               key={item.href}
               href={item.href}
               onClick={() => setMobileOpen(false)}
-              className="flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-all duration-200 group"
+              className={`flex items-center gap-3 px-3 py-2 rounded-xl text-sm font-medium transition-all duration-200 group ${
+                isActive ? 'nav-active-glow' : ''
+              }`}
               style={{
                 backgroundColor: isActive ? 'var(--nav-active-bg)' : 'transparent',
                 color: isActive ? 'var(--nav-active-text)' : 'var(--nav-idle-text)',
@@ -113,20 +144,20 @@ export default function Sidebar() {
                 }
               }}
             >
-              <Icon size={18} style={{ color: isActive ? 'var(--nav-active-text)' : 'var(--text-muted)' }} />
-              <span className="flex-1">{item.label}</span>
-              {isActive && <ChevronRight size={14} style={{ color: 'var(--nav-active-text)' }} />}
+              <Icon size={17} style={{ color: isActive ? 'var(--nav-active-text)' : 'var(--text-secondary)' }} className="transition-transform duration-200 group-hover:scale-105" />
+              <span className="flex-1 tracking-tight">{item.label}</span>
             </Link>
           )
         })}
       </nav>
 
       {/* Footer: Theme toggle + Logout */}
-      <div className="px-3 py-4 space-y-1" style={{ borderTop: '1px solid var(--sidebar-border)' }}>
+      <div className="sidebar-divider" />
+      <div className="px-3 py-3 space-y-1">
         {/* Toggle modo claro/oscuro */}
         <button
           onClick={toggleTheme}
-          className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-all duration-200"
+          className="w-full flex items-center gap-3 px-3 py-2 rounded-xl text-sm font-medium transition-all duration-200 cursor-pointer"
           style={{ color: 'var(--text-secondary)' }}
           onMouseEnter={e => {
             (e.currentTarget as HTMLElement).style.backgroundColor = 'var(--nav-hover-bg)'
@@ -138,14 +169,14 @@ export default function Sidebar() {
           }}
         >
           {isDark
-            ? <Sun size={18} className="text-amber-400" />
-            : <Moon size={18} className="text-indigo-500" />
+            ? <Sun size={17} className="text-amber-400 animate-spin-slow" />
+            : <Moon size={17} className="text-indigo-500" />
           }
-          <span>{isDark ? 'Modo Día' : 'Modo Noche'}</span>
+          <span className="tracking-tight">{isDark ? 'Modo Día' : 'Modo Noche'}</span>
           <span
-            className="ml-auto text-[10px] px-1.5 py-0.5 rounded-full font-bold uppercase tracking-wide"
+            className="ml-auto text-[9px] px-1.5 py-0.5 rounded-full font-black uppercase tracking-wider"
             style={{
-              backgroundColor: isDark ? 'rgba(251,191,36,0.15)' : 'rgba(99,102,241,0.15)',
+              backgroundColor: isDark ? 'rgba(251,191,36,0.12)' : 'rgba(99,102,241,0.12)',
               color: isDark ? '#fbbf24' : '#6366f1',
             }}
           >
@@ -157,19 +188,19 @@ export default function Sidebar() {
         <button
           id="btn-logout"
           onClick={logout}
-          className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-all duration-200"
+          className="w-full flex items-center gap-3 px-3 py-2 rounded-xl text-sm font-medium transition-all duration-200 cursor-pointer"
           style={{ color: 'var(--text-muted)' }}
           onMouseEnter={e => {
-            (e.currentTarget as HTMLElement).style.backgroundColor = 'rgba(239,68,68,0.08)'
-            ;(e.currentTarget as HTMLElement).style.color = '#fca5a5'
+            (e.currentTarget as HTMLElement).style.backgroundColor = 'rgba(239,68,68,0.06)'
+            ;(e.currentTarget as HTMLElement).style.color = '#f87171'
           }}
           onMouseLeave={e => {
             (e.currentTarget as HTMLElement).style.backgroundColor = 'transparent'
             ;(e.currentTarget as HTMLElement).style.color = 'var(--text-muted)'
           }}
         >
-          <LogOut size={18} />
-          Cerrar sesión
+          <LogOut size={17} className="text-red-500/70" />
+          <span className="tracking-tight">Cerrar sesión</span>
         </button>
       </div>
     </div>

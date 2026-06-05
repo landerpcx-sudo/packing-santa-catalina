@@ -5,6 +5,7 @@ import { useDropzone } from 'react-dropzone'
 import imageCompression from 'browser-image-compression'
 import { Upload, FileText, Image, X, CheckCircle, AlertCircle, Loader2, ExternalLink, Camera } from 'lucide-react'
 import DocumentScannerModal from '@/components/layout/DocumentScannerModal'
+import { triggerConfetti } from '@/components/layout/Confetti'
 
 interface UploadZoneProps {
   lotId: string
@@ -99,6 +100,7 @@ export default function UploadZone({
         setState('success')
         setMessage(`¡Archivo subido exitosamente!`)
         setDriveUrl(json.data?.drive_file_url || '')
+        triggerConfetti()
         onUploadSuccess()
 
         // Reset después de 6 segundos
@@ -166,6 +168,7 @@ export default function UploadZone({
           relative border-2 border-dashed rounded-2xl p-6 cursor-pointer transition-all duration-300
           ${borderColor} ${bgColor}
           ${state === 'uploading' ? 'cursor-not-allowed' : ''}
+          ${isDragActive ? 'upload-zone-drag-active' : ''}
         `}
       >
         <input {...getInputProps()} />

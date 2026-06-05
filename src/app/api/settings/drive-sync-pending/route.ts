@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server'
 import { headers } from 'next/headers'
 import { supabaseAdmin } from '@/lib/supabase-admin'
-import { uploadFile } from '@/lib/drive'
+import { uploadFile, createFolder } from '@/lib/drive'
 
 // GET /api/settings/drive-sync-pending - Listar archivos no sincronizados
 export async function GET() {
@@ -55,18 +55,135 @@ export async function POST(request: Request) {
         if (table === 'lot_documents') {
           const { data: lot } = await supabaseAdmin.from('lots').select('*').eq('id', doc.lot_id).single()
           if (lot) {
-            const folderMap: any = {
-              reception: lot.drive_folder_reception_id,
-              quality: lot.drive_folder_quality_id,
-              process: lot.drive_folder_process_id,
-              photo_process: lot.drive_folder_process_id,
-              backup: lot.drive_folder_backup_id,
+            let driveFolderId = lot.drive_folder_id
+            let driveFolderReceptionId = lot.drive_folder_reception_id
+            let driveFolderQualityId = lot.drive_folder_quality_id
+            let driveFolderProcessId = lot.drive_folder_process_id
+            let driveFolderBackupId = lot.drive_folder_backup_id
+
+            // Si el lote no tiene carpeta en Google Drive, estructurarla en caliente
+            if (!driveFolderId) {
+              try {
+                console.log(`[LAZY-DRIVE] Creando estructura de carpetas en Drive para Lote ${lot.internal_code}...`)
+                let targetParentFolderId = process.env.ROOT_DRIVE_FOLDER_ID!
+
+                if (lot.client) {
+                  const clientUpper = lot.client.trim().toUpperCase()
+                  const { data: clientRecord } = await supabaseAdmin
+                    .from('clients')
+                    .select('id, drive_folder_id, drive_folder_receptions_id')
+                    .eq('name', clientUpper)
+                    .maybeSingle()
+                  
+                  if (clientRecord) {
+                    let recFolderId = clientRecord.drive_folder_receptions_id
+                    if (!recFolderId && clientRecord.drive_folder_id) {
+                      const subFolder = await createFolder('Recepciones', clientRecord.drive_folder_id)
+                      recFolderId = subFolder.id || null
+                      if (recFolderId) {
+                        await supabaseAdmin.from('clients').update({ drive_folder_receptions_id: recFolderId }).eq('id', clientRecord.id)
+                      }
+                    }
+                    if (recFolderId) {
+                      targetParentFolderId = recFolderId
+                    } else if (clientRecord.drive_folder_id) {
+                      targetParentFolderId = clientRecord.drive_folder_id
+                    }
+                  }
+                }
+
+                const folderName = `${lot.internal_code} - ${lot.display_name}${lot.client ? ` - ${lot.client}` : ''}`
+                const driveFolder = await createFolder(folderName, targetParentFolderId)
+                driveFolderId = driveFolder.id || null
+
+                if (driveFolderId) {
+                  const [rec, cal, pro, bak] = await Promise.all([
+                    createFolder('1. Recepcion', driveFolderId),
+                    createFolder('2. Calidad', driveFolderId),
+                    createFolder('3. Proceso', driveFolderId),
+                    createFolder('4. Respaldos', driveFolderId),
+                  ])
+                  driveFolderReceptionId = rec.id || null
+                  driveFolderQualityId = cal.id || null
+                  driveFolderProcessId = pro.id || null
+                  driveFolderBackupId = bak.id || null
+
+                  // Actualizar lote en Supabase
+                  await supabaseAdmin.from('lots').update({
+                    drive_folder_id: driveFolderId,
+                    drive_folder_url: driveFolder.url || null,
+                    drive_folder_reception_id: driveFolderReceptionId,
+                    drive_folder_quality_id: driveFolderQualityId,
+                    drive_folder_process_id: driveFolderProcessId,
+                    drive_folder_backup_id: driveFolderBackupId
+                  }).eq('id', lot.id)
+                }
+              } catch (driveErr: any) {
+                console.error(`[LAZY-DRIVE] Error estructurando carpetas de Lote:`, driveErr.message)
+              }
             }
-            targetFolderId = folderMap[doc.document_type] || lot.drive_folder_id
+
+            const folderMap: any = {
+              reception: driveFolderReceptionId,
+              quality: driveFolderQualityId,
+              process: driveFolderProcessId,
+              photo_process: driveFolderProcessId,
+              backup: driveFolderBackupId,
+            }
+            targetFolderId = folderMap[doc.document_type] || driveFolderId
           }
         } else {
-          const { data: dispatch } = await supabaseAdmin.from('dispatches').select('drive_folder_id').eq('id', doc.dispatch_id).single()
-          if (dispatch) targetFolderId = dispatch.drive_folder_id
+          const { data: dispatch } = await supabaseAdmin.from('dispatches').select('*').eq('id', doc.dispatch_id).single()
+          if (dispatch) {
+            let driveFolderId = dispatch.drive_folder_id
+
+            // Si el despacho no tiene carpeta, crearla en caliente
+            if (!driveFolderId) {
+              try {
+                console.log(`[LAZY-DRIVE] Creando carpeta en Drive para Despacho ${dispatch.codigo}...`)
+                let targetParentFolderId = process.env.ROOT_DRIVE_FOLDER_ID!
+
+                if (dispatch.cliente) {
+                  const clientUpper = dispatch.cliente.trim().toUpperCase()
+                  const { data: clientRecord } = await supabaseAdmin
+                    .from('clients')
+                    .select('id, drive_folder_id, drive_folder_dispatches_id')
+                    .eq('name', clientUpper)
+                    .maybeSingle()
+                  
+                  if (clientRecord) {
+                    let despFolderId = clientRecord.drive_folder_dispatches_id
+                    if (!despFolderId && clientRecord.drive_folder_id) {
+                      const subFolder = await createFolder('Despachos', clientRecord.drive_folder_id)
+                      despFolderId = subFolder.id || null
+                      if (despFolderId) {
+                        await supabaseAdmin.from('clients').update({ drive_folder_dispatches_id: despFolderId }).eq('id', clientRecord.id)
+                      }
+                    }
+                    if (despFolderId) {
+                      targetParentFolderId = despFolderId
+                    } else if (clientRecord.drive_folder_id) {
+                      targetParentFolderId = clientRecord.drive_folder_id
+                    }
+                  }
+                }
+
+                const folderName = `${dispatch.codigo} - DESPACHO${dispatch.cliente ? ` - ${dispatch.cliente}` : ''}`
+                const driveFolder = await createFolder(folderName, targetParentFolderId)
+                driveFolderId = driveFolder.id || null
+
+                if (driveFolderId) {
+                  await supabaseAdmin.from('dispatches').update({
+                    drive_folder_id: driveFolderId,
+                    drive_folder_url: driveFolder.url || null
+                  }).eq('id', dispatch.id)
+                }
+              } catch (driveErr: any) {
+                console.error(`[LAZY-DRIVE] Error estructurando carpeta de Despacho:`, driveErr.message)
+              }
+            }
+            targetFolderId = driveFolderId
+          }
         }
 
         if (targetFolderId) {
@@ -78,7 +195,8 @@ export async function POST(request: Request) {
           }
         }
         results.failed++
-      } catch (e) {
+      } catch (e: any) {
+        console.error(`[DRIVE-SYNC-ERROR] Error con documento ID ${doc.id} (${doc.original_file_name || 'Sin nombre'}):`, e.message || e)
         results.failed++
       }
     }
