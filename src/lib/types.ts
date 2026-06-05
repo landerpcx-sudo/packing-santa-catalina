@@ -104,6 +104,7 @@ export interface Dispatch {
   dispatch_date: string | null
   destination: string | null
   expected_pallets: number | null
+  container_number: string | null
   drive_folder_id: string | null
   drive_folder_url: string | null
   pack_list_status: string

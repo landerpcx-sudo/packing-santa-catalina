@@ -39,6 +39,7 @@ interface Dispatch {
   destination: string | null
   dispatch_date: string | null
   expected_pallets: number | null
+  container_number: string | null
   pack_list_status: string
   pata_pata_photos_count: number
   thermograph_photos_count: number
@@ -239,6 +240,12 @@ export default function DispatchDetailPage({ params }: { params: Promise<{ id: s
                 <span><strong>Cliente:</strong> {dispatch.client || '—'}</span>
                 <span className="text-gray-600">|</span>
                 <span><strong>Mercado / Destino:</strong> {dispatch.destination || '—'}</span>
+                {dispatch.container_number && (
+                  <>
+                    <span className="text-gray-600">|</span>
+                    <span><strong>Contenedor:</strong> {dispatch.container_number}</span>
+                  </>
+                )}
               </div>
             </div>
           </div>
@@ -331,7 +338,7 @@ export default function DispatchDetailPage({ params }: { params: Promise<{ id: s
       )}
 
       {/* Info del despacho */}
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+      <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-3">
         <div className="bg-white/3 border border-white/8 rounded-xl p-4">
           <p className="text-gray-500 text-xs mb-1 flex items-center gap-1"><Building2 className="w-3 h-3" />Cliente</p>
           <p className="text-white font-medium text-sm truncate">{dispatch.client || '—'}</p>
@@ -343,6 +350,10 @@ export default function DispatchDetailPage({ params }: { params: Promise<{ id: s
         <div className="bg-white/3 border border-white/8 rounded-xl p-4">
           <p className="text-gray-500 text-xs mb-1 flex items-center gap-1"><Package className="w-3 h-3" />Pallets</p>
           <p className="text-white font-medium text-sm">{dispatch.expected_pallets || '—'} Esperados</p>
+        </div>
+        <div className="bg-white/3 border border-white/8 rounded-xl p-4">
+          <p className="text-gray-500 text-xs mb-1 flex items-center gap-1"><Truck className="w-3 h-3" />Contenedor</p>
+          <p className="text-white font-medium text-sm truncate">{dispatch.container_number || '—'}</p>
         </div>
         <div className="bg-white/3 border border-white/8 rounded-xl p-4">
           <p className="text-gray-500 text-xs mb-1 flex items-center gap-1"><User className="w-3 h-3" />Creado por</p>

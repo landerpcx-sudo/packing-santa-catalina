@@ -13,6 +13,7 @@ export async function GET(request: Request) {
   const dateTo = searchParams.get('to') || ''
   const client = searchParams.get('client') || ''
   const market = searchParams.get('market') || ''
+  const container = searchParams.get('container') || ''
   
   const offset = (page - 1) * limit
 
@@ -23,9 +24,10 @@ export async function GET(request: Request) {
     .range(offset, offset + limit - 1)
 
   if (status) query = query.eq('overall_status', status)
-  if (search) query = query.or(`internal_code.ilike.%${search}%,client.ilike.%${search}%,destination.ilike.%${search}%`)
+  if (search) query = query.or(`internal_code.ilike.%${search}%,client.ilike.%${search}%,destination.ilike.%${search}%,container_number.ilike.%${search}%`)
   if (client) query = query.ilike('client', `%${client}%`)
   if (market) query = query.ilike('destination', `%${market}%`)
+  if (container) query = query.ilike('container_number', `%${container}%`)
   
   if (dateFrom) query = query.gte('created_at', `${dateFrom}T00:00:00Z`)
   if (dateTo) query = query.lte('created_at', `${dateTo}T23:59:59Z`)
@@ -40,10 +42,14 @@ export async function POST(request: Request) {
     const headersList = await headers()
     const userId = headersList.get('x-user-id')
     const body = await request.json()
-    const { dispatch_code, client, destination, expected_pallets, dispatch_date } = body
+    const { dispatch_code, client, destination, expected_pallets, dispatch_date, container_number } = body
 
     if (!dispatch_code) {
       return NextResponse.json({ error: 'El código de despacho es requerido.' }, { status: 400 })
+    }
+
+    if (!container_number || !container_number.trim()) {
+      return NextResponse.json({ error: 'El número de contenedor es requerido.' }, { status: 400 })
     }
 
     const year = new Date().getFullYear()
@@ -120,6 +126,7 @@ export async function POST(request: Request) {
         destination: destination || null,
         expected_pallets: expected_pallets ? parseInt(expected_pallets) : null,
         dispatch_date: dispatch_date || new Date().toISOString().split('T')[0],
+        container_number: container_number ? container_number.trim() : null,
         created_by: userId || null,
         drive_folder_id: driveFolderId,
         drive_folder_url: driveFolderUrl,

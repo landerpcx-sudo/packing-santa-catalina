@@ -18,6 +18,7 @@ interface Dispatch {
   destination: string | null
   dispatch_date: string | null
   expected_pallets: number | null
+  container_number: string | null
   pack_list_status: string
   pata_pata_photos_count: number
   thermograph_photos_count: number
@@ -59,7 +60,9 @@ export default function DespachosPage() {
   const [dateTo, setDateTo] = useState('')
   const [filterClient, setFilterClient] = useState('')
   const [filterMarket, setFilterMarket] = useState('')
+  const [filterContainer, setFilterContainer] = useState('')
   const searchRef = React.useRef<ReturnType<typeof setTimeout> | null>(null)
+  const lastFetchId = React.useRef(0)
 
   const fetchDispatches = useCallback(async (
     searchValue = search, 
@@ -67,28 +70,41 @@ export default function DespachosPage() {
     from = dateFrom, 
     to = dateTo,
     cVal?: string,
-    mVal?: string
+    mVal?: string,
+    coVal?: string
   ) => {
     setLoading(true)
+    const fetchId = ++lastFetchId.current
     const params = new URLSearchParams({ limit: '50' })
     const c = cVal !== undefined ? cVal : filterClient
     const m = mVal !== undefined ? mVal : filterMarket
-
+    const co = coVal !== undefined ? coVal : filterContainer
+ 
     if (searchValue) params.set('search', searchValue)
     if (statusValue) params.set('status', statusValue)
     if (from) params.set('from', from)
     if (to) params.set('to', to)
     if (c) params.set('client', c)
     if (m) params.set('market', m)
-
-    const res = await fetch(`/api/despachos?${params}`)
-    if (res.ok) {
-      const json = await res.json()
-      setDispatches(json.data || [])
-      setTotal(json.total || 0)
+    if (co) params.set('container', co)
+ 
+    try {
+      const res = await fetch(`/api/despachos?${params}`)
+      if (res.ok) {
+        const json = await res.json()
+        if (fetchId === lastFetchId.current) {
+          setDispatches(json.data || [])
+          setTotal(json.total || 0)
+        }
+      }
+    } catch (err) {
+      console.error('Error cargando despachos:', err)
+    } finally {
+      if (fetchId === lastFetchId.current) {
+        setLoading(false)
+      }
     }
-    setLoading(false)
-  }, [search, filterStatus, dateFrom, dateTo, filterClient, filterMarket])
+  }, [search, filterStatus, dateFrom, dateTo, filterClient, filterMarket, filterContainer])
 
   useEffect(() => {
     fetchDispatches()
@@ -98,13 +114,37 @@ export default function DespachosPage() {
   const handleSearchChange = (value: string) => {
     setSearch(value)
     if (searchRef.current) clearTimeout(searchRef.current)
-    searchRef.current = setTimeout(() => fetchDispatches(value, filterStatus, dateFrom, dateTo), 350)
+    searchRef.current = setTimeout(() => fetchDispatches(value, filterStatus, dateFrom, dateTo, filterClient, filterMarket, filterContainer), 350)
   }
 
   // Filtro de estado: disparo inmediato
   const handleStatusChange = (value: string) => {
     setFilterStatus(value)
-    fetchDispatches(search, value, dateFrom, dateTo)
+    fetchDispatches(search, value, dateFrom, dateTo, filterClient, filterMarket, filterContainer)
+  }
+
+  const handleClientChange = (value: string) => {
+    setFilterClient(value)
+    if (searchRef.current) clearTimeout(searchRef.current)
+    searchRef.current = setTimeout(() => {
+      fetchDispatches(search, filterStatus, dateFrom, dateTo, value, filterMarket, filterContainer)
+    }, 350)
+  }
+
+  const handleMarketChange = (value: string) => {
+    setFilterMarket(value)
+    if (searchRef.current) clearTimeout(searchRef.current)
+    searchRef.current = setTimeout(() => {
+      fetchDispatches(search, filterStatus, dateFrom, dateTo, filterClient, value, filterContainer)
+    }, 350)
+  }
+
+  const handleContainerChange = (value: string) => {
+    setFilterContainer(value)
+    if (searchRef.current) clearTimeout(searchRef.current)
+    searchRef.current = setTimeout(() => {
+      fetchDispatches(search, filterStatus, dateFrom, dateTo, filterClient, filterMarket, value)
+    }, 350)
   }
 
   // Semáforo de 3 etapas: Pack List / Pata Pata / Termógrafos (Diseño Stepper)
@@ -255,14 +295,14 @@ export default function DespachosPage() {
       </div>
 
       {/* Filtros Avanzados por Atributo */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 bg-white/3 border border-white/5 rounded-2xl p-4">
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 bg-white/3 border border-white/5 rounded-2xl p-4">
         <div>
           <label className="block text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-1">Cliente</label>
           <input
             type="text"
             placeholder="Filtrar por cliente..."
             value={filterClient}
-            onChange={(e) => { setFilterClient(e.target.value); fetchDispatches(search, filterStatus, dateFrom, dateTo, e.target.value, filterMarket) }}
+            onChange={(e) => handleClientChange(e.target.value)}
             className="w-full bg-white/5 border border-white/10 rounded-xl px-3 py-2 text-white placeholder-gray-500 text-xs focus:outline-none focus:border-indigo-400/50 transition-all"
           />
         </div>
@@ -272,7 +312,17 @@ export default function DespachosPage() {
             type="text"
             placeholder="Filtrar por mercado o destino..."
             value={filterMarket}
-            onChange={(e) => { setFilterMarket(e.target.value); fetchDispatches(search, filterStatus, dateFrom, dateTo, filterClient, e.target.value) }}
+            onChange={(e) => handleMarketChange(e.target.value)}
+            className="w-full bg-white/5 border border-white/10 rounded-xl px-3 py-2 text-white placeholder-gray-500 text-xs focus:outline-none focus:border-indigo-400/50 transition-all"
+          />
+        </div>
+        <div>
+          <label className="block text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-1">Contenedor</label>
+          <input
+            type="text"
+            placeholder="Filtrar por contenedor..."
+            value={filterContainer}
+            onChange={(e) => handleContainerChange(e.target.value)}
             className="w-full bg-white/5 border border-white/10 rounded-xl px-3 py-2 text-white placeholder-gray-500 text-xs focus:outline-none focus:border-indigo-400/50 transition-all"
           />
         </div>
@@ -298,14 +348,15 @@ export default function DespachosPage() {
             className="bg-white/5 border border-white/10 rounded-xl px-3 py-2 text-sm text-white focus:outline-none focus:border-indigo-400/50 transition-all"
           />
         </div>
-        {(dateFrom || dateTo || filterClient || filterMarket) && (
+        {(dateFrom || dateTo || filterClient || filterMarket || filterContainer) && (
           <button
             onClick={() => {
               setDateFrom('');
               setDateTo('');
               setFilterClient('');
               setFilterMarket('');
-              fetchDispatches(search, filterStatus, '', '', '', '');
+              setFilterContainer('');
+              fetchDispatches(search, filterStatus, '', '', '', '', '');
             }}
             className="px-3 py-2 text-xs text-gray-400 hover:text-red-400 border border-white/10 rounded-xl transition-all font-bold uppercase tracking-wider"
           >
@@ -393,7 +444,10 @@ export default function DespachosPage() {
                       <p className="text-white font-semibold text-sm group-hover:text-indigo-400 transition-colors">
                         Despacho {dispatch.dispatch_code}
                       </p>
-                      <p className="text-gray-500 text-xs">{formatDate(dispatch.dispatch_date)}</p>
+                      <p className="text-gray-500 text-xs">
+                        {formatDate(dispatch.dispatch_date)}
+                        {dispatch.container_number && ` • Cont: ${dispatch.container_number}`}
+                      </p>
                     </div>
                   </div>
                 </div>

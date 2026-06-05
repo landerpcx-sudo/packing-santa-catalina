@@ -140,6 +140,13 @@ export function StatusBadge({ state }: { state: string }) {
   )
 }
 
+function getLocalDateString(d: Date = new Date()) {
+  const year = d.getFullYear()
+  const month = String(d.getMonth() + 1).padStart(2, '0')
+  const day = String(d.getDate()).padStart(2, '0')
+  return `${year}-${month}-${day}`
+}
+
 // ─── Dashboard Page ──────────────────────────────────────────────────────────
 const fetcher = (url: string) => fetch(url).then(r => r.json())
 
@@ -160,7 +167,7 @@ export default function DashboardPage() {
   const lotes = lotesData?.data ?? []
   const temps = tempData?.data ?? []
   const desps = despData?.data ?? []
-  const today = new Date().toISOString().split('T')[0]
+  const today = getLocalDateString()
   const todayReport = temps.find((r: any) => r.report_date === today)
 
   const lotesStats = {

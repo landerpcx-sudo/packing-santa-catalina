@@ -27,6 +27,13 @@ interface TemperatureReport {
   is_ambient?: boolean
 }
 
+function getLocalDateString(d: Date = new Date()) {
+  const year = d.getFullYear()
+  const month = String(d.getMonth() + 1).padStart(2, '0')
+  const day = String(d.getDate()).padStart(2, '0')
+  return `${year}-${month}-${day}`
+}
+
 const STATUS_CONFIG: Record<string, { label: string; color: string; dot: string; icon: React.ReactNode }> = {
   pending:   { label: 'Pendiente',  color: 'text-gray-400 bg-gray-500/10 border-gray-500/30',    dot: 'bg-gray-500',   icon: <Clock className="w-3 h-3" /> },
   uploaded:  { label: 'Registrado', color: 'text-emerald-400 bg-emerald-500/10 border-emerald-500/30', dot: 'bg-emerald-400', icon: <Thermometer className="w-3 h-3" /> },
@@ -38,7 +45,7 @@ const STATUS_CONFIG: Record<string, { label: string; color: string; dot: string;
 // Modal de creación de nuevo reporte
 function NewReportModal({ onClose, onCreated, initialDate, availableClients = [] }: { onClose: () => void; onCreated: () => void; initialDate?: string; availableClients?: string[] }) {
   const [form, setForm] = useState({
-    report_date: initialDate || new Date().toISOString().split('T')[0],
+    report_date: initialDate || getLocalDateString(),
     chamber: '',
     client: '',
     variety: '',
@@ -250,9 +257,9 @@ export default function TemperaturasPage() {
   const [startDate, setStartDate] = useState(() => {
     const d = new Date()
     d.setDate(d.getDate() - 30)
-    return d.toISOString().split('T')[0]
+    return getLocalDateString(d)
   })
-  const [endDate, setEndDate] = useState(() => new Date().toISOString().split('T')[0])
+  const [endDate, setEndDate] = useState(() => getLocalDateString())
   const [hoveredPoint, setHoveredPoint] = useState<{
     x: number
     y: number
@@ -261,7 +268,7 @@ export default function TemperaturasPage() {
   
   const [availableClients, setAvailableClients] = useState<string[]>([])
   const router = useRouter()
-  const today = new Date().toISOString().split('T')[0]
+  const today = getLocalDateString()
 
   const fetchReports = async () => {
     setLoading(true)
@@ -305,7 +312,7 @@ export default function TemperaturasPage() {
     for (let i = 1; i <= 30; i++) {
       const d = new Date()
       d.setDate(d.getDate() - i)
-      const dateStr = d.toISOString().split('T')[0]
+      const dateStr = getLocalDateString(d)
       
       // Regla 1: No contar antes de la fecha de inicio (comparación de strings es más segura)
       if (controlStartDate && dateStr < controlStartDate) continue
@@ -349,7 +356,7 @@ export default function TemperaturasPage() {
     // Días del mes actual
     for (let i = 1; i <= end.getDate(); i++) {
       const d = new Date(currentMonth.getFullYear(), currentMonth.getMonth(), i)
-      const dateStr = d.toISOString().split('T')[0]
+      const dateStr = getLocalDateString(d)
       const dayReports = reports.filter(r => r.report_date === dateStr)
       days.push({ date: dateStr, day: i, reports: dayReports })
     }
@@ -851,8 +858,8 @@ export default function TemperaturasPage() {
                   setFilterChamber('')
                   const d = new Date()
                   d.setDate(d.getDate() - 30)
-                  setStartDate(d.toISOString().split('T')[0])
-                  setEndDate(new Date().toISOString().split('T')[0])
+                  setStartDate(getLocalDateString(d))
+                  setEndDate(getLocalDateString())
                 }}
                 className="px-5 py-2.5 bg-white/5 border border-white/10 text-gray-400 hover:text-white rounded-xl text-xs font-bold uppercase tracking-widest transition-all"
               >

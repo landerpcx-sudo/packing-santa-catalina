@@ -9,6 +9,13 @@ interface Props {
   initialData?: any
 }
 
+function getLocalDateString(d: Date = new Date()) {
+  const year = d.getFullYear()
+  const month = String(d.getMonth() + 1).padStart(2, '0')
+  const day = String(d.getDate()).padStart(2, '0')
+  return `${year}-${month}-${day}`
+}
+
 export default function NewDispatchModal({ onClose, onSuccess, initialData }: Props) {
   const isEdit = !!initialData
   const [loading, setLoading] = useState(false)
@@ -20,7 +27,8 @@ export default function NewDispatchModal({ onClose, onSuccess, initialData }: Pr
     client: initialData?.client || '',
     destination: initialData?.destination || '',
     expected_pallets: initialData?.expected_pallets?.toString() || '',
-    dispatch_date: initialData?.dispatch_date ? initialData.dispatch_date.split('T')[0] : new Date().toISOString().split('T')[0]
+    dispatch_date: initialData?.dispatch_date ? initialData.dispatch_date.split('T')[0] : getLocalDateString(),
+    container_number: initialData?.container_number || ''
   })
 
   useEffect(() => {
@@ -198,6 +206,23 @@ export default function NewDispatchModal({ onClose, onSuccess, initialData }: Pr
                   value={formData.destination}
                   onChange={(e) => setFormData({ ...formData, destination: e.target.value })}
                   placeholder="Ej: Puerto Valparaíso"
+                  className="w-full bg-white/5 border border-white/10 rounded-xl pl-10 pr-4 py-2.5 text-white placeholder-gray-500 text-sm focus:outline-none focus:border-indigo-400/50 transition-all"
+                />
+              </div>
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-gray-300 mb-1.5">
+                Número del Contenedor {!isEdit && '(Obligatorio)'}
+              </label>
+              <div className="relative">
+                <Truck className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-500" />
+                <input
+                  type="text"
+                  required={!isEdit}
+                  value={formData.container_number}
+                  onChange={(e) => setFormData({ ...formData, container_number: e.target.value })}
+                  placeholder="Ej: MSKU1234567"
                   className="w-full bg-white/5 border border-white/10 rounded-xl pl-10 pr-4 py-2.5 text-white placeholder-gray-500 text-sm focus:outline-none focus:border-indigo-400/50 transition-all"
                 />
               </div>
