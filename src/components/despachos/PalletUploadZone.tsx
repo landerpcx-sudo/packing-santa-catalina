@@ -129,7 +129,7 @@ export default function PalletUploadZone({ dispatchId, onUploadSuccess }: Pallet
           ${state === 'uploading' ? 'opacity-50 cursor-not-allowed' : ''}
         `}
       >
-        <input {...getInputProps()} capture="environment" />
+        <input {...getInputProps()} />
         
         {state === 'uploading' ? (
           <div className="flex flex-col items-center">
