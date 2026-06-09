@@ -44,35 +44,50 @@ export async function PATCH(
 
     const { id } = await params
     const body = await request.json()
-    const { temperature_value, chamber, client, variety, observation, is_ambient } = body
+    const { temperature_value, chamber, client, variety, observation, is_ambient, no_fruit } = body
 
     // Obtener reporte actual para registrar en auditoría el cambio de valor
     const { data: oldReport } = await supabaseAdmin
       .from('temperature_reports')
-      .select('temperature_value, internal_code')
+      .select('temperature_value, internal_code, no_fruit')
       .eq('id', id)
       .single()
 
     const updates: any = {
-      chamber: chamber ?? undefined,
-      client: client ?? undefined,
-      variety: variety ?? undefined,
-      observation: observation ?? undefined,
-      is_ambient: is_ambient ?? undefined,
+      chamber: chamber !== undefined ? chamber : undefined,
+      client: client !== undefined ? client : undefined,
+      variety: variety !== undefined ? variety : undefined,
+      observation: observation !== undefined ? observation : undefined,
+      is_ambient: is_ambient !== undefined ? is_ambient : undefined,
+      no_fruit: no_fruit !== undefined ? no_fruit : undefined,
       updated_at: new Date().toISOString(),
     }
 
-    if (temperature_value !== undefined) {
-      updates.temperature_value = temperature_value
-      if (temperature_value !== null) {
-        updates.status = 'uploaded'
-      } else {
-        const { count } = await supabaseAdmin
-          .from('temperature_documents')
-          .select('id', { count: 'exact', head: true })
-          .eq('temperature_report_id', id)
-          .eq('document_type', 'daily_report')
-        updates.status = count && count > 0 ? 'uploaded' : 'pending'
+    if (no_fruit === true) {
+      updates.temperature_value = null
+      updates.client = null
+      updates.variety = null
+      updates.chamber = 'SIN FRUTA'
+      updates.is_ambient = false
+      updates.status = 'validated'
+    } else {
+      if (no_fruit === false && oldReport?.no_fruit === true) {
+        updates.status = 'pending'
+        updates.chamber = null
+      }
+
+      if (temperature_value !== undefined) {
+        updates.temperature_value = temperature_value
+        if (temperature_value !== null) {
+          updates.status = 'uploaded'
+        } else {
+          const { count } = await supabaseAdmin
+            .from('temperature_documents')
+            .select('id', { count: 'exact', head: true })
+            .eq('temperature_report_id', id)
+            .eq('document_type', 'daily_report')
+          updates.status = count && count > 0 ? 'uploaded' : 'pending'
+        }
       }
     }
 

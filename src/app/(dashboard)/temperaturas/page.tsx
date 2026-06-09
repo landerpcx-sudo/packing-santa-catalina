@@ -25,6 +25,7 @@ interface TemperatureReport {
   created_at: string
   responsible?: { display_name: string } | null
   is_ambient?: boolean
+  no_fruit?: boolean
 }
 
 function getLocalDateString(d: Date = new Date()) {
@@ -52,6 +53,7 @@ function NewReportModal({ onClose, onCreated, initialDate, availableClients = []
     temperature_value: '',
     observation: '',
     is_ambient: false,
+    no_fruit: false,
   })
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
@@ -78,12 +80,13 @@ function NewReportModal({ onClose, onCreated, initialDate, availableClients = []
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         ...form,
-        client: form.is_ambient ? null : (form.client ? form.client.trim().toUpperCase() : null),
-        variety: form.is_ambient ? null : (form.variety ? form.variety.trim().toUpperCase() : null),
-        chamber: form.chamber ? form.chamber.trim().toUpperCase() : null,
+        client: form.no_fruit ? null : (form.is_ambient ? null : (form.client ? form.client.trim().toUpperCase() : null)),
+        variety: form.no_fruit ? null : (form.is_ambient ? null : (form.variety ? form.variety.trim().toUpperCase() : null)),
+        chamber: form.no_fruit ? 'SIN FRUTA' : (form.chamber ? form.chamber.trim().toUpperCase() : null),
         observation: form.observation ? form.observation.trim().toUpperCase() : null,
-        temperature_value: form.temperature_value ? parseFloat(form.temperature_value) : null,
-        is_ambient: form.is_ambient,
+        temperature_value: form.no_fruit ? null : (form.temperature_value ? parseFloat(form.temperature_value) : null),
+        is_ambient: form.no_fruit ? false : form.is_ambient,
+        no_fruit: form.no_fruit,
       }),
     })
 
@@ -120,19 +123,34 @@ function NewReportModal({ onClose, onCreated, initialDate, availableClients = []
             </div>
           )}
 
-          {/* Opción de Temperatura Ambiente */}
-          <div className="flex items-center gap-2.5 mb-4 bg-white/5 p-3.5 rounded-2xl border border-white/5 hover:border-blue-500/20 transition-all">
+          {/* Opción de Día Sin Fruta */}
+          <div className="flex items-center gap-2.5 mb-4 bg-white/5 p-3.5 rounded-2xl border border-white/5 hover:border-amber-500/20 transition-all">
             <input
               type="checkbox"
-              id="is_ambient"
-              checked={form.is_ambient}
-              onChange={e => setForm(f => ({ ...f, is_ambient: e.target.checked }))}
-              className="w-4.5 h-4.5 rounded border-white/10 bg-black/40 text-blue-600 focus:ring-blue-500/50 cursor-pointer"
+              id="no_fruit"
+              checked={form.no_fruit}
+              onChange={e => setForm(f => ({ ...f, no_fruit: e.target.checked }))}
+              className="w-4.5 h-4.5 rounded border-white/10 bg-black/40 text-amber-600 focus:ring-amber-500/50 cursor-pointer"
             />
-            <label htmlFor="is_ambient" className="text-xs font-bold text-gray-300 cursor-pointer select-none">
-              ¿Es medición de Temperatura Ambiente? (Cámara General)
+            <label htmlFor="no_fruit" className="text-xs font-bold text-gray-300 cursor-pointer select-none">
+              ¿Día sin fruta en cámara? (Cámaras apagadas)
             </label>
           </div>
+
+          {!form.no_fruit && (
+            <div className="flex items-center gap-2.5 mb-4 bg-white/5 p-3.5 rounded-2xl border border-white/5 hover:border-blue-500/20 transition-all">
+              <input
+                type="checkbox"
+                id="is_ambient"
+                checked={form.is_ambient}
+                onChange={e => setForm(f => ({ ...f, is_ambient: e.target.checked }))}
+                className="w-4.5 h-4.5 rounded border-white/10 bg-black/40 text-blue-600 focus:ring-blue-500/50 cursor-pointer"
+              />
+              <label htmlFor="is_ambient" className="text-xs font-bold text-gray-300 cursor-pointer select-none">
+                ¿Es medición de Temperatura Ambiente? (Cámara General)
+              </label>
+            </div>
+          )}
 
           <div>
             <label className="block text-[11px] uppercase tracking-widest font-bold text-gray-500 mb-2 ml-1">Fecha de Medición</label>
@@ -145,62 +163,66 @@ function NewReportModal({ onClose, onCreated, initialDate, availableClients = []
             />
           </div>
 
-          <div className="grid grid-cols-2 gap-3">
-            <div>
-              <label className="block text-[11px] uppercase tracking-widest font-bold text-gray-500 mb-2 ml-1">Cámara / Ubicación</label>
-              <select
-                required
-                value={form.chamber}
-                onChange={e => setForm(f => ({ ...f, chamber: e.target.value }))}
-                className="w-full bg-black/40 border border-white/10 rounded-2xl px-4 py-3 text-sm text-white focus:outline-none focus:border-blue-500/50 transition-all appearance-none cursor-pointer"
-              >
-                <option value="" className="bg-[#0f172a]">Selecciona Cámara</option>
-                {availableChambers.map(ch => (
-                  <option key={ch.id} value={ch.name} className="bg-[#0f172a]">{ch.name}</option>
-                ))}
-              </select>
-            </div>
-            <div>
-              <label className="block text-[11px] uppercase tracking-widest font-bold text-gray-500 mb-2 ml-1">Valor (°C)</label>
-              <input
-                type="number"
-                step="0.1"
-                placeholder="Ej: -1.5"
-                value={form.temperature_value}
-                onChange={e => setForm(f => ({ ...f, temperature_value: e.target.value }))}
-                className="w-full bg-black/40 border border-white/10 rounded-2xl px-4 py-3 text-sm text-white focus:outline-none focus:border-blue-500/50 transition-all"
-              />
-            </div>
-          </div>
+          {!form.no_fruit && (
+            <>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-[11px] uppercase tracking-widest font-bold text-gray-500 mb-2 ml-1">Cámara / Ubicación</label>
+                  <select
+                    required
+                    value={form.chamber}
+                    onChange={e => setForm(f => ({ ...f, chamber: e.target.value }))}
+                    className="w-full bg-black/40 border border-white/10 rounded-2xl px-4 py-3 text-sm text-white focus:outline-none focus:border-blue-500/50 transition-all appearance-none cursor-pointer"
+                  >
+                    <option value="" className="bg-[#0f172a]">Selecciona Cámara</option>
+                    {availableChambers.map(ch => (
+                      <option key={ch.id} value={ch.name} className="bg-[#0f172a]">{ch.name}</option>
+                    ))}
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-[11px] uppercase tracking-widest font-bold text-gray-500 mb-2 ml-1">Valor (°C)</label>
+                  <input
+                    type="number"
+                    step="0.1"
+                    placeholder="Ej: -1.5"
+                    value={form.temperature_value}
+                    onChange={e => setForm(f => ({ ...f, temperature_value: e.target.value }))}
+                    className="w-full bg-black/40 border border-white/10 rounded-2xl px-4 py-3 text-sm text-white focus:outline-none focus:border-blue-500/50 transition-all"
+                  />
+                </div>
+              </div>
 
-          {!form.is_ambient && (
-            <div className="grid grid-cols-2 gap-3 animate-in fade-in duration-200">
-              <div>
-                <label className="block text-[11px] uppercase tracking-widest font-bold text-gray-500 mb-2 ml-1">Cliente / Lote</label>
-                <select
-                  required
-                  value={form.client}
-                  onChange={e => setForm(f => ({ ...f, client: e.target.value }))}
-                  className="w-full bg-black/40 border border-white/10 rounded-2xl px-4 py-3 text-sm text-white focus:outline-none focus:border-blue-500/50 transition-all appearance-none cursor-pointer"
-                >
-                  <option value="" className="bg-[#0f172a]">Selecciona Cliente</option>
-                  {availableClients.map(c => (
-                    <option key={c} value={c} className="bg-[#0f172a]">{c}</option>
-                  ))}
-                </select>
-              </div>
-              <div>
-                <label className="block text-[11px] uppercase tracking-widest font-bold text-gray-500 mb-2 ml-1">Variedad Fruta</label>
-                <input
-                  type="text"
-                  placeholder="Ej: LIMONES"
-                  value={form.variety}
-                  onChange={e => setForm(f => ({ ...f, variety: e.target.value }))}
-                  style={{ textTransform: 'uppercase' }}
-                  className="w-full bg-black/40 border border-white/10 rounded-2xl px-4 py-3 text-sm text-white focus:outline-none focus:border-blue-500/50 transition-all"
-                />
-              </div>
-            </div>
+              {!form.is_ambient && (
+                <div className="grid grid-cols-2 gap-3 animate-in fade-in duration-200">
+                  <div>
+                    <label className="block text-[11px] uppercase tracking-widest font-bold text-gray-500 mb-2 ml-1">Cliente / Lote</label>
+                    <select
+                      required
+                      value={form.client}
+                      onChange={e => setForm(f => ({ ...f, client: e.target.value }))}
+                      className="w-full bg-black/40 border border-white/10 rounded-2xl px-4 py-3 text-sm text-white focus:outline-none focus:border-blue-500/50 transition-all appearance-none cursor-pointer"
+                    >
+                      <option value="" className="bg-[#0f172a]">Selecciona Cliente</option>
+                      {availableClients.map(c => (
+                        <option key={c} value={c} className="bg-[#0f172a]">{c}</option>
+                      ))}
+                    </select>
+                  </div>
+                  <div>
+                    <label className="block text-[11px] uppercase tracking-widest font-bold text-gray-500 mb-2 ml-1">Variedad Fruta</label>
+                    <input
+                      type="text"
+                      placeholder="Ej: LIMONES"
+                      value={form.variety}
+                      onChange={e => setForm(f => ({ ...f, variety: e.target.value }))}
+                      style={{ textTransform: 'uppercase' }}
+                      className="w-full bg-black/40 border border-white/10 rounded-2xl px-4 py-3 text-sm text-white focus:outline-none focus:border-blue-500/50 transition-all"
+                    />
+                  </div>
+                </div>
+              )}
+            </>
           )}
 
           <div>
@@ -630,22 +652,23 @@ export default function TemperaturasPage() {
                     <div className="mt-2 space-y-1.5 max-h-[60px] overflow-y-auto custom-scrollbar">
                       {day.reports.map((report) => {
                           const isAmbient = report.is_ambient
+                          const isNoFruit = report.no_fruit
                           return (
                             <div 
                               key={report.id} 
                               onClick={(e) => { e.stopPropagation(); router.push(`/temperaturas/${report.id}`); }}
                               className={`flex items-center gap-1.5 px-1.5 py-1 bg-white/5 border border-white/5 rounded-lg hover:bg-indigo-500/20 hover:border-indigo-500/30 transition-all cursor-pointer group/item
-                                ${isAmbient ? 'border-sky-500/30 bg-sky-500/5 hover:bg-sky-500/10' : ''}`}
+                                ${isNoFruit ? 'border-amber-500/30 bg-amber-500/5 hover:bg-amber-500/10' : (isAmbient ? 'border-sky-500/30 bg-sky-500/5 hover:bg-sky-500/10' : '')}`}
                             >
-                               <div className={`w-1 h-3 rounded-full shrink-0 ${isAmbient ? 'bg-sky-400' : 'bg-emerald-500'}`} />
+                               <div className={`w-1 h-3 rounded-full shrink-0 ${isNoFruit ? 'bg-amber-500' : (isAmbient ? 'bg-sky-400' : 'bg-emerald-500')}`} />
                                <div className="min-w-0">
                                  <div className="text-[9px] font-black text-white truncate leading-none">
-                                   {report.temperature_value}°C
+                                   {isNoFruit ? 'SIN FRUTA' : `${report.temperature_value}°C`}
                                  </div>
                                  <div className="text-[7px] text-gray-500 font-bold uppercase tracking-widest truncate leading-none mt-0.5 group-hover/item:text-gray-300">
-                                   {isAmbient ? 'Ambiente' : (report.client || 'Cámara')}
+                                   {isNoFruit ? 'Cámaras Off' : (isAmbient ? 'Ambiente' : (report.client || 'Cámara'))}
                                  </div>
-                               </div>
+                                </div>
                             </div>
                           )
                         })}
@@ -716,14 +739,22 @@ export default function TemperaturasPage() {
                     </td>
                     <td className="px-6 py-4 text-gray-400 text-xs font-mono">{report.internal_code}</td>
                     <td className="px-6 py-4">
-                       <span className="px-3 py-1 bg-blue-500/10 text-blue-400 rounded-lg font-bold border border-blue-500/20">
-                         {report.temperature_value !== null ? `${report.temperature_value}°C` : '—'}
-                       </span>
+                       {report.no_fruit ? (
+                         <span className="px-3 py-1 bg-amber-500/10 text-amber-500 rounded-lg font-bold border border-amber-500/20 text-xs">
+                           Sin Fruta
+                         </span>
+                       ) : (
+                         <span className="px-3 py-1 bg-blue-500/10 text-blue-400 rounded-lg font-bold border border-blue-500/20">
+                           {report.temperature_value !== null ? `${report.temperature_value}°C` : '—'}
+                         </span>
+                       )}
                     </td>
                     <td className="px-6 py-4">
-                      <div className="text-sm text-white font-medium">{report.chamber || 'General'}</div>
+                      <div className="text-sm text-white font-medium">{report.no_fruit ? 'Apagadas' : (report.chamber || 'General')}</div>
                       <div className="text-[10px] text-gray-500 uppercase tracking-widest">
-                        {report.is_ambient ? (
+                        {report.no_fruit ? (
+                          <span className="px-2 py-0.5 rounded bg-amber-500/10 text-amber-500 border border-amber-500/20 text-[9px] font-black uppercase">Sin Fruta</span>
+                        ) : report.is_ambient ? (
                           <span className="px-2 py-0.5 rounded bg-sky-500/10 text-sky-400 border border-sky-500/20 text-[9px] font-black uppercase">Ambiente</span>
                         ) : (
                           report.client || 'Sin Cliente'
@@ -731,7 +762,7 @@ export default function TemperaturasPage() {
                       </div>
                     </td>
                     <td className="px-6 py-4 text-gray-400 text-xs font-medium">
-                      {report.is_ambient ? '—' : (report.variety || '—')}
+                      {report.is_ambient || report.no_fruit ? '—' : (report.variety || '—')}
                     </td>
                     <td className="px-6 py-4 text-gray-400 text-xs">
                       {report.responsible?.display_name || 'Sistema'}

@@ -31,21 +31,23 @@ export async function POST(request: Request) {
     }
 
     const body = await request.json()
-    const { report_date, temperature_value, is_ambient = false } = body
+    const { report_date, temperature_value, is_ambient = false, no_fruit = false } = body
 
     // Normalizar a MAYÚSCULAS y remover espacios extra de las entradas digitadas
-    const client = is_ambient ? null : (body.client ? body.client.trim().toUpperCase() : null)
+    const client = no_fruit ? null : (is_ambient ? null : (body.client ? body.client.trim().toUpperCase() : null))
     const chamber = body.chamber ? body.chamber.trim().toUpperCase() : null
-    const variety = is_ambient ? null : (body.variety ? body.variety.trim().toUpperCase() : null)
+    const variety = no_fruit ? null : (is_ambient ? null : (body.variety ? body.variety.trim().toUpperCase() : null))
     const observation = body.observation ? body.observation.trim().toUpperCase() : null
 
     if (!report_date) {
       return NextResponse.json({ error: 'La fecha del reporte es requerida.' }, { status: 400 })
     }
 
-    // Generar código interno: TEMP-2026-05-16-CLIENTE-VARIEDAD o TEMP-2026-05-16-AMBIENTE-CAMARA
+    // Generar código interno: TEMP-2026-05-16-CLIENTE-VARIEDAD o TEMP-2026-05-16-AMBIENTE-CAMARA o TEMP-2026-05-16-SIN_FRUTA
     let internal_code = ''
-    if (is_ambient) {
+    if (no_fruit) {
+      internal_code = `TEMP-${report_date}-SIN_FRUTA`
+    } else if (is_ambient) {
       const chamberSuffix = chamber ? `-${chamber.toUpperCase().replace(/\s+/g, '_')}` : ''
       internal_code = `TEMP-${report_date}-AMBIENTE${chamberSuffix}`
     } else {
@@ -54,20 +56,23 @@ export async function POST(request: Request) {
       internal_code = `TEMP-${report_date}${clientSuffix}${varietySuffix}`
     }
 
-    // Verificar que no exista reporte para esa fecha Y tipo (ambiente por cámara o cliente + variedad específicos)
+    // Verificar que no exista reporte para esa fecha Y tipo (ambiente por cámara o cliente + variedad específicos, o sin fruta)
     const query = supabaseAdmin
       .from('temperature_reports')
       .select('id')
       .eq('report_date', report_date)
-      .eq('is_ambient', is_ambient)
     
-    if (is_ambient) {
+    if (no_fruit) {
+      // Si se marca como sin fruta, no permitimos más reportes para este día
+    } else if (is_ambient) {
+      query.eq('is_ambient', is_ambient)
       if (chamber) {
         query.eq('chamber', chamber)
       } else {
         query.is('chamber', null)
       }
     } else {
+      query.eq('is_ambient', is_ambient)
       if (client) {
         query.eq('client', client)
       } else {
@@ -84,7 +89,11 @@ export async function POST(request: Request) {
     const { data: existing } = await query.single()
 
     if (existing) {
-      if (is_ambient) {
+      if (no_fruit) {
+        return NextResponse.json({ 
+          error: `Ya existe un reporte de temperatura registrado para el ${report_date}.` 
+        }, { status: 409 })
+      } else if (is_ambient) {
         return NextResponse.json({ 
           error: `Ya existe un reporte de temperatura ambiente para el ${report_date}${chamber ? ` en la ${chamber}` : ''}.` 
         }, { status: 409 })
@@ -95,21 +104,23 @@ export async function POST(request: Request) {
       }
     }
 
-    // Crear carpeta en Drive dentro de la carpeta raíz de temperaturas
+    // Crear carpeta en Drive dentro de la carpeta raíz de temperaturas si no es día sin fruta
     const rootFolderId = process.env.ROOT_DRIVE_FOLDER_ID!
     let driveFolderId: string | null = null
     let driveFolderUrl: string | null = null
 
-    try {
-      const folderName = is_ambient 
-        ? `TEMP-${report_date} - AMBIENTE${chamber ? ` - ${chamber}` : ''}`
-        : `TEMP-${report_date}${client ? ` - ${client}` : ''}${variety ? ` - ${variety}` : ''}`
-      const driveFolder = await createFolder(folderName, rootFolderId)
-      driveFolderId = driveFolder.id!
-      driveFolderUrl = driveFolder.url!
-    } catch (driveError) {
-      console.error('Error al crear carpeta de temperatura en Drive:', driveError)
-      // No bloqueamos la creación si Drive falla
+    if (!no_fruit) {
+      try {
+        const folderName = is_ambient 
+          ? `TEMP-${report_date} - AMBIENTE${chamber ? ` - ${chamber}` : ''}`
+          : `TEMP-${report_date}${client ? ` - ${client}` : ''}${variety ? ` - ${variety}` : ''}`
+        const driveFolder = await createFolder(folderName, rootFolderId)
+        driveFolderId = driveFolder.id!
+        driveFolderUrl = driveFolder.url!
+      } catch (driveError) {
+        console.error('Error al crear carpeta de temperatura en Drive:', driveError)
+        // No bloqueamos la creación si Drive falla
+      }
     }
 
     const { data: report, error } = await supabaseAdmin
@@ -117,16 +128,17 @@ export async function POST(request: Request) {
       .insert({
         internal_code,
         report_date,
-        chamber: chamber || null,
-        client: is_ambient ? null : (client || null),
-        variety: is_ambient ? null : (variety || null),
-        temperature_value: temperature_value || null,
+        chamber: no_fruit ? 'SIN FRUTA' : (chamber || null),
+        client: no_fruit ? null : (is_ambient ? null : (client || null)),
+        variety: no_fruit ? null : (is_ambient ? null : (variety || null)),
+        temperature_value: no_fruit ? null : (temperature_value || null),
         observation: observation || null,
         responsible_id: userId || null,
         drive_folder_id: driveFolderId,
         drive_folder_url: driveFolderUrl,
-        status: temperature_value !== undefined && temperature_value !== null ? 'uploaded' : 'pending',
-        is_ambient,
+        status: no_fruit ? 'validated' : (temperature_value !== undefined && temperature_value !== null ? 'uploaded' : 'pending'),
+        is_ambient: no_fruit ? false : is_ambient,
+        no_fruit,
       })
       .select()
       .single()
@@ -139,7 +151,7 @@ export async function POST(request: Request) {
       action: 'CREATE_TEMPERATURE_REPORT',
       entity_type: 'temperature_reports',
       entity_id: report.id,
-      details: { internal_code, report_date },
+      details: { internal_code, report_date, no_fruit },
     })
 
     return NextResponse.json({ data: report }, { status: 201 })

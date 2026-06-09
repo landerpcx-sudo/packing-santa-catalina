@@ -39,6 +39,7 @@ interface TemperatureReport {
   updated_at: string
   responsible?: { display_name: string } | null
   temperature_documents?: TempDocument[]
+  no_fruit?: boolean
 }
 
 const STATUS_CONFIG: Record<string, { label: string; color: string; icon: React.ReactNode }> = {
@@ -132,6 +133,7 @@ export default function TemperatureDetailPage({ params }: { params: Promise<{ id
   const [varietyValue, setVarietyValue] = useState('')
   const [chamberValue, setChamberValue] = useState('')
   const [observationValue, setObservationValue] = useState('')
+  const [noFruitValue, setNoFruitValue] = useState(false)
   const [deleting, setDeleting] = useState(false)
 
   const router = useRouter()
@@ -147,6 +149,7 @@ export default function TemperatureDetailPage({ params }: { params: Promise<{ id
       setVarietyValue(json.data?.variety || '')
       setChamberValue(json.data?.chamber || '')
       setObservationValue(json.data?.observation || '')
+      setNoFruitValue(json.data?.no_fruit || false)
     }
     setLoading(false)
   }, [id])
@@ -175,6 +178,7 @@ export default function TemperatureDetailPage({ params }: { params: Promise<{ id
         variety: varietyValue || null,
         chamber: chamberValue || null,
         observation: observationValue || null,
+        no_fruit: noFruitValue,
       }),
     })
     await fetchReport()
@@ -340,6 +344,18 @@ export default function TemperatureDetailPage({ params }: { params: Promise<{ id
          </div>
       </div>
 
+      {report.no_fruit && (
+         <div className="bg-amber-500/10 border border-amber-500/20 rounded-3xl p-5 flex items-center gap-4 text-amber-400 animate-in fade-in duration-300">
+            <Info className="flex-shrink-0 w-6 h-6 text-amber-500" />
+            <div>
+               <h4 className="font-bold text-sm text-white">Día Sin Fruta en Cámara</h4>
+               <p className="text-xs text-amber-400/80 mt-0.5">
+                  Este día fue registrado sin fruta en las cámaras (cámaras de frío apagadas y despacho completado). No afecta el cumplimiento semanal de documentación de temperaturas.
+               </p>
+            </div>
+         </div>
+      )}
+
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* Main Content (Left) */}
         <div className="lg:col-span-2 space-y-6">
@@ -348,7 +364,7 @@ export default function TemperatureDetailPage({ params }: { params: Promise<{ id
             <div className="bg-[#0f172a] border border-white/10 rounded-3xl p-6">
                <div className="flex items-center justify-between mb-4">
                   <span className="text-[10px] font-bold text-gray-500 uppercase tracking-widest">Temperatura</span>
-                  {['admin', 'jefe_frio'].includes(user?.role || '') && (
+                  {['admin', 'jefe_frio'].includes(user?.role || '') && !report.no_fruit && (
                     <button onClick={() => setEditingTemp(true)} className="p-2 bg-white/5 rounded-xl text-gray-500 hover:text-blue-400 transition-all">
                        <Edit3 size={16} />
                     </button>
@@ -367,6 +383,10 @@ export default function TemperatureDetailPage({ params }: { params: Promise<{ id
                     <button onClick={saveTemperature} disabled={saving} className="p-4 bg-blue-600 text-white rounded-2xl hover:bg-blue-500 transition-all shadow-lg shadow-blue-600/20">
                       {saving ? <RefreshCw size={24} className="animate-spin" /> : <Save size={24} />}
                     </button>
+                 </div>
+               ) : report.no_fruit ? (
+                 <div className="text-4xl font-black text-amber-500 uppercase tracking-wider flex items-end gap-2">
+                    Sin Fruta
                  </div>
                ) : (
                  <div className="text-5xl font-black text-white flex items-end gap-2">
@@ -394,8 +414,17 @@ export default function TemperatureDetailPage({ params }: { params: Promise<{ id
                 Archivos del Reporte
              </h2>
 
-             {/* Dynamic Render of Document Types - solo reporte diario y foto */}
-             {['daily_report', 'photo'].map((type) => {
+             {report.no_fruit ? (
+               <div className="bg-[#0f172a] border border-white/10 rounded-3xl p-8 text-center flex flex-col items-center justify-center gap-3">
+                  <Info size={32} className="text-amber-500" />
+                  <p className="text-sm font-bold text-white uppercase tracking-wider">No se requiere documentación</p>
+                  <p className="text-xs text-gray-400 max-w-md">
+                     Este día fue registrado sin fruta en las cámaras (cámaras de frío apagadas y despacho completado).
+                  </p>
+               </div>
+             ) : (
+               /* Dynamic Render of Document Types - solo reporte diario y foto */
+               ['daily_report', 'photo'].map((type) => {
                 const label = DOC_TYPE_LABELS[type]
                 const docs = docsByType[type] || []
                 return (
@@ -468,7 +497,8 @@ export default function TemperatureDetailPage({ params }: { params: Promise<{ id
                     </div>
                   </div>
                 )
-             })}
+               })
+             )}
 
              {/* Sección Otros / Respaldos - siempre visible, sin validación ni conteo */}
              <div className="bg-[#0f172a] border border-white/10 rounded-3xl overflow-hidden shadow-lg">
@@ -559,36 +589,58 @@ export default function TemperatureDetailPage({ params }: { params: Promise<{ id
 
               {editingInfo ? (
                  <div className="space-y-4 animate-in fade-in duration-200">
-                    <div>
-                       <label className="block text-[10px] font-bold text-gray-500 uppercase tracking-widest mb-1.5 ml-1">Cliente Asociado</label>
-                       <input
-                          type="text"
-                          value={clientValue}
-                          onChange={e => setClientValue(e.target.value)}
-                          className="w-full bg-black/40 border border-white/10 rounded-2xl px-4 py-2.5 text-sm text-white focus:outline-none focus:border-blue-500/50"
-                          placeholder="Ej: The Growers"
-                       />
-                    </div>
-                    <div>
-                       <label className="block text-[10px] font-bold text-gray-500 uppercase tracking-widest mb-1.5 ml-1">Variedad de Fruta</label>
-                       <input
-                          type="text"
-                          value={varietyValue}
-                          onChange={e => setVarietyValue(e.target.value)}
-                          className="w-full bg-black/40 border border-white/10 rounded-2xl px-4 py-2.5 text-sm text-white focus:outline-none focus:border-blue-500/50"
-                          placeholder="Ej: Limones"
-                       />
-                    </div>
-                    <div>
-                       <label className="block text-[10px] font-bold text-gray-500 uppercase tracking-widest mb-1.5 ml-1">Ubicación / Cámara</label>
-                       <input
-                          type="text"
-                          value={chamberValue}
-                          onChange={e => setChamberValue(e.target.value)}
-                          className="w-full bg-black/40 border border-white/10 rounded-2xl px-4 py-2.5 text-sm text-white focus:outline-none focus:border-blue-500/50"
-                          placeholder="Ej: Rack"
-                       />
-                    </div>
+                    {report.no_fruit ? (
+                       <div className="bg-white/5 p-3.5 rounded-2xl border border-white/5 space-y-3">
+                          <div className="flex items-center gap-2.5">
+                             <input
+                                type="checkbox"
+                                id="edit_no_fruit"
+                                checked={!noFruitValue}
+                                onChange={e => setNoFruitValue(!e.target.checked)}
+                                className="w-4.5 h-4.5 rounded border-white/10 bg-black/40 text-blue-600 focus:ring-blue-500/50 cursor-pointer"
+                             />
+                             <label htmlFor="edit_no_fruit" className="text-xs font-bold text-gray-300 cursor-pointer select-none">
+                                Re-activar y registrar temperaturas para este día
+                             </label>
+                          </div>
+                          <p className="text-[10px] text-gray-500">
+                             Al desactivar el estado "Sin fruta", el reporte volverá a requerir el ingreso de valores y subida de archivos diarios.
+                          </p>
+                       </div>
+                    ) : (
+                       <>
+                          <div>
+                             <label className="block text-[10px] font-bold text-gray-500 uppercase tracking-widest mb-1.5 ml-1">Cliente Asociado</label>
+                             <input
+                                type="text"
+                                value={clientValue}
+                                onChange={e => setClientValue(e.target.value)}
+                                className="w-full bg-black/40 border border-white/10 rounded-2xl px-4 py-2.5 text-sm text-white focus:outline-none focus:border-blue-500/50"
+                                placeholder="Ej: The Growers"
+                             />
+                          </div>
+                          <div>
+                             <label className="block text-[10px] font-bold text-gray-500 uppercase tracking-widest mb-1.5 ml-1">Variedad de Fruta</label>
+                             <input
+                                type="text"
+                                value={varietyValue}
+                                onChange={e => setVarietyValue(e.target.value)}
+                                className="w-full bg-black/40 border border-white/10 rounded-2xl px-4 py-2.5 text-sm text-white focus:outline-none focus:border-blue-500/50"
+                                placeholder="Ej: Limones"
+                             />
+                          </div>
+                          <div>
+                             <label className="block text-[10px] font-bold text-gray-500 uppercase tracking-widest mb-1.5 ml-1">Ubicación / Cámara</label>
+                             <input
+                                type="text"
+                                value={chamberValue}
+                                onChange={e => setChamberValue(e.target.value)}
+                                className="w-full bg-black/40 border border-white/10 rounded-2xl px-4 py-2.5 text-sm text-white focus:outline-none focus:border-blue-500/50"
+                                placeholder="Ej: Rack"
+                             />
+                          </div>
+                       </>
+                    )}
                     <div>
                        <label className="block text-[10px] font-bold text-gray-500 uppercase tracking-widest mb-1.5 ml-1">Observaciones</label>
                        <textarea
