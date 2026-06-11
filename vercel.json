@@ -2,6 +2,12 @@
   "version": 2,
   "framework": "nextjs",
   "cleanUrls": true,
+  "crons": [
+    {
+      "path": "/api/cron/sync-drive",
+      "schedule": "0 * * * *"
+    }
+  ],
   "headers": [
     {
       "source": "/(.*)",

@@ -1,7 +1,10 @@
-import { NextResponse } from 'next/server'
+import { NextResponse, after } from 'next/server'
 import { headers } from 'next/headers'
 import { supabaseAdmin } from '@/lib/supabase-admin'
-import { uploadFile } from '@/lib/drive'
+import { syncDocsToDrive } from '@/lib/drive-sync'
+
+// Margen para que la sincronización a Drive en segundo plano (after()) complete.
+export const maxDuration = 60
 
 export async function POST(
   request: Request,
@@ -109,33 +112,16 @@ export async function POST(
     const { data: publicUrlData } = supabaseAdmin.storage.from('documentos').getPublicUrl(storagePath)
     const fileUrl = publicUrlData.publicUrl
 
-    let driveFileId: string | null = null
-    let driveFileUrl: string | null = null
-
-    if (dispatchRecord.drive_folder_id) {
-      try {
-        const driveFileName = `v${version_number}_${sanitizedName}`
-        const driveFile = await uploadFile(buffer, driveFileName, file.type, dispatchRecord.drive_folder_id)
-        if (driveFile.id && driveFile.url) {
-          driveFileId = driveFile.id
-          driveFileUrl = driveFile.url
-        }
-      } catch (driveErr: any) {
-        // NO lanzamos error, solo logueamos. El archivo ya está en Supabase.
-        console.error('AVISO: Falló la sincronización inicial con Google Drive (Despachos):', driveErr.message)
-        if (driveErr.response) console.error("Detalles API Drive:", JSON.stringify(driveErr.response.data));
-      }
-    }
-
-    // Insertar el documento de despacho
+    // Insertar el documento de despacho. drive_file_id queda null: el archivo ya
+    // está a salvo en Supabase Storage y la subida a Drive ocurre en segundo plano.
     const { data: docRecord, error: dbError } = await supabaseAdmin
       .from('dispatch_documents')
       .insert({
         dispatch_id: id,
         document_type,
         original_file_name: sanitizedName,
-        drive_file_id: driveFileId,
-        drive_file_url: driveFileUrl,
+        drive_file_id: null,
+        drive_file_url: null,
         storage_path: storagePath,
         storage_url: fileUrl,
         uploaded_by: userId || null,
@@ -185,18 +171,27 @@ export async function POST(
     
     await supabaseAdmin
       .from('dispatches')
-      .update({ 
+      .update({
         overall_status: isComplete ? 'complete' : 'uploaded',
         updated_at: new Date().toISOString()
       })
       .eq('id', id)
 
-    await supabaseAdmin.from('audit_log').insert({
-      user_id: userId || null,
-      action: 'UPLOAD_DISPATCH_DOCUMENT',
-      entity_type: 'dispatch_documents',
-      entity_id: docRecord.id,
-      details: { dispatch_id: id, document_type, file_name: sanitizedName },
+    // Tras responder: sincronizar a Drive en segundo plano (con reintentos) y
+    // registrar auditoría. Si Drive fallara, el cron automático lo recupera.
+    after(async () => {
+      try {
+        await syncDocsToDrive({ table: 'dispatch_documents', docId: docRecord.id })
+      } catch (e: any) {
+        console.error('[UPLOAD-DESPACHO] Drive en segundo plano falló (lo recuperará el cron):', e.message)
+      }
+      await supabaseAdmin.from('audit_log').insert({
+        user_id: userId || null,
+        action: 'UPLOAD_DISPATCH_DOCUMENT',
+        entity_type: 'dispatch_documents',
+        entity_id: docRecord.id,
+        details: { dispatch_id: id, document_type, file_name: sanitizedName },
+      })
     })
 
     return NextResponse.json({ data: docRecord }, { status: 201 })

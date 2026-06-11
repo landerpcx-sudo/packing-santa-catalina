@@ -27,7 +27,7 @@ function ConfigurationContent() {
   const [googleConnected, setGoogleConnected] = useState(false)
   const [loading, setLoading] = useState(true)
   const [disconnecting, setDisconnecting] = useState(false)
-  const [pendingDocs, setPendingDocs] = useState<{ lots: any[], dispatches: any[], total: number }>({ lots: [], dispatches: [], total: 0 })
+  const [pendingDocs, setPendingDocs] = useState<{ lots: any[], dispatches: any[], temperatures: any[], total: number }>({ lots: [], dispatches: [], temperatures: [], total: 0 })
   const [syncingAll, setSyncingAll] = useState(false)
   const [syncProgress, setSyncProgress] = useState({ current: 0, total: 0 })
   const [currentSyncingName, setCurrentSyncingName] = useState('')
@@ -167,7 +167,8 @@ function ConfigurationContent() {
     // Crear el arreglo de tareas individuales
     const tasks = [
       ...(pendingDocs.lots || []).map(d => ({ id: d.id, name: d.original_file_name, table: 'lot_documents' })),
-      ...(pendingDocs.dispatches || []).map(d => ({ id: d.id, name: d.original_file_name, table: 'dispatch_documents' }))
+      ...(pendingDocs.dispatches || []).map(d => ({ id: d.id, name: d.original_file_name, table: 'dispatch_documents' })),
+      ...(pendingDocs.temperatures || []).map(d => ({ id: d.id, name: d.original_file_name, table: 'temperature_documents' }))
     ]
 
     setSyncingAll(true)
@@ -602,7 +603,7 @@ function ConfigurationContent() {
             </div>
  
             {pendingDocs.total > 0 && !syncingAll && (
-              <div className="mt-6 grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div className="mt-6 grid grid-cols-1 sm:grid-cols-3 gap-4">
                 <div className="bg-white/5 rounded-2xl p-4 border border-white/5 transition-all hover:border-white/10 hover:bg-white/8">
                   <div className="flex items-center justify-between">
                     <span className="text-xs font-bold uppercase tracking-wider text-gray-400">Documentos de Lotes</span>
@@ -613,6 +614,12 @@ function ConfigurationContent() {
                   <div className="flex items-center justify-between">
                     <span className="text-xs font-bold uppercase tracking-wider text-gray-400">Documentos de Despachos</span>
                     <span className="text-lg font-black text-white">{pendingDocs.dispatches?.length || 0}</span>
+                  </div>
+                </div>
+                <div className="bg-white/5 rounded-2xl p-4 border border-white/5 transition-all hover:border-white/10 hover:bg-white/8">
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-bold uppercase tracking-wider text-gray-400">Documentos de Temperatura</span>
+                    <span className="text-lg font-black text-white">{pendingDocs.temperatures?.length || 0}</span>
                   </div>
                 </div>
               </div>

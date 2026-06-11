@@ -1,8 +1,12 @@
-import { NextResponse } from 'next/server'
+import { NextResponse, after } from 'next/server'
 import { headers } from 'next/headers'
 import { supabaseAdmin } from '@/lib/supabase-admin'
-import { uploadFile, createFolder } from '@/lib/drive'
+import { createFolder } from '@/lib/drive'
+import { syncDocsToDrive } from '@/lib/drive-sync'
 import { recalculateLotStatus } from '@/lib/status-helper'
+
+// Margen para que la sincronización a Drive en segundo plano (after()) complete.
+export const maxDuration = 60
 
 // GET - Obtener detalle de un lote con sus documentos
 export async function GET(
@@ -149,45 +153,16 @@ export async function POST(
 
     const fileUrl = publicUrlData.publicUrl
 
-    // Determinar la carpeta destino en Drive
-    const folderMap: Record<string, string | null> = {
-      reception:    lot.drive_folder_reception_id,
-      quality:      lot.drive_folder_quality_id,
-      process:      lot.drive_folder_process_id,
-      photo_process: lot.drive_folder_process_id,
-      backup:       lot.drive_folder_backup_id,
-      other:        lot.drive_folder_backup_id,
-    }
-    const targetFolderId = folderMap[document_type] || lot.drive_folder_id
-
-    // Subir a Drive (Sincronización híbrida - No bloqueante)
-    let driveFileId: string | null = null;
-    let driveFileUrl: string | null = null;
-    
-    if (targetFolderId) {
-      try {
-        const driveFileName = `v${version_number}_${sanitizedName}`
-        const driveFile = await uploadFile(buffer, driveFileName, file.type, targetFolderId);
-        if (driveFile.id && driveFile.url) {
-          driveFileId = driveFile.id;
-          driveFileUrl = driveFile.url;
-        }
-      } catch (driveErr: any) {
-        // NO lanzamos error, solo logueamos. El archivo ya está en Supabase.
-        console.error("AVISO: Falló la sincronización inicial con Google Drive (Lotes):", driveErr.message);
-        if (driveErr.response) console.error("Detalles API Drive:", JSON.stringify(driveErr.response.data));
-      }
-    }
-
-    // Guardar registro en BD
+    // Guardar registro en BD. drive_file_id queda null: el archivo ya está a
+    // salvo en Supabase Storage y la subida a Drive ocurre en segundo plano.
     const { data: docRecord, error: dbError } = await supabaseAdmin
       .from('lot_documents')
       .insert({
         lot_id: id,
         document_type,
         original_file_name: sanitizedName, // Usamos el nombre ya saneado/renombrado
-        drive_file_id: driveFileId,
-        drive_file_url: driveFileUrl,
+        drive_file_id: null,
+        drive_file_url: null,
         storage_path: storagePath,
         storage_url: fileUrl,
         uploaded_by: userId || null,
@@ -211,25 +186,34 @@ export async function POST(
       quality: 'quality_status',
       process: 'process_status',
     }
-    
+
     if (statusFieldMap[document_type]) {
       await recalculateLotStatus(id)
     }
 
-    // Auditoría
-    await supabaseAdmin.from('audit_log').insert({
-      user_id: userId || null,
-      action: 'UPLOAD_DOCUMENT',
-      entity_type: 'lot_documents',
-      entity_id: docRecord.id,
-      details: {
-        lot_id: id,
-        document_type,
-        file_name: file.name,
-        version_number,
-        is_correction,
-        storage_path: storagePath,
-      },
+    // Tras responder: sincronizar a Drive (en segundo plano, con reintentos) y
+    // registrar auditoría. after() corre garantizado dentro del tiempo de la
+    // función; si Drive aún así fallara, el cron automático lo recupera.
+    after(async () => {
+      try {
+        await syncDocsToDrive({ table: 'lot_documents', docId: docRecord.id })
+      } catch (e: any) {
+        console.error('[UPLOAD-LOTE] Drive en segundo plano falló (lo recuperará el cron):', e.message)
+      }
+      await supabaseAdmin.from('audit_log').insert({
+        user_id: userId || null,
+        action: 'UPLOAD_DOCUMENT',
+        entity_type: 'lot_documents',
+        entity_id: docRecord.id,
+        details: {
+          lot_id: id,
+          document_type,
+          file_name: file.name,
+          version_number,
+          is_correction,
+          storage_path: storagePath,
+        },
+      })
     })
 
     return NextResponse.json({ data: docRecord }, { status: 201 })
