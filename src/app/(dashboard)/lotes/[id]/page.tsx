@@ -10,10 +10,12 @@ import {
   RefreshCw, Package, ExternalLink, Lock, ShieldAlert, Download, Eye, Trash2, Edit2, Info, Cloud
 } from 'lucide-react'
 import UploadZone from '@/components/lotes/UploadZone'
-import NewLotModal from '@/components/lotes/NewLotModal'
 import InlineValidation from '@/components/lotes/InlineValidation'
 import ValidationModal from '@/components/lotes/ValidationModal'
-import FilePreviewModal from '@/components/layout/FilePreviewModal'
+import dynamic from 'next/dynamic'
+
+const NewLotModal = dynamic(() => import('@/components/lotes/NewLotModal'), { ssr: false })
+const FilePreviewModal = dynamic(() => import('@/components/layout/FilePreviewModal'), { ssr: false })
 
 interface Lot {
   id: string

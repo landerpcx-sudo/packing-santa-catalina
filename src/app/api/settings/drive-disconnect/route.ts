@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/lib/supabase-admin'
 import { cookies } from 'next/headers'
 import { verifyToken } from '@/lib/auth'
+import { invalidateDriveClientCache } from '@/lib/drive'
 
 export async function DELETE() {
   try {
@@ -24,6 +25,8 @@ export async function DELETE() {
       .eq('key', 'google_drive_tokens')
 
     if (error) throw error
+
+    invalidateDriveClientCache()
 
     return NextResponse.json({ success: true })
   } catch (err: any) {

@@ -24,9 +24,11 @@ import {
   X,
 } from 'lucide-react'
 import Link from 'next/link'
+import dynamic from 'next/dynamic'
 import ValidationModal from '@/components/lotes/ValidationModal'
-import FilePreviewModal from '@/components/layout/FilePreviewModal'
 import { useToast } from '@/components/layout/Toast'
+
+const FilePreviewModal = dynamic(() => import('@/components/layout/FilePreviewModal'), { ssr: false })
 import { useAuth } from '@/context/AuthContext'
 
 interface DocItem {

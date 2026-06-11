@@ -11,10 +11,12 @@ import {
 import ValidationModal from '@/components/lotes/ValidationModal'
 import PalletUploadZone from '@/components/despachos/PalletUploadZone'
 import UploadZone from '@/components/lotes/UploadZone' // General UploadZone
-import NewDispatchModal from '@/components/despachos/NewDispatchModal'
 import InlineValidation from '@/components/lotes/InlineValidation'
-import FilePreviewModal from '@/components/layout/FilePreviewModal'
 import { useRouter } from 'next/navigation'
+import dynamic from 'next/dynamic'
+
+const NewDispatchModal = dynamic(() => import('@/components/despachos/NewDispatchModal'), { ssr: false })
+const FilePreviewModal = dynamic(() => import('@/components/layout/FilePreviewModal'), { ssr: false })
 
 interface DispatchDocument {
   id: string

@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/lib/supabase-admin'
+import { invalidateDriveClientCache } from '@/lib/drive'
 
 export async function GET(request: Request) {
   console.log('--- GOOGLE CALLBACK INICIADO ---')
@@ -49,6 +50,8 @@ export async function GET(request: Request) {
       })
 
     if (error) throw error
+
+    invalidateDriveClientCache()
 
     // Redirigir al dashboard con éxito
     return NextResponse.redirect(new URL('/dashboard?google_connected=true', request.url))

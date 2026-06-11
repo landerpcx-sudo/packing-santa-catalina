@@ -2,7 +2,22 @@ import { google } from 'googleapis'
 import { supabaseAdmin } from './supabase-admin'
 import { Readable } from 'stream'
 
+// Caché en memoria del cliente de Drive: evita un viaje a Supabase por los
+// tokens en cada operación (crear un lote hace 5+ operaciones de Drive).
+// El cliente OAuth2 refresca el access_token por sí solo usando el
+// refresh_token, así que reutilizarlo es seguro dentro del TTL.
+let cachedDrive: { client: ReturnType<typeof google.drive>; fetchedAt: number } | null = null
+const DRIVE_CLIENT_TTL_MS = 10 * 60 * 1000
+
+export function invalidateDriveClientCache() {
+  cachedDrive = null
+}
+
 export async function getDriveClient() {
+  if (cachedDrive && Date.now() - cachedDrive.fetchedAt < DRIVE_CLIENT_TTL_MS) {
+    return cachedDrive.client
+  }
+
   const { data: settings, error } = await supabaseAdmin
     .from('system_settings')
     .select('value')
@@ -41,7 +56,9 @@ export async function getDriveClient() {
       })
   })
 
-  return google.drive({ version: 'v3', auth })
+  const client = google.drive({ version: 'v3', auth })
+  cachedDrive = { client, fetchedAt: Date.now() }
+  return client
 }
 
 export async function createFolder(name: string, parentId?: string) {

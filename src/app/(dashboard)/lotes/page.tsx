@@ -6,7 +6,9 @@ import {
   Clock, CheckCircle, AlertCircle, XCircle, BarChart3,
   FolderOpen, ChevronRight, RefreshCw
 } from 'lucide-react'
-import NewLotModal from '@/components/lotes/NewLotModal'
+import dynamic from 'next/dynamic'
+
+const NewLotModal = dynamic(() => import('@/components/lotes/NewLotModal'), { ssr: false })
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 

@@ -63,16 +63,36 @@ const ACCENT_GLOWS: Record<string, string> = {
   'text-indigo-500':  '0 20px 25px -5px rgba(99, 102, 241, 0.08), 0 0 15px rgba(99, 102, 241, 0.04)',
 }
 
-// Paleta de micro-gradientes por color de acento
+// Paleta de micro-gradientes por color de acento.
+// Se combinan con el sheen vertical para que la tarjeta no se vea plana.
 const ACCENT_GRADIENTS: Record<string, string> = {
-  'text-emerald-500': 'linear-gradient(135deg, rgba(16,185,129,0.06) 0%, transparent 60%)',
-  'text-amber-500':   'linear-gradient(135deg, rgba(245,158,11,0.06) 0%, transparent 60%)',
-  'text-red-500':     'linear-gradient(135deg, rgba(239,68,68,0.06) 0%, transparent 60%)',
-  'text-slate-500':   'linear-gradient(135deg, rgba(148,163,184,0.05) 0%, transparent 60%)',
-  'text-orange-500':  'linear-gradient(135deg, rgba(249,115,22,0.06) 0%, transparent 60%)',
-  'text-purple-500':  'linear-gradient(135deg, rgba(168,85,247,0.06) 0%, transparent 60%)',
-  'text-sky-500':     'linear-gradient(135deg, rgba(14,165,233,0.06) 0%, transparent 60%)',
-  'text-indigo-500':  'linear-gradient(135deg, rgba(99,102,241,0.06) 0%, transparent 60%)',
+  'text-emerald-500': 'linear-gradient(135deg, rgba(16,185,129,0.10) 0%, transparent 55%), var(--card-sheen)',
+  'text-amber-500':   'linear-gradient(135deg, rgba(245,158,11,0.10) 0%, transparent 55%), var(--card-sheen)',
+  'text-red-500':     'linear-gradient(135deg, rgba(239,68,68,0.10) 0%, transparent 55%), var(--card-sheen)',
+  'text-slate-500':   'linear-gradient(135deg, rgba(148,163,184,0.08) 0%, transparent 55%), var(--card-sheen)',
+  'text-orange-500':  'linear-gradient(135deg, rgba(249,115,22,0.10) 0%, transparent 55%), var(--card-sheen)',
+  'text-purple-500':  'linear-gradient(135deg, rgba(168,85,247,0.10) 0%, transparent 55%), var(--card-sheen)',
+  'text-sky-500':     'linear-gradient(135deg, rgba(14,165,233,0.10) 0%, transparent 55%), var(--card-sheen)',
+  'text-indigo-500':  'linear-gradient(135deg, rgba(99,102,241,0.10) 0%, transparent 55%), var(--card-sheen)',
+}
+
+// Relieve del contenedor del ícono: gradiente del acento + luz interna superior
+const ACCENT_ICON_STYLE: Record<string, React.CSSProperties> = {
+  'text-emerald-500': { background: 'linear-gradient(145deg, rgba(16,185,129,0.28), rgba(16,185,129,0.07))',  boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.14), 0 8px 16px -8px rgba(16,185,129,0.5)' },
+  'text-amber-500':   { background: 'linear-gradient(145deg, rgba(245,158,11,0.28), rgba(245,158,11,0.07))',  boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.14), 0 8px 16px -8px rgba(245,158,11,0.5)' },
+  'text-red-500':     { background: 'linear-gradient(145deg, rgba(239,68,68,0.28), rgba(239,68,68,0.07))',    boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.14), 0 8px 16px -8px rgba(239,68,68,0.5)' },
+  'text-slate-500':   { background: 'linear-gradient(145deg, rgba(148,163,184,0.24), rgba(148,163,184,0.06))',boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.14), 0 8px 16px -8px rgba(148,163,184,0.4)' },
+  'text-orange-500':  { background: 'linear-gradient(145deg, rgba(249,115,22,0.28), rgba(249,115,22,0.07))',  boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.14), 0 8px 16px -8px rgba(249,115,22,0.5)' },
+  'text-purple-500':  { background: 'linear-gradient(145deg, rgba(168,85,247,0.28), rgba(168,85,247,0.07))',  boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.14), 0 8px 16px -8px rgba(168,85,247,0.5)' },
+  'text-sky-500':     { background: 'linear-gradient(145deg, rgba(14,165,233,0.28), rgba(14,165,233,0.07))',  boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.14), 0 8px 16px -8px rgba(14,165,233,0.5)' },
+  'text-indigo-500':  { background: 'linear-gradient(145deg, rgba(99,102,241,0.28), rgba(99,102,241,0.07))',  boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.14), 0 8px 16px -8px rgba(99,102,241,0.5)' },
+}
+
+// Barras de acento para encabezados de sección
+const ACCENT_BARS: Record<string, string> = {
+  'text-emerald-500': 'linear-gradient(180deg, #34d399, #059669)',
+  'text-indigo-500':  'linear-gradient(180deg, #818cf8, #4f46e5)',
+  'text-sky-500':     'linear-gradient(180deg, #38bdf8, #0284c7)',
 }
 
 function StatCard({
@@ -101,19 +121,20 @@ function StatCard({
         backgroundColor: isNormal ? 'var(--bg-card)' : undefined,
         border: isNormal ? (isHovered ? `1px solid var(--text-link)` : '1px solid var(--border)') : undefined,
         backgroundImage: isNormal ? gradient : undefined,
-        boxShadow: isHovered ? glow : 'none',
+        // En reposo deja actuar la sombra de elevación del card-frost;
+        // al hacer hover suma el glow del acento a la sombra elevada.
+        boxShadow: isHovered
+          ? (glow !== 'none' ? `${glow}, var(--shadow-card-hover)` : 'var(--shadow-card-hover)')
+          : undefined,
       }}
       onMouseEnter={() => setIsHovered(true)}
       onMouseLeave={() => setIsHovered(false)}
     >
       <div
         className={`p-3 rounded-2xl flex-shrink-0 transition-all duration-300 group-hover:scale-110 ${
-          isNormal ? `${accent} bg-opacity-10` : 'stat-icon-bg'
+          isNormal ? accent : 'stat-icon-bg'
         }`}
-        style={{
-          backgroundColor: isNormal ? 'var(--bg-badge)' : undefined,
-          boxShadow: isHovered ? '0 0 12px rgba(255,255,255,0.05)' : 'none'
-        }}
+        style={isNormal ? (ACCENT_ICON_STYLE[accent] ?? { backgroundColor: 'var(--bg-badge)' }) : undefined}
       >
         <Icon size={22} className={`transition-all duration-300 ${isNormal ? accent : 'stat-icon'}`} />
       </div>
@@ -149,9 +170,14 @@ function StatCard({
 // ─── SectionHeader ──────────────────────────────────────────────────────────
 function SectionHeader({ icon: Icon, label, accent }: { icon: React.ElementType; label: string; accent: string }) {
   return (
-    <div className="flex items-center gap-2 mb-4">
+    <div className="flex items-center gap-2.5 mb-4">
+      <span
+        className="w-1 h-5 rounded-full flex-shrink-0"
+        style={{ background: ACCENT_BARS[accent] ?? 'var(--text-muted)' }}
+      />
       <Icon size={18} className={accent} />
-      <h2 className="font-semibold text-base" style={{ color: 'var(--text-primary)' }}>{label}</h2>
+      <h2 className="font-bold text-base tracking-tight" style={{ color: 'var(--text-primary)' }}>{label}</h2>
+      <div className="section-heading-line" />
     </div>
   )
 }
@@ -167,13 +193,6 @@ export function StatusBadge({ state }: { state: string }) {
   )
 }
 
-function getLocalDateString(d: Date = new Date()) {
-  const year = d.getFullYear()
-  const month = String(d.getMonth() + 1).padStart(2, '0')
-  const day = String(d.getDate()).padStart(2, '0')
-  return `${year}-${month}-${day}`
-}
-
 // ─── Dashboard Page ──────────────────────────────────────────────────────────
 const fetcher = (url: string) => fetch(url).then(r => r.json())
 
@@ -183,79 +202,38 @@ export default function DashboardPage() {
   const [googleConnected, setGoogleConnected] = useState(false)
   const [hoveredDashboardPoint, setHoveredDashboardPoint] = useState<any | null>(null)
 
-  // SWR con refresco silencioso cada 60s (Mejora #12)
-  const { data: lotesData,    isLoading: loadingLotes }  = useSWR('/api/lotes?limit=200',        fetcher, { refreshInterval: 60_000, dedupingInterval: 30_000 })
-  const { data: tempData,     isLoading: loadingTemp }   = useSWR('/api/temperaturas',            fetcher, { refreshInterval: 60_000, dedupingInterval: 30_000 })
-  const { data: despData,     isLoading: loadingDesp }   = useSWR('/api/despachos?limit=200',     fetcher, { refreshInterval: 60_000, dedupingInterval: 30_000 })
-  const { data: driveStatus }                            = useSWR('/api/settings/drive-status',   fetcher, { revalidateOnFocus: false })
+  // SWR con refresco silencioso cada 60s. Una sola llamada agregada:
+  // los conteos se hacen en SQL y la respuesta pesa ~1 KB.
+  const { data: statsData, isLoading: loading } = useSWR('/api/dashboard/stats', fetcher, { refreshInterval: 60_000, dedupingInterval: 30_000 })
+  const { data: driveStatus }                   = useSWR('/api/settings/drive-status', fetcher, { revalidateOnFocus: false })
 
-  const loading = loadingLotes || loadingTemp || loadingDesp
+  const lotesStats = statsData?.data?.lotes        ?? { total: 0, completos: 0, incompletos: 0, observados: 0, recPending: 0, qualPending: 0, procPending: 0 }
+  const despStats  = statsData?.data?.despachos    ?? { total: 0, completos: 0, pendientes: 0, atrasados: 0 }
+  const tempsRaw   = statsData?.data?.temperaturas ?? { total: 0, pendientes: 0, atrasados: 0, todayReport: null }
+  const todayReport = tempsRaw.todayReport
 
-  // Derivar estadísticas desde los datos SWR
-  const lotes = lotesData?.data ?? []
-  const temps = tempData?.data ?? []
-  const desps = despData?.data ?? []
-  const today = getLocalDateString()
-  const todayReport = temps.find((r: any) => r.report_date === today)
-
-  const lotesStats = {
-    total:       (lotesData?.total ?? lotes.length).toString(),
-    completos:   lotes.filter((l: any) => ['complete','validated','closed'].includes(l.overall_status)).length.toString(),
-    incompletos: lotes.filter((l: any) => {
-      const s = l.overall_status
-      return !s || s === 'pending' || s === 'uploaded' || s === 'late'
-    }).length.toString(),
-    atrasados:   lotes.filter((l: any) => l.overall_status === 'observed').length.toString(),
-    recPending:  lotes.filter((l: any) => l.reception_status === 'pending').length.toString(),
-    qualPending: lotes.filter((l: any) => l.quality_status === 'pending').length.toString(),
-    procPending: lotes.filter((l: any) => l.process_status === 'pending').length.toString(),
-  }
   const tempStats = {
+    ...tempsRaw,
     todayReportStatus: todayReport ? (todayReport.temperature_value ? `${todayReport.temperature_value}°C` : 'Subido') : 'Sin datos',
-    total:      (tempData?.total ?? temps.length).toString(),
-    pendientes: temps.filter((r: any) => r.status === 'pending').length.toString(),
-    atrasados:  temps.filter((r: any) => r.status === 'late' || r.status === 'observed').length.toString(),
-  }
-  const despStats = {
-    total:      (despData?.total ?? desps.length).toString(),
-    pendientes: desps.filter((d: any) => ['pending','uploaded','observed','late'].includes(d.overall_status)).length.toString(),
-    atrasados:  desps.filter((d: any) => d.overall_status === 'late').length.toString(),
-    completos:  desps.filter((d: any) => ['complete','closed'].includes(d.overall_status)).length.toString(),
   }
 
   // --- Estados dinámicos para los semáforos maestros (tarjetas de Total) ---
-  const lotesTotalNum = parseInt(lotesStats.total, 10) || 0
-  const lotesCompletosNum = parseInt(lotesStats.completos, 10) || 0
-  const lotesIncompletosNum = parseInt(lotesStats.incompletos, 10) || 0
-  const lotesAtrasadosNum = parseInt(lotesStats.atrasados, 10) || 0
-  const lotesRecPendingNum = parseInt(lotesStats.recPending, 10) || 0
-  const lotesQualPendingNum = parseInt(lotesStats.qualPending, 10) || 0
-  const lotesProcPendingNum = parseInt(lotesStats.procPending, 10) || 0
-
-  const lotesStatus: 'success' | 'warning' | 'normal' = 
-    lotesTotalNum === 0 ? 'normal' :
-    (lotesTotalNum === lotesCompletosNum && lotesIncompletosNum === 0 && lotesAtrasadosNum === 0 && lotesRecPendingNum === 0 && lotesQualPendingNum === 0 && lotesProcPendingNum === 0) ? 'success' : 'warning'
-
-  const despTotalNum = parseInt(despStats.total, 10) || 0
-  const despCompletosNum = parseInt(despStats.completos, 10) || 0
-  const despPendientesNum = parseInt(despStats.pendientes, 10) || 0
-  const despAtrasadosNum = parseInt(despStats.atrasados, 10) || 0
+  const lotesStatus: 'success' | 'warning' | 'normal' =
+    lotesStats.total === 0 ? 'normal' :
+    (lotesStats.total === lotesStats.completos && lotesStats.incompletos === 0 && lotesStats.observados === 0 && lotesStats.recPending === 0 && lotesStats.qualPending === 0 && lotesStats.procPending === 0) ? 'success' : 'warning'
 
   const despStatus: 'success' | 'warning' | 'normal' =
-    despTotalNum === 0 ? 'normal' :
-    (despTotalNum === despCompletosNum && despPendientesNum === 0 && despAtrasadosNum === 0) ? 'success' : 'warning'
+    despStats.total === 0 ? 'normal' :
+    (despStats.total === despStats.completos && despStats.pendientes === 0 && despStats.atrasados === 0) ? 'success' : 'warning'
 
-  const tempTotalNum = parseInt(tempStats.total, 10) || 0
-  const tempPendientesNum = parseInt(tempStats.pendientes, 10) || 0
-  const tempAtrasadosNum = parseInt(tempStats.atrasados, 10) || 0
   const tempHoySinDatos = tempStats.todayReportStatus === 'Sin datos'
 
   // Omitir el requerimiento del reporte de hoy para el semáforo verde en fin de semana (Sábado = 6, Domingo = 0)
   const isWeekend = new Date().getDay() === 0 || new Date().getDay() === 6
 
   const tempStatus: 'success' | 'warning' | 'normal' =
-    tempTotalNum === 0 ? 'normal' :
-    (tempPendientesNum === 0 && tempAtrasadosNum === 0 && (!tempHoySinDatos || isWeekend)) ? 'success' : 'warning'
+    tempStats.total === 0 ? 'normal' :
+    (tempStats.pendientes === 0 && tempStats.atrasados === 0 && (!tempHoySinDatos || isWeekend)) ? 'success' : 'warning'
 
 
   useEffect(() => {
@@ -278,11 +256,8 @@ export default function DashboardPage() {
     }
   }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Obtener los últimos 7 reportes con valor de temperatura para el minigráfico
-  const miniChartData = [...temps]
-    .filter((r: any) => r.temperature_value !== null && r.temperature_value !== undefined)
-    .sort((a: any, b: any) => a.report_date.localeCompare(b.report_date))
-    .slice(-7)
+  // Últimos 7 reportes con valor de temperatura (ya vienen ordenados del API)
+  const miniChartData = statsData?.data?.miniChart ?? []
 
   return (
     <div className="space-y-8">
@@ -370,11 +345,14 @@ export default function DashboardPage() {
 
       {/* Saludo */}
       <div>
-        <h1 className="text-2xl font-bold" style={{ color: 'var(--text-primary)' }}>
+        <h1 className="text-2xl lg:text-3xl font-black tracking-tight" style={{ color: 'var(--text-primary)' }}>
           Bienvenido, {user?.displayName} 👋
         </h1>
-        <p className="mt-1" style={{ color: 'var(--text-secondary)' }}>
+        <p className="mt-1.5 text-sm font-medium" style={{ color: 'var(--text-secondary)' }}>
           {user?.role ? ROLE_DISPLAY_NAMES[user.role as Role] : ''} · Packing Santa Catalina
+          <span className="capitalize" style={{ color: 'var(--text-muted)' }}>
+            {' '}· {new Date().toLocaleDateString('es-CL', { weekday: 'long', day: 'numeric', month: 'long' })}
+          </span>
         </p>
       </div>
 
@@ -384,7 +362,7 @@ export default function DashboardPage() {
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
           <StatCard title="Total lotes"   value={lotesStats.total}      loading={loading} icon={Package}      accent="text-slate-500" status={lotesStatus} />
           <StatCard title="Incompletos"   value={lotesStats.incompletos}loading={loading} icon={Clock}        accent="text-amber-500" />
-          <StatCard title="Observados"    value={lotesStats.atrasados}  loading={loading} icon={AlertTriangle}accent="text-red-500" />
+          <StatCard title="Observados"    value={lotesStats.observados} loading={loading} icon={AlertTriangle}accent="text-red-500" />
           <StatCard title="Completos"     value={lotesStats.completos}  loading={loading} icon={CheckCircle2} accent="text-emerald-500" />
         </div>
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mt-4">

@@ -1,4 +1,4 @@
-import type { Metadata } from 'next'
+import type { Metadata, Viewport } from 'next'
 import { Inter } from 'next/font/google'
 import { Suspense } from 'react'
 import './globals.css'
@@ -15,12 +15,15 @@ export const metadata: Metadata = {
   keywords: ['packing', 'santa catalina', 'trazabilidad', 'documentos', 'lotes', 'despachos'],
   robots: 'noindex, nofollow',
   manifest: '/manifest.json',
-  themeColor: '#059669',
   appleWebApp: {
     capable: true,
     statusBarStyle: 'default',
     title: 'Packing SC',
   },
+}
+
+export const viewport: Viewport = {
+  themeColor: '#059669',
 }
 
 export default function RootLayout({

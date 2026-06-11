@@ -4,8 +4,11 @@ import { useState, useCallback } from 'react'
 import { useDropzone } from 'react-dropzone'
 import imageCompression from 'browser-image-compression'
 import { Upload, FileText, Image, X, CheckCircle, AlertCircle, Loader2, ExternalLink, Camera } from 'lucide-react'
-import DocumentScannerModal from '@/components/layout/DocumentScannerModal'
+import dynamic from 'next/dynamic'
 import { triggerConfetti } from '@/components/layout/Confetti'
+
+// Carga diferida: el escáner es pesado y solo se usa al abrirlo
+const DocumentScannerModal = dynamic(() => import('@/components/layout/DocumentScannerModal'), { ssr: false })
 
 interface UploadZoneProps {
   lotId: string

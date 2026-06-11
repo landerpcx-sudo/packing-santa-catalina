@@ -6,8 +6,10 @@ import {
   Clock, CheckCircle, AlertCircle, XCircle, BarChart3,
   FolderOpen, ChevronRight, RefreshCw
 } from 'lucide-react'
-import NewDispatchModal from '@/components/despachos/NewDispatchModal'
+import dynamic from 'next/dynamic'
 import Link from 'next/link'
+
+const NewDispatchModal = dynamic(() => import('@/components/despachos/NewDispatchModal'), { ssr: false })
 import { useRouter } from 'next/navigation'
 
 interface Dispatch {

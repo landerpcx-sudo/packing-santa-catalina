@@ -11,7 +11,9 @@ import {
   Calendar, User, Cloud, Upload, Edit3, Save, Download,
   History, Info, Trash2
 } from 'lucide-react'
-import FilePreviewModal from '@/components/layout/FilePreviewModal'
+import dynamic from 'next/dynamic'
+
+const FilePreviewModal = dynamic(() => import('@/components/layout/FilePreviewModal'), { ssr: false })
 
 interface TempDocument {
   id: string
