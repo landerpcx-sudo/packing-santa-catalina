@@ -176,6 +176,7 @@ function ConfigurationContent() {
     
     let successCount = 0
     let failedCount = 0
+    const failureReasons: { name: string, reason: string }[] = []
 
     // Función para procesar un documento individual
     const syncDoc = async (task: { id: string, name: string, table: string }) => {
@@ -188,50 +189,67 @@ function ConfigurationContent() {
         })
         if (res.ok) {
           const json = await res.json()
-          // En caso de éxito el endpoint devuelve { data: { success: 1, failed: 0 } }
+          // El endpoint devuelve { data: { success, failed, errors: [{name, reason}] } }
           if (json.data && json.data.success > 0) {
             successCount++
           } else {
             failedCount++
+            const reason = json.data?.errors?.[0]?.reason || 'Razón desconocida.'
+            failureReasons.push({ name: task.name || 'Archivo', reason })
           }
         } else {
           failedCount++
+          const json = await res.json().catch(() => null)
+          failureReasons.push({ name: task.name || 'Archivo', reason: json?.error || `Error HTTP ${res.status}.` })
         }
-      } catch (err) {
+      } catch (err: any) {
         failedCount++
+        failureReasons.push({ name: task.name || 'Archivo', reason: err?.message || 'Error de conexión.' })
       } finally {
         setSyncProgress(prev => ({ ...prev, current: Math.min(prev.current + 1, tasks.length) }))
       }
     }
 
-    // Ejecutar con límite de concurrencia de 3 (Promise Pool)
-    const limit = 3
-    const executing = new Set<Promise<any>>()
-    const pool = []
-
+    // Procesar de forma SECUENCIAL (uno a uno).
+    //
+    // Antes se subían 3 en paralelo, pero eso causaba dos problemas:
+    //   1. Carpetas duplicadas en Drive: si varios documentos del mismo lote/
+    //      despacho aún sin carpeta corrían a la vez, cada uno creaba su propia
+    //      carpeta. Secuencialmente, el primero crea la carpeta y el resto la
+    //      reutilizan (leen drive_folder_id ya guardado en la BD).
+    //   2. Ráfagas que disparaban el límite de tasa de Google Drive.
+    // En secuencial, cada documento lee el estado fresco de la BD y reutiliza la
+    // carpeta existente, sin duplicados ni saturación.
     for (const task of tasks) {
-      let p: Promise<any>
-      p = syncDoc(task).then(() => executing.delete(p))
-      pool.push(p)
-      executing.add(p)
-      if (executing.size >= limit) {
-        await Promise.race(executing)
-      }
+      await syncDoc(task)
     }
-    
-    // Esperar a que terminen los últimos de la cola
-    await Promise.all(pool)
 
     await fetchPendingDocs()
     setSyncingAll(false)
     setCurrentSyncingName('')
 
     if (failedCount > 0) {
+      // Agrupar archivos por razón para un diagnóstico claro.
+      const byReason = new Map<string, string[]>()
+      for (const f of failureReasons) {
+        const list = byReason.get(f.reason) || []
+        list.push(f.name)
+        byReason.set(f.reason, list)
+      }
+      const detail = Array.from(byReason.entries())
+        .map(([reason, names]) => `• ${reason}\n   Archivos (${names.length}): ${names.slice(0, 5).join(', ')}${names.length > 5 ? '…' : ''}`)
+        .join('\n\n')
+
+      const tokenIssue = failureReasons.some(f => /token|reconect|invalid|expirad/i.test(f.reason))
+
       alert(
         `Sincronización finalizada con advertencias.\n\n` +
         `✅ Éxito: ${successCount} archivos sincronizados.\n` +
         `❌ Fallidos: ${failedCount} archivos no pudieron subirse.\n\n` +
-        `Si algunos archivos fallaron, podría deberse a que no pudimos estructurar sus carpetas en Drive. Por favor, actualiza el token de Google e inténtalo de nuevo.`
+        `Motivo(s) del fallo:\n\n${detail}\n\n` +
+        (tokenIssue
+          ? `➡️ Hay un problema de credenciales: desconecta y vuelve a conectar Google Drive, luego reintenta.`
+          : `➡️ Vuelve a pulsar "Sincronizar" — los errores temporales (límite de tasa de Google) suelen resolverse al reintentar.`)
       )
     } else {
       alert(`🎉 ¡Sincronización completada con éxito!\n\nSe subieron todos los ${successCount} archivos a Google Drive correctamente.`)

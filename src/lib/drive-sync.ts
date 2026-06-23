@@ -1,5 +1,5 @@
 import { supabaseAdmin } from './supabase-admin'
-import { uploadFile, createFolder } from './drive'
+import { uploadFile, createFolder, invalidateDriveClientCache } from './drive'
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Camino ÚNICO de sincronización a Google Drive.
@@ -16,13 +16,64 @@ import { uploadFile, createFolder } from './drive'
 
 export type SyncTable = 'lot_documents' | 'dispatch_documents' | 'temperature_documents'
 
-// Sube un buffer a Drive con reintentos y backoff incremental.
+export interface SyncError {
+  id: string
+  name: string
+  reason: string
+}
+
+export interface SyncResult {
+  success: number
+  failed: number
+  errors: SyncError[]
+}
+
+// Extrae el código/mensaje útil de un error de la API de Google/red.
+function errInfo(e: any): { status?: number; reason?: string; message: string } {
+  const status = e?.code ?? e?.response?.status
+  const reason = e?.errors?.[0]?.reason ?? e?.response?.data?.error?.errors?.[0]?.reason
+  const message = e?.response?.data?.error?.message ?? e?.message ?? String(e)
+  return { status: typeof status === 'number' ? status : undefined, reason, message }
+}
+
+// El error indica que el token/credenciales de Google ya no sirven y hay que
+// reconectar. NO tiene sentido reintentar: invalidamos la caché del cliente.
+function isAuthError(e: any): boolean {
+  const { status, message } = errInfo(e)
+  const m = (message || '').toLowerCase()
+  return (
+    status === 401 ||
+    m.includes('invalid_grant') ||
+    m.includes('invalid_credentials') ||
+    m.includes('invalid credentials') ||
+    m.includes('no está configurada') ||
+    m.includes('tokens de google drive son inválidos')
+  )
+}
+
+// El error es transitorio (límite de tasa, corte de red, error 5xx de Google):
+// reintentar con backoff suele resolverlo.
+function isRetryable(e: any): boolean {
+  const { status, reason, message } = errInfo(e)
+  if (status === 429) return true
+  if (typeof status === 'number' && status >= 500) return true
+  const r = (reason || '').toLowerCase()
+  if (r.includes('ratelimitexceeded') || r.includes('userratelimitexceeded') || r.includes('quotaexceeded') || r.includes('backenderror') || r.includes('internalerror')) return true
+  // 403 de Drive puede ser límite de tasa (reintenta) o permiso (no reintenta).
+  if (status === 403 && (r.includes('ratelimit') || r.includes('quota'))) return true
+  const m = (message || '').toLowerCase()
+  return m.includes('econnreset') || m.includes('etimedout') || m.includes('socket hang up') || m.includes('network') || m.includes('rate limit')
+}
+
+// Sube un buffer a Drive con reintentos y backoff exponencial con jitter.
+// Reintenta solo errores transitorios; ante un error de autenticación invalida
+// la caché del cliente y aborta (reintentar no ayuda hasta reconectar Google).
 async function uploadWithRetry(
   buffer: Buffer,
   name: string,
   mime: string,
   folderId: string,
-  maxAttempts = 3,
+  maxAttempts = 5,
 ): Promise<{ id: string | null | undefined; url: string | null | undefined }> {
   let lastErr: any
   for (let attempt = 1; attempt <= maxAttempts; attempt++) {
@@ -30,9 +81,20 @@ async function uploadWithRetry(
       return await uploadFile(buffer, name, mime, folderId)
     } catch (e: any) {
       lastErr = e
-      console.error(`[DRIVE-SYNC] Intento ${attempt}/${maxAttempts} falló para "${name}": ${e.message}`)
-      if (attempt < maxAttempts) {
-        await new Promise(r => setTimeout(r, 600 * attempt))
+      const { message } = errInfo(e)
+      console.error(`[DRIVE-SYNC] Intento ${attempt}/${maxAttempts} falló para "${name}": ${message}`)
+      if (isAuthError(e)) {
+        invalidateDriveClientCache()
+        throw e
+      }
+      if (attempt < maxAttempts && isRetryable(e)) {
+        // Backoff exponencial: ~0.8s, 1.6s, 3.2s, 6.4s + jitter aleatorio.
+        const base = 800 * Math.pow(2, attempt - 1)
+        const jitter = Math.floor(Math.random() * 400)
+        await new Promise(r => setTimeout(r, base + jitter))
+      } else if (!isRetryable(e)) {
+        // Error no transitorio (p. ej. permiso denegado): no insistir.
+        throw e
       }
     }
   }
@@ -205,22 +267,35 @@ function driveFileName(table: SyncTable, doc: any): string {
 // Devuelve el conteo de éxitos y fallos. NUNCA lanza por documento: aísla cada error.
 export async function syncDocsToDrive(
   { table, docId }: { table: SyncTable; docId?: string },
-): Promise<{ success: number; failed: number }> {
+): Promise<SyncResult> {
   let query = supabaseAdmin.from(table).select('*').is('drive_file_id', null)
   if (docId) query = query.eq('id', docId)
 
   const { data: docs, error } = await query
   if (error) throw new Error(error.message)
-  if (!docs || docs.length === 0) return { success: 0, failed: 0 }
+  if (!docs || docs.length === 0) return { success: 0, failed: 0, errors: [] }
 
-  const results = { success: 0, failed: 0 }
+  const results: SyncResult = { success: 0, failed: 0, errors: [] }
+
+  // Registra un fallo con su razón concreta para poder diagnosticarlo en la UI.
+  const fail = (doc: any, reason: string) => {
+    results.failed++
+    results.errors.push({ id: doc.id, name: doc.original_file_name || 'Sin nombre', reason })
+    console.error(`[DRIVE-SYNC] Falló documento ${doc.id} (${doc.original_file_name || 'sin nombre'}): ${reason}`)
+  }
 
   for (const doc of docs) {
     try {
-      if (!doc.storage_path) { results.failed++; continue }
+      if (!doc.storage_path) {
+        fail(doc, 'El documento no tiene archivo guardado en Supabase Storage (storage_path vacío).')
+        continue
+      }
 
-      const { data: fileData } = await supabaseAdmin.storage.from('documentos').download(doc.storage_path)
-      if (!fileData) { results.failed++; continue }
+      const { data: fileData, error: dlError } = await supabaseAdmin.storage.from('documentos').download(doc.storage_path)
+      if (dlError || !fileData) {
+        fail(doc, `No se encontró el archivo en Supabase Storage: ${doc.storage_path}${dlError ? ` (${dlError.message})` : ''}`)
+        continue
+      }
 
       const buffer = Buffer.from(await fileData.arrayBuffer())
 
@@ -229,7 +304,10 @@ export async function syncDocsToDrive(
       else if (table === 'dispatch_documents') targetFolderId = await resolveDispatchFolder(doc)
       else targetFolderId = await resolveTemperatureFolder(doc)
 
-      if (!targetFolderId) { results.failed++; continue }
+      if (!targetFolderId) {
+        fail(doc, 'No se pudo determinar/crear la carpeta de destino en Drive (registro padre sin carpeta, o reporte sin fruta/ambiente).')
+        continue
+      }
 
       const driveFile = await uploadWithRetry(buffer, driveFileName(table, doc), fileData.type, targetFolderId)
       if (driveFile?.id) {
@@ -239,11 +317,12 @@ export async function syncDocsToDrive(
         }).eq('id', doc.id)
         results.success++
       } else {
-        results.failed++
+        fail(doc, 'Google Drive no devolvió un ID de archivo tras la subida.')
       }
     } catch (e: any) {
-      console.error(`[DRIVE-SYNC] Error con documento ${doc.id} (${doc.original_file_name || 'sin nombre'}): ${e.message || e}`)
-      results.failed++
+      const { status, reason, message } = errInfo(e)
+      const detail = [message, reason && `motivo: ${reason}`, status && `HTTP ${status}`].filter(Boolean).join(' · ')
+      fail(doc, isAuthError(e) ? `Token de Google inválido/expirado — reconecta Google Drive. (${detail})` : detail)
     }
   }
 
@@ -251,15 +330,15 @@ export async function syncDocsToDrive(
 }
 
 // Sincroniza las tres tablas. Usado por el cron automático.
-export async function syncAllPendingToDrive(): Promise<Record<SyncTable, { success: number; failed: number }>> {
+export async function syncAllPendingToDrive(): Promise<Record<SyncTable, SyncResult>> {
   const tables: SyncTable[] = ['lot_documents', 'dispatch_documents', 'temperature_documents']
-  const out = {} as Record<SyncTable, { success: number; failed: number }>
+  const out = {} as Record<SyncTable, SyncResult>
   for (const table of tables) {
     try {
       out[table] = await syncDocsToDrive({ table })
     } catch (e: any) {
       console.error(`[DRIVE-SYNC] Error sincronizando tabla ${table}: ${e.message}`)
-      out[table] = { success: 0, failed: -1 }
+      out[table] = { success: 0, failed: -1, errors: [{ id: '', name: table, reason: e.message }] }
     }
   }
   return out

@@ -72,6 +72,7 @@ export async function createFolder(name: string, parentId?: string) {
   const file = await drive.files.create({
     requestBody: fileMetadata,
     fields: 'id, webViewLink',
+    supportsAllDrives: true,
   })
 
   return {

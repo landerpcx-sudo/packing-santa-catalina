@@ -10,8 +10,11 @@ interface PurgableDocument {
 export async function cleanupStorage() {
   console.log('[Cleanup] Iniciando revisión de almacenamiento...')
   
-  const THRESHOLD_MB = 800
-  const TARGET_MB = 500
+  // Plan Supabase Pro (Plus): 100 GB incluidos. Google Drive es la base
+  // permanente; Supabase es respaldo/staging. Solo se purga lo que YA está
+  // confirmado en Drive y solo al acercarse al límite del plan.
+  const THRESHOLD_MB = 50000  // 50 GB: a partir de aquí empieza a purgar
+  const TARGET_MB = 40000     // 40 GB: purga hasta bajar a este nivel
   
   try {
     // 1. Obtener tamaño total actual desde storage.objects (vía RPC o consulta directa si es posible)

@@ -39,12 +39,20 @@ export async function GET(request: Request) {
       throw new Error(tokens.error_description || tokens.error)
     }
 
+    // Google devuelve expires_in (segundos), pero google-auth-library refresca
+    // proactivamente usando expiry_date (timestamp absoluto en ms). Lo calculamos
+    // aquí para que el token se renueve ANTES de expirar y no se "descuelgue"
+    // la sincronización con errores 401 esporádicos.
+    if (tokens.expires_in && !tokens.expiry_date) {
+      tokens.expiry_date = Date.now() + tokens.expires_in * 1000
+    }
+
     // Guardar los tokens en Supabase
     // El refresh_token solo viene la primera vez que autorizas, por eso usamos prompt=consent
     const { error } = await supabaseAdmin
       .from('system_settings')
-      .upsert({ 
-        key: 'google_drive_tokens', 
+      .upsert({
+        key: 'google_drive_tokens',
         value: tokens,
         updated_at: new Date().toISOString()
       })
