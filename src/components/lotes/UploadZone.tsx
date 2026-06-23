@@ -3,7 +3,7 @@
 import { useState, useCallback } from 'react'
 import { useDropzone } from 'react-dropzone'
 import imageCompression from 'browser-image-compression'
-import { Upload, FileText, Image, X, CheckCircle, AlertCircle, Loader2, ExternalLink, Camera } from 'lucide-react'
+import { Upload, FileText, Image, X, CheckCircle, AlertCircle, Loader2, ExternalLink, Camera, AlertTriangle } from 'lucide-react'
 import dynamic from 'next/dynamic'
 import { triggerConfetti } from '@/components/layout/Confetti'
 
@@ -22,6 +22,13 @@ interface UploadZoneProps {
 
 type UploadState = 'idle' | 'uploading' | 'success' | 'error'
 
+async function calculateSHA256(file: File): Promise<string> {
+  const arrayBuffer = await file.arrayBuffer()
+  const hashBuffer = await crypto.subtle.digest('SHA-256', arrayBuffer)
+  const hashArray = Array.from(new Uint8Array(hashBuffer))
+  return hashArray.map(b => b.toString(16).padStart(2, '0')).join('')
+}
+
 export default function UploadZone({
   lotId,
   lotCode,
@@ -39,6 +46,52 @@ export default function UploadZone({
   const [driveUrl, setDriveUrl] = useState('')
   const [fileName, setFileName] = useState('')
   const [isScannerOpen, setIsScannerOpen] = useState(false)
+  const [pendingFile, setPendingFile] = useState<{ file: File; hash: string } | null>(null)
+  const [duplicateInfo, setDuplicateInfo] = useState<{ fileName: string; module: string; details: string } | null>(null)
+
+  const performUpload = async (uploadFile: File, fileHash: string) => {
+    setState('uploading')
+    setFileName(uploadFile.name)
+    setMessage('Subiendo archivo a Google Drive...')
+    setDriveUrl('')
+
+    try {
+      const formData = new FormData()
+      formData.append('file', uploadFile)
+      formData.append('document_type', documentType)
+      formData.append('file_hash', fileHash)
+
+      const finalUrl = uploadUrl || `/api/lotes/${lotId}`
+      const res = await fetch(finalUrl, {
+        method: 'POST',
+        body: formData,
+      })
+
+      const json = await res.json()
+
+      if (!res.ok) {
+        setState('error')
+        setMessage(json.error || 'Error al subir el archivo')
+        return
+      }
+
+      setState('success')
+      setMessage(`¡Archivo subido exitosamente!`)
+      setDriveUrl(json.data?.drive_file_url || '')
+      triggerConfetti()
+      onUploadSuccess()
+
+      // Reset después de 6 segundos
+      setTimeout(() => {
+        setState('idle')
+        setFileName('')
+        setMessage('')
+      }, 6000)
+    } catch {
+      setState('error')
+      setMessage('Error de conexión. Intenta nuevamente.')
+    }
+  }
 
   const onDrop = useCallback(
     async (acceptedFiles: File[]) => {
@@ -77,47 +130,37 @@ export default function UploadZone({
       }
 
       setState('uploading')
-      setFileName(uploadFile.name)
-      setMessage('Subiendo archivo a Google Drive...')
-      setDriveUrl('')
+      setMessage('Calculando huella digital (SHA-256)...')
 
       try {
-        const formData = new FormData()
-        formData.append('file', uploadFile)
-        formData.append('document_type', documentType)
+        const hash = await calculateSHA256(uploadFile)
+        
+        // Verificar si es un archivo duplicado
+        const checkRes = await fetch(`/api/documentos/verificar-duplicado?hash=${hash}`)
+        const checkJson = await checkRes.json()
 
-        const finalUrl = uploadUrl || `/api/lotes/${lotId}`
-        const res = await fetch(finalUrl, {
-          method: 'POST',
-          body: formData,
-        })
-
-        const json = await res.json()
-
-        if (!res.ok) {
-          setState('error')
-          setMessage(json.error || 'Error al subir el archivo')
+        if (checkRes.ok && checkJson.exists) {
+          // Si ya existe duplicado, abrir modal de confirmación
+          setPendingFile({ file: uploadFile, hash })
+          setDuplicateInfo({
+            fileName: checkJson.fileName,
+            module: checkJson.module,
+            details: checkJson.details
+          })
+          setState('idle')
+          setMessage('')
           return
         }
 
-        setState('success')
-        setMessage(`¡Archivo subido exitosamente!`)
-        setDriveUrl(json.data?.drive_file_url || '')
-        triggerConfetti()
-        onUploadSuccess()
-
-        // Reset después de 6 segundos
-        setTimeout(() => {
-          setState('idle')
-          setFileName('')
-          setMessage('')
-        }, 6000)
-      } catch {
+        // Si no es duplicado, proceder con la subida directa
+        await performUpload(uploadFile, hash)
+      } catch (err: any) {
+        console.error('Error durante la verificación o procesamiento del archivo:', err)
         setState('error')
-        setMessage('Error de conexión. Intenta nuevamente.')
+        setMessage('Error al procesar el archivo. Reintenta.')
       }
     },
-    [lotId, documentType, onUploadSuccess]
+    [lotId, documentType, onUploadSuccess, lotCode, documentLabel, uploadUrl]
   )
 
   const { getRootProps, getInputProps, isDragActive, isDragReject } = useDropzone({
@@ -267,6 +310,53 @@ export default function UploadZone({
         documentLabel={documentLabel}
         lotCodeOrDispatchId={lotCode}
       />
+
+      {/* Modal interactivo de Advertencia de Duplicado */}
+      {pendingFile && duplicateInfo && (
+        <div className="fixed inset-0 z-50 bg-black/85 backdrop-blur-md flex items-center justify-center p-4">
+          <div className="bg-[#0f172a] border-2 border-amber-500/30 rounded-3xl w-full max-w-md shadow-2xl p-6 text-center animate-in zoom-in-95 duration-200">
+            <div className="flex flex-col items-center gap-4">
+              <div className="p-3 bg-amber-500/10 border border-amber-500/20 rounded-2xl text-amber-500 animate-pulse">
+                <AlertTriangle className="w-10 h-10" />
+              </div>
+              <h3 className="text-white font-bold text-lg tracking-tight">¡Archivo Duplicado Detectado!</h3>
+              <div className="text-gray-400 text-sm space-y-2 mt-2 bg-white/5 border border-white/5 rounded-2xl p-4 w-full text-left">
+                <p className="text-xs text-gray-500 uppercase tracking-widest font-black">Información de coincidencia:</p>
+                <p className="font-semibold text-white truncate"><span className="text-gray-500 font-medium">Nombre:</span> {duplicateInfo.fileName}</p>
+                <p className="text-white"><span className="text-gray-500 font-medium">Módulo:</span> {duplicateInfo.module}</p>
+                <p className="text-white"><span className="text-gray-500 font-medium">Ubicación:</span> {duplicateInfo.details}</p>
+              </div>
+              <p className="text-xs text-gray-500 mt-2">
+                ¿Estás seguro de que quieres subir este archivo de todas formas? Se guardará como una versión adicional.
+              </p>
+              <div className="flex gap-3 w-full mt-4">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setPendingFile(null)
+                    setDuplicateInfo(null)
+                  }}
+                  className="flex-1 px-4 py-3 rounded-xl border border-white/10 text-white font-bold text-xs uppercase tracking-widest hover:bg-white/5 transition-all"
+                >
+                  Cancelar
+                </button>
+                <button
+                  type="button"
+                  onClick={async () => {
+                    const { file, hash } = pendingFile
+                    setPendingFile(null)
+                    setDuplicateInfo(null)
+                    await performUpload(file, hash)
+                  }}
+                  className="flex-1 px-4 py-3 rounded-xl bg-gradient-to-r from-amber-600 to-orange-600 hover:from-amber-500 hover:to-orange-500 text-white font-bold text-xs uppercase tracking-widest transition-all shadow-lg shadow-orange-950/20"
+                >
+                  Subir de todas formas
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

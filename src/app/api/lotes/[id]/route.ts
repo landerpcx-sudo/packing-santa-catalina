@@ -56,6 +56,7 @@ export async function POST(
     const formData = await request.formData()
     const file = formData.get('file') as File
     const document_type = formData.get('document_type') as string
+    const file_hash = formData.get('file_hash') as string || null
 
     if (!file || !document_type) {
       return NextResponse.json({ error: 'Archivo y tipo de documento son requeridos.' }, { status: 400 })
@@ -170,6 +171,7 @@ export async function POST(
         is_correction,
         status: 'uploaded',
         validation_status: 'pending',
+        file_hash,
       })
       .select()
       .single()

@@ -29,6 +29,7 @@ export async function POST(
     const file = formData.get('file') as File
     const document_type = formData.get('document_type') as string
     const folios = formData.get('folios') as string // "4402 - 4403" for pallets
+    const file_hash = formData.get('file_hash') as string || null
 
     if (!file || !document_type) {
       return NextResponse.json({ error: 'Archivo y tipo de documento son requeridos.' }, { status: 400 })
@@ -128,6 +129,7 @@ export async function POST(
         version_number,
         is_correction: version_number > 1,
         status: 'uploaded',
+        file_hash,
       })
       .select()
       .single()
