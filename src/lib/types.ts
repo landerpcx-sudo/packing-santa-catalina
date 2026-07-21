@@ -114,6 +114,8 @@ export interface Dispatch {
   thermograph_temperature: number | null
   photos_status: string
   overall_status: string
+  payment_status: 'pending' | 'paid'
+  drive_folder_finance_id: string | null
   observation: string | null
   created_by: string
   created_at: string

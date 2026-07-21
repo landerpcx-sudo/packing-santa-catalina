@@ -56,6 +56,21 @@ export async function POST(
     } else if (document_type === 'pata_pata_photo' && folios) {
       const ext = file.name.split('.').pop() || 'jpg'
       sanitizedName = `Pallet_${folios.replace(/[^a-zA-Z0-9- ]/g, '_')}.${ext}`
+    } else if (document_type === 'guia_despacho') {
+      const ext = file.name.split('.').pop() || 'pdf'
+      sanitizedName = `Guia_Despacho_${dispatchRecord.dispatch_code}_${timestamp}.${ext}`
+    } else if (document_type === 'proforma') {
+      const ext = file.name.split('.').pop() || 'pdf'
+      sanitizedName = `Proforma_${dispatchRecord.dispatch_code}_${timestamp}.${ext}`
+    } else if (document_type === 'factura') {
+      const ext = file.name.split('.').pop() || 'pdf'
+      sanitizedName = `Factura_${dispatchRecord.dispatch_code}_${timestamp}.${ext}`
+    } else if (document_type === 'abonos_adelantos') {
+      const ext = file.name.split('.').pop() || 'pdf'
+      sanitizedName = `Abono_${dispatchRecord.dispatch_code}_${timestamp}.${ext}`
+    } else if (document_type === 'pagos_liquidaciones') {
+      const ext = file.name.split('.').pop() || 'pdf'
+      sanitizedName = `Pago_Liquidacion_${dispatchRecord.dispatch_code}_${timestamp}.${ext}`
     }
 
     // Verificar colisión de nombres para aplicar correlativo en dispatch_documents

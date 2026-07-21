@@ -26,8 +26,24 @@ interface Dispatch {
   thermograph_photos_count: number
   photos_status: string
   overall_status: string
+  payment_status: 'pending' | 'paid'
   drive_folder_url: string | null
   created_at: string
+}
+
+const PaymentBadge = ({ status }: { status: 'pending' | 'paid' }) => {
+  if (status === 'paid') {
+    return (
+      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full border text-[9px] font-black uppercase tracking-wider text-emerald-400 bg-emerald-400/10 border-emerald-400/20">
+        Pagado
+      </span>
+    )
+  }
+  return (
+    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full border text-[9px] font-black uppercase tracking-wider text-amber-400 bg-amber-400/10 border-amber-400/20">
+      Pendiente
+    </span>
+  )
 }
 
 const STATUS_CONFIG: Record<string, { label: string; color: string; icon: React.ReactNode }> = {
@@ -443,9 +459,12 @@ export default function DespachosPage() {
                   <div className="flex items-center gap-2">
                     <div className={`w-1.5 h-8 rounded-full flex-shrink-0 bg-indigo-500/40`} />
                     <div>
-                      <p className="text-white font-semibold text-sm group-hover:text-indigo-400 transition-colors">
-                        Despacho {dispatch.dispatch_code}
-                      </p>
+                      <div className="flex items-center gap-2">
+                        <p className="text-white font-semibold text-sm group-hover:text-indigo-400 transition-colors">
+                          Despacho {dispatch.dispatch_code}
+                        </p>
+                        <PaymentBadge status={dispatch.payment_status || 'pending'} />
+                      </div>
                       <p className="text-gray-500 text-xs">
                         {formatDate(dispatch.dispatch_date)}
                         {dispatch.container_number && ` • Cont: ${dispatch.container_number}`}

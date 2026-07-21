@@ -215,11 +215,43 @@ async function resolveDispatchFolder(doc: any): Promise<string | null> {
     driveFolderId = driveFolder.id || null
 
     if (driveFolderId) {
-      await supabaseAdmin.from('dispatches').update({
+      const { data: updatedDispatch } = await supabaseAdmin.from('dispatches').update({
         drive_folder_id: driveFolderId,
         drive_folder_url: driveFolder.url || null,
-      }).eq('id', dispatch.id)
+      }).eq('id', dispatch.id).select().single()
+      
+      if (updatedDispatch) {
+        dispatch.drive_folder_id = updatedDispatch.drive_folder_id
+        dispatch.drive_folder_url = updatedDispatch.drive_folder_url
+      }
     }
+  }
+
+  const isFinancial = [
+    'guia_despacho',
+    'proforma',
+    'factura',
+    'abonos_adelantos',
+    'pagos_liquidaciones'
+  ].includes(doc.document_type)
+
+  if (isFinancial && driveFolderId) {
+    let driveFolderFinanceId = dispatch.drive_folder_finance_id
+    if (!driveFolderFinanceId) {
+      try {
+        console.log(`[DRIVE-SYNC] Creando subcarpeta Finanzas para Despacho ${dispatch.internal_code}...`)
+        const financeFolder = await createFolder('Finanzas', driveFolderId)
+        driveFolderFinanceId = financeFolder.id || null
+        if (driveFolderFinanceId) {
+          await supabaseAdmin.from('dispatches').update({
+            drive_folder_finance_id: driveFolderFinanceId
+          }).eq('id', dispatch.id)
+        }
+      } catch (err: any) {
+        console.warn(`[DRIVE-SYNC] No se pudo crear subcarpeta Finanzas: ${err.message}`)
+      }
+    }
+    return driveFolderFinanceId || driveFolderId
   }
 
   return driveFolderId

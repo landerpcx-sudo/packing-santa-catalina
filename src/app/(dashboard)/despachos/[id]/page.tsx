@@ -46,6 +46,9 @@ interface Dispatch {
   pata_pata_photos_count: number
   thermograph_photos_count: number
   overall_status: string
+  payment_status: 'pending' | 'paid'
+  drive_folder_id: string | null
+  drive_folder_finance_id: string | null
   drive_folder_url: string | null
   created_at: string
   created_by_user?: { display_name: string } | null
@@ -193,6 +196,153 @@ export default function DispatchDetailPage({ params }: { params: Promise<{ id: s
     } catch (e) { alert('Error de conexión') }
   }
 
+  const handleTogglePaymentStatus = async () => {
+    if (dispatch?.overall_status === 'closed') {
+      alert('No se puede modificar el estado de pago de un despacho cerrado.')
+      return
+    }
+    const newStatus = dispatch.payment_status === 'paid' ? 'pending' : 'paid'
+    const confirmMessage = newStatus === 'paid'
+      ? '¿Confirmas que este contenedor se encuentra PAGADO EN SU TOTALIDAD?'
+      : '¿Deseas cambiar el estado del contenedor a PENDIENTE de pago?'
+      
+    if (!confirm(confirmMessage)) return
+    
+    try {
+      const res = await fetch(`/api/despachos/${id}`, {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+          'x-user-id': user?.userId || '',
+          'x-user-role': user?.role || ''
+        },
+        body: JSON.stringify({ payment_status: newStatus })
+      })
+      
+      if (res.ok) {
+        fetchDispatch(true)
+      } else {
+        const data = await res.json()
+        alert(data.error || 'Error al actualizar el estado de pago')
+      }
+    } catch (e) {
+      alert('Error de conexión al actualizar estado de pago')
+    }
+  }
+
+  const renderDocumentCard = (docType: string, docLabel: string, icon: React.ReactNode, acceptExcel = false) => {
+    const docs = docsByType[docType] || []
+    return (
+      <div className="bg-white/3 border border-white/8 rounded-2xl p-5">
+        <div className="flex items-center justify-between mb-4">
+          <h3 className="text-white font-medium text-sm flex items-center gap-2">
+            {icon}
+            {docLabel}
+          </h3>
+          <span className={`text-xs px-2 py-1 rounded-full border ${docs.length >= 1 ? 'text-green-400 border-green-500/30 bg-green-500/10' : 'text-gray-400 border-gray-500/30 bg-gray-500/10'}`}>
+            {docs.length}
+          </span>
+        </div>
+        <div className="space-y-3 mb-4">
+          {docs.sort((a,b) => b.version_number - a.version_number).map((doc, index) => {
+            const isLatest = index === 0 && docs.length > 1
+            return (
+              <div key={doc.id} className={`border rounded-xl p-3 transition-all ${isLatest ? 'bg-indigo-500/10 border-indigo-500/30 ring-1 ring-indigo-500/20' : 'bg-white/5 border-white/10'}`}>
+                <div className="flex items-center gap-3 mb-1">
+                  <FileText className={`w-4 h-4 flex-shrink-0 ${isLatest ? 'text-indigo-400' : 'text-gray-400'}`} />
+                  <span className={`text-sm flex-1 truncate ${isLatest ? 'text-indigo-100 font-medium' : 'text-gray-300'}`}>{doc.original_file_name}</span>
+                  <div className="flex items-center gap-2">
+                    {doc.drive_file_url && (user?.role === 'admin' || user?.canViewDrive || !doc.storage_url) ? (
+                      <button 
+                        onClick={() => {
+                          const isImage = /\.(jpg|jpeg|png|gif|webp|bmp)$/i.test(doc.original_file_name)
+                          setPreviewFile({ 
+                            isOpen: true, 
+                            url: (isImage && doc.storage_url) ? doc.storage_url : doc.drive_file_url!, 
+                            name: doc.original_file_name 
+                          })
+                        }} 
+                        className={`${!doc.storage_url ? 'text-amber-400' : 'text-indigo-400'} p-1 hover:bg-white/5 rounded flex items-center gap-1`} 
+                        title={!doc.storage_url ? "Archivo Archivado en Drive" : "Ver en Google Drive"}
+                      >
+                        <Eye className="w-4 h-4" />
+                        {!doc.storage_url && <span className="text-[10px] font-bold">DRIVE</span>}
+                      </button>
+                    ) : doc.storage_url ? (
+                      <button onClick={() => setPreviewFile({ isOpen: true, url: doc.storage_url!, name: doc.original_file_name })} className="text-gray-400 p-1 hover:bg-white/5 rounded" title="Ver en Supabase">
+                        <Eye className="w-4 h-4" />
+                      </button>
+                    ) : (
+                      <span className="text-gray-600 p-1"><XCircle className="w-4 h-4" /></span>
+                    )}
+                    {user?.role === 'admin' && dispatch.overall_status !== 'closed' && (
+                      <button onClick={() => handleDeleteDocument(doc.id, 'dispatch_documents')} className="text-red-400 p-1 hover:bg-red-400/10 rounded" title="Eliminar">
+                        <Trash2 className="w-4 h-4" />
+                      </button>
+                    )}
+                  </div>
+                </div>
+                <div className="flex items-center justify-between mt-2">
+                  <div className="flex items-center gap-2">
+                    <p className={`text-[10px] ${isLatest ? 'text-indigo-300' : 'text-gray-500'}`}>
+                      v{doc.version_number} • {formatDateTime(doc.created_at)}
+                    </p>
+                    {isLatest && <span className="text-[9px] bg-indigo-500/20 text-indigo-300 px-1.5 py-0.5 rounded-full font-bold uppercase tracking-wider">Actual</span>}
+                  </div>
+                  {doc.status === 'validated' && (
+                    <p className="text-[10px] text-green-400 flex items-center gap-1 font-medium">
+                      <CheckCircle className="w-3 h-3" /> Validado
+                    </p>
+                  )}
+                  {doc.status === 'observed' && (
+                    <p className="text-[10px] text-yellow-400 flex items-center gap-1 font-medium">
+                      <AlertCircle className="w-3 h-3" /> Observado
+                    </p>
+                  )}
+                </div>
+                {doc.status !== 'validated' && user?.role === 'admin' && dispatch.overall_status !== 'closed' && (
+                  <div className="mt-2">
+                    {validatingDocId === doc.id ? (
+                      <InlineValidation 
+                        docId={doc.id}
+                        tableName="dispatch_documents"
+                        onValidated={() => fetchDispatch(true)}
+                        onCancel={() => setValidatingDocId(null)}
+                      />
+                    ) : (
+                      <button
+                        onClick={() => setValidatingDocId(doc.id)}
+                        className="w-full py-1.5 bg-blue-500/10 text-blue-400 hover:bg-blue-500/20 rounded-lg text-xs font-medium transition-colors border border-blue-500/20"
+                      >
+                        Validar / Observar
+                      </button>
+                    )}
+                  </div>
+                )}
+              </div>
+            )
+          })}
+        </div>
+        {dispatch.overall_status !== 'closed' && !['gerencia', 'agronomo'].includes(user?.role || '') && (
+          <UploadZone
+            lotId={id}
+            lotCode={dispatch.dispatch_code}
+            documentType={docType}
+            documentLabel={docLabel}
+            accept={acceptExcel ? {
+              'application/pdf': ['.pdf'],
+              'image/*': ['.png', '.jpg', '.jpeg', '.webp', '.heic'],
+              'application/vnd.ms-excel': ['.xls'],
+              'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet': ['.xlsx']
+            } : undefined}
+            onUploadSuccess={() => fetchDispatch(true)}
+            uploadUrl={`/api/despachos/${id}/upload`}
+          />
+        )}
+      </div>
+    )
+  }
+
   const docsByType = (dispatch.dispatch_documents || []).reduce((acc, doc) => {
     if (!acc[doc.document_type]) acc[doc.document_type] = []
     acc[doc.document_type].push(doc)
@@ -255,6 +405,14 @@ export default function DispatchDetailPage({ params }: { params: Promise<{ id: s
             <span className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full border text-sm font-medium ${cfg.color}`}>
               {cfg.icon}
               {cfg.label}
+            </span>
+            <span className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full border text-sm font-medium ${
+              dispatch.payment_status === 'paid'
+                ? 'text-emerald-400 bg-emerald-500/10 border-emerald-500/30'
+                : 'text-amber-400 bg-amber-500/10 border-amber-500/30'
+            }`}>
+              {dispatch.payment_status === 'paid' ? <CheckCircle className="w-4 h-4 text-emerald-400" /> : <Clock className="w-4 h-4 text-amber-400" />}
+              {dispatch.payment_status === 'paid' ? 'Pagado' : 'Pago Pendiente'}
             </span>
             {dispatch.drive_folder_url && (user?.role === 'admin' || user?.canViewDrive) && (
               <a
@@ -668,6 +826,56 @@ export default function DispatchDetailPage({ params }: { params: Promise<{ id: s
           </div>
         </div>
 
+      </div>
+
+      {/* Sección Documentos Financieros */}
+      <div className="border-t border-white/10 pt-8 mt-8 space-y-6">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+          <div>
+            <h2 className="text-lg font-bold text-white flex items-center gap-2">
+              <span className="p-2 rounded-xl bg-emerald-500/10 border border-emerald-500/20 text-emerald-400">
+                <FileText className="w-5 h-5" />
+              </span>
+              Documentación Financiera del Contenedor
+            </h2>
+            <p className="text-gray-400 text-xs mt-1">
+              Guías de despacho, proformas, facturas, abonos y pagos de la carga
+            </p>
+          </div>
+
+          {/* Botón para marcar pagado en su totalidad (Solo Admin y Gerencia) */}
+          {['admin', 'gerencia'].includes(user?.role || '') && (
+            <button
+              onClick={handleTogglePaymentStatus}
+              disabled={dispatch.overall_status === 'closed'}
+              className={`flex items-center gap-2 px-4 py-2.5 rounded-xl font-semibold text-sm transition-all duration-200 shadow-md ${
+                dispatch.payment_status === 'paid'
+                  ? 'bg-emerald-600 hover:bg-emerald-500 text-white shadow-emerald-950/20'
+                  : 'bg-white/5 border border-white/10 text-gray-300 hover:bg-white/10'
+              } disabled:opacity-50 disabled:cursor-not-allowed`}
+            >
+              {dispatch.payment_status === 'paid' ? (
+                <>
+                  <CheckCircle className="w-4 h-4" />
+                  Contenedor Pagado (Marcar como Pendiente)
+                </>
+              ) : (
+                <>
+                  <Clock className="w-4 h-4" />
+                  Marcar como Pagado en su Totalidad
+                </>
+              )}
+            </button>
+          )}
+        </div>
+
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+          {renderDocumentCard('guia_despacho', '1. Guía de Despacho', <FileText className="w-4 h-4 text-emerald-400" />, true)}
+          {renderDocumentCard('proforma', '2. Proforma', <FileText className="w-4 h-4 text-emerald-400" />, true)}
+          {renderDocumentCard('factura', '3. Factura', <FileText className="w-4 h-4 text-emerald-400" />, true)}
+          {renderDocumentCard('abonos_adelantos', '4. Abonos o Adelantos', <FileText className="w-4 h-4 text-emerald-400" />, true)}
+          {renderDocumentCard('pagos_liquidaciones', '5. Pagos y Liquidaciones', <FileText className="w-4 h-4 text-emerald-400" />, true)}
+        </div>
       </div>
 
       {showEditModal && (
