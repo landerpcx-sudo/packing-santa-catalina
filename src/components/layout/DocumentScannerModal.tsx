@@ -379,30 +379,31 @@ export default function DocumentScannerModal({
 
   const modalContent = (
     <div 
-      className="fixed inset-0 h-[100dvh] w-screen z-[99999] bg-black overflow-hidden select-none touch-none text-white flex flex-col justify-between"
+      className="fixed inset-0 w-full h-full min-h-[100dvh] z-[99999] bg-black overflow-hidden select-none touch-none text-white flex flex-col justify-between"
     >
       {/* 
-        Video en el fondo absoluto. 
-        Mantiene object-cover para llenar la pantalla.
+        Video en el fondo absoluto dentro de un contenedor negro sólido.
       */}
-      <video 
-        ref={videoElementRef}
-        autoPlay 
-        playsInline 
-        muted 
-        onLoadedMetadata={(e) => {
-          e.currentTarget.play().catch(err => {
-            console.warn("Auto-play requirió intervención:", err)
-          })
-        }}
-        className="absolute inset-0 w-full h-full object-cover z-0 min-h-full min-w-full"
-      />
+      <div className="absolute inset-0 w-full h-full bg-black z-0 pointer-events-none">
+        <video 
+          ref={videoElementRef}
+          autoPlay 
+          playsInline 
+          muted 
+          onLoadedMetadata={(e) => {
+            e.currentTarget.play().catch(err => {
+              console.warn("Auto-play requirió intervención:", err)
+            })
+          }}
+          className="w-full h-full object-cover min-h-full min-w-full"
+        />
+      </div>
 
       {/* Capa de interfaz: Flexbox en columna para distribuir espacios perfectamente */}
       <div className="relative z-10 w-full h-full flex flex-col justify-between pointer-events-none">
         
         {/* HEADER (No flexiona, ocupa su espacio) */}
-        <div className="relative z-20 flex-none bg-gradient-to-b from-black/80 to-transparent p-5 pt-8 flex items-start justify-between pointer-events-auto">
+        <div className="relative z-20 flex-none bg-gradient-to-b from-black/95 via-black/80 to-transparent p-5 pt-8 flex items-start justify-between pointer-events-auto">
           <div>
             <h3 className="font-bold text-sm flex items-center gap-2">
               <Sparkles className="text-emerald-400 w-4 h-4 animate-pulse" />
@@ -412,19 +413,19 @@ export default function DocumentScannerModal({
           </div>
           <button 
             onClick={onClose} 
-            className="p-2.5 bg-black/40 hover:bg-black/60 text-white rounded-full backdrop-blur-md border border-white/10 transition-all pointer-events-auto"
+            className="p-2.5 bg-black/60 hover:bg-black/80 text-white rounded-full backdrop-blur-md border border-white/20 transition-all pointer-events-auto shadow-lg"
             disabled={processing}
           >
             <X size={20} />
           </button>
         </div>
 
-        {/* CONTENIDO CENTRAL (Se expande para ocupar todo el espacio restante) */}
-        <div className="flex-1 flex flex-col items-center justify-center p-4 overflow-hidden">
+        {/* CONTENIDO CENTRAL (Sin overflow-hidden para que el box-shadow de la guía fluya por todo el visor) */}
+        <div className="flex-1 flex flex-col items-center justify-center p-4 relative">
           
           {/* Pantalla de Carga WebRTC */}
           {useLiveCamera && !stream && (
-            <div className="flex flex-col items-center justify-center space-y-4 bg-black/50 p-6 rounded-2xl backdrop-blur-sm border border-white/10">
+            <div className="flex flex-col items-center justify-center space-y-4 bg-black/75 p-6 rounded-2xl backdrop-blur-md border border-white/10">
               <RefreshCw className="w-8 h-8 text-emerald-500 animate-spin" />
               <p className="font-bold text-sm">Encendiendo Cámara...</p>
             </div>
@@ -432,7 +433,7 @@ export default function DocumentScannerModal({
 
           {/* Fallback de error o sin cámara */}
           {(!useLiveCamera || (!stream && cameraError)) && (
-            <div className="flex flex-col items-center justify-center p-8 text-center bg-[#0d121f]/90 backdrop-blur-md space-y-6 rounded-3xl border border-white/10 pointer-events-auto max-w-sm w-full shadow-2xl">
+            <div className="flex flex-col items-center justify-center p-8 text-center bg-[#0d121f]/95 backdrop-blur-md space-y-6 rounded-3xl border border-white/10 pointer-events-auto max-w-sm w-full shadow-2xl">
               <div className="w-20 h-20 bg-emerald-500/10 border border-emerald-500/20 rounded-full flex items-center justify-center text-emerald-400 shadow-xl shadow-emerald-500/5 animate-pulse">
                 <Camera size={38} />
               </div>
@@ -464,16 +465,16 @@ export default function DocumentScannerModal({
           {useLiveCamera && stream && (
             <div 
               ref={guideBoxRef}
-              className="w-full max-w-[85vw] sm:max-w-sm aspect-[8.5/11] max-h-[55vh] border-2 border-dashed border-emerald-400/80 bg-emerald-400/5 rounded-2xl flex flex-col items-center justify-center relative shadow-[0_0_0_9999px_rgba(0,0,0,0.7)] shrink-0"
+              className="w-full max-w-[88vw] sm:max-w-sm aspect-[8.5/11] max-h-[58vh] border-2 border-dashed border-emerald-400/90 bg-emerald-400/10 rounded-2xl flex flex-col items-center justify-center relative shadow-[0_0_0_9999px_rgba(0,0,0,0.65)] shrink-0"
             >
-              <div className="absolute inset-0 border border-emerald-500/30 rounded-2xl" />
+              <div className="absolute inset-0 border border-emerald-500/40 rounded-2xl" />
               <div className="absolute -top-1 -left-1 w-8 h-8 border-t-4 border-l-4 border-emerald-500 rounded-tl-2xl" />
               <div className="absolute -top-1 -right-1 w-8 h-8 border-t-4 border-r-4 border-emerald-500 rounded-tr-2xl" />
               <div className="absolute -bottom-1 -left-1 w-8 h-8 border-b-4 border-l-4 border-emerald-500 rounded-bl-2xl" />
               <div className="absolute -bottom-1 -right-1 w-8 h-8 border-b-4 border-r-4 border-emerald-500 rounded-br-2xl" />
               
               <span 
-                className="text-[10px] text-white font-black px-4 py-2 rounded-full uppercase tracking-widest border border-green-400/30 backdrop-blur-sm absolute -bottom-4"
+                className="text-[10px] text-white font-black px-4 py-2 rounded-full uppercase tracking-widest border border-green-400/40 backdrop-blur-md absolute -bottom-4 shadow-lg"
                 style={{
                   backgroundColor: '#22c55e',
                   boxShadow: '0 4px 14px 0 rgba(34, 197, 94, 0.4)'
@@ -485,9 +486,9 @@ export default function DocumentScannerModal({
           )}
         </div>
 
-        {/* FOOTER BOTONERA (No flexiona, ocupa su espacio inferior) */}
+        {/* FOOTER BOTONERA (Opaco con fondo sólido y borde superior) */}
         {useLiveCamera && stream && (
-          <div className="relative z-20 flex-none bg-gradient-to-t from-black/90 via-black/60 to-transparent px-6 pb-10 pt-12 flex items-center justify-center gap-3 pointer-events-auto">
+          <div className="relative z-20 flex-none bg-[#090d16]/95 backdrop-blur-md px-6 pb-8 pt-6 flex items-center justify-center gap-3 pointer-events-auto border-t border-white/10 shadow-2xl">
             <div
               role="button"
               onClick={() => {
