@@ -71,6 +71,9 @@ export async function POST(
     } else if (document_type === 'pagos_liquidaciones') {
       const ext = file.name.split('.').pop() || 'pdf'
       sanitizedName = `Pago_Liquidacion_${dispatchRecord.dispatch_code}_${timestamp}.${ext}`
+    } else if (document_type === 'calidad_destino') {
+      const ext = file.name.split('.').pop() || 'pdf'
+      sanitizedName = `Calidad_Destino_${dispatchRecord.dispatch_code}_${timestamp}.${ext}`
     }
 
     // Verificar colisión de nombres para aplicar correlativo en dispatch_documents

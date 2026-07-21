@@ -47,7 +47,8 @@ export async function GET(
       loading_guide: 'Guía de Despacho',
       photos: 'Fotos de Carga',
       otros: 'Otros',
-      other: 'Otros'
+      other: 'Otros',
+      calidad_destino: 'Calidad en Destino'
     }
 
     for (const doc of documents) {

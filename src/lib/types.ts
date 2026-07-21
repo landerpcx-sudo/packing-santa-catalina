@@ -128,7 +128,7 @@ export interface Dispatch {
 export interface DispatchDocument {
   id: string
   dispatch_id: string
-  document_type: string  // pack_list/pata_pata_photo/thermograph_photo/thermograph_temp/other
+  document_type: string  // pack_list/pata_pata_photo/thermograph_photo/thermograph_temp/calidad_destino/other
   original_file_name: string
   drive_file_id: string
   drive_file_url: string | null

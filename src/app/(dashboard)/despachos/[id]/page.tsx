@@ -824,6 +824,67 @@ export default function DispatchDetailPage({ params }: { params: Promise<{ id: s
               />
             )}
           </div>
+
+          {/* Recepción de Calidad en Destino */}
+          <div className="bg-white/3 border border-white/8 rounded-2xl p-5">
+            <h3 className="text-white font-medium text-sm mb-4 flex items-center gap-2">
+              <CheckCircle className="w-4 h-4 text-indigo-400" />
+              Recepción de Calidad en Destino
+            </h3>
+            <div className="space-y-3 mb-4">
+              {(docsByType['calidad_destino'] || []).sort((a,b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()).map(doc => (
+                <div key={doc.id} className="bg-white/5 border border-white/10 rounded-xl px-3 py-2 flex items-center justify-between group transition-all hover:bg-white/10">
+                  <div className="flex flex-col truncate">
+                    <div className="flex items-center gap-2">
+                      <FileText className="w-3.5 h-3.5 text-gray-400 flex-shrink-0" />
+                      <span className="text-gray-300 text-[11px] truncate">{doc.original_file_name}</span>
+                    </div>
+                    <span className="text-[9px] text-gray-500 ml-5">{formatDateTime(doc.created_at)}</span>
+                  </div>
+                  <div className="flex items-center gap-1 md:opacity-0 md:group-hover:opacity-100 transition-opacity">
+                    {doc.drive_file_url && (user?.role === 'admin' || user?.canViewDrive || !doc.storage_url) ? (
+                      <button 
+                        onClick={() => {
+                          const isImage = /\.(jpg|jpeg|png|gif|webp|bmp)$/i.test(doc.original_file_name)
+                          setPreviewFile({ 
+                            isOpen: true, 
+                            url: (isImage && doc.storage_url) ? doc.storage_url : doc.drive_file_url!, 
+                            name: doc.original_file_name 
+                          })
+                        }} 
+                        className={`${!doc.storage_url ? 'text-amber-400' : 'text-indigo-400'} p-1 hover:bg-white/10 rounded flex items-center gap-1`} 
+                        title={!doc.storage_url ? "Archivo Archivado en Drive" : "Ver en Google Drive"}
+                      >
+                        <Eye className="w-3.5 h-3.5" />
+                        {!doc.storage_url && <span className="text-[9px] font-bold">DRIVE</span>}
+                      </button>
+                    ) : doc.storage_url ? (
+                      <button onClick={() => setPreviewFile({ isOpen: true, url: doc.storage_url!, name: doc.original_file_name })} className="text-gray-400 p-1 hover:bg-white/10 rounded" title="Ver en Supabase">
+                        <Eye className="w-3.5 h-3.5" />
+                      </button>
+                    ) : (
+                      <span className="text-gray-600 p-1"><XCircle className="w-3.5 h-3.5" /></span>
+                    )}
+                    {user?.role === 'admin' && dispatch.overall_status !== 'closed' && (
+                      <button onClick={() => handleDeleteDocument(doc.id, 'dispatch_documents')} className="text-red-400 p-1 hover:bg-red-400/10 rounded" title="Eliminar">
+                        <Trash2 className="w-3.5 h-3.5" />
+                      </button>
+                    )}
+                  </div>
+                </div>
+              ))}
+            </div>
+            {dispatch.overall_status !== 'closed' && ['admin', 'jefe_frio', 'sag', 'despacho'].includes(user?.role || '') && !['gerencia', 'agronomo'].includes(user?.role || '') && (
+              <UploadZone
+                lotId={id}
+                lotCode={dispatch.dispatch_code}
+                documentType="calidad_destino"
+                documentLabel="Calidad en Destino"
+                onUploadSuccess={() => fetchDispatch(true)}
+                uploadUrl={`/api/despachos/${id}/upload`}
+              />
+            )}
+          </div>
         </div>
 
       </div>

@@ -165,7 +165,7 @@ CREATE TABLE IF NOT EXISTS dispatch_documents (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   dispatch_id UUID NOT NULL REFERENCES dispatches(id) ON DELETE RESTRICT,
   document_type TEXT NOT NULL
-    CHECK (document_type IN ('pack_list','pata_pata_photo','thermograph_photo','thermograph_temp','backup','other')),
+    CHECK (document_type IN ('pack_list','pata_pata_photo','thermograph_photo','thermograph_temp','backup','other','guia_despacho','proforma','factura','abonos_adelantos','pagos_liquidaciones','calidad_destino')),
   original_file_name TEXT NOT NULL,
   drive_file_id TEXT NOT NULL,
   drive_file_url TEXT,
