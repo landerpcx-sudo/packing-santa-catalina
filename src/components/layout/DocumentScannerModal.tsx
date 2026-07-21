@@ -379,7 +379,7 @@ export default function DocumentScannerModal({
 
   const modalContent = (
     <div 
-      className="fixed inset-0 w-full h-full min-h-[100dvh] z-[99999] bg-black overflow-hidden select-none touch-none text-white flex flex-col justify-between"
+      className="fixed inset-0 w-screen h-[100dvh] z-[99999] bg-black overflow-hidden select-none touch-none text-white flex flex-col justify-between"
     >
       {/* 
         Video en el fondo absoluto dentro de un contenedor negro sólido.
@@ -405,13 +405,14 @@ export default function DocumentScannerModal({
         {/* HEADER (No flexiona, ocupa su espacio) */}
         <div className="relative z-20 flex-none bg-gradient-to-b from-black/95 via-black/80 to-transparent p-5 pt-8 flex items-start justify-between pointer-events-auto">
           <div>
-            <h3 className="font-bold text-sm flex items-center gap-2">
+            <h3 className="font-bold text-sm flex items-center gap-2 text-white">
               <Sparkles className="text-emerald-400 w-4 h-4 animate-pulse" />
               Escáner Móvil
             </h3>
             <p className="text-[9px] text-gray-300 font-bold uppercase tracking-widest mt-0.5">{documentLabel}</p>
           </div>
           <button 
+            type="button"
             onClick={onClose} 
             className="p-2.5 bg-black/60 hover:bg-black/80 text-white rounded-full backdrop-blur-md border border-white/20 transition-all pointer-events-auto shadow-lg"
             disabled={processing}
@@ -420,12 +421,12 @@ export default function DocumentScannerModal({
           </button>
         </div>
 
-        {/* CONTENIDO CENTRAL (Sin overflow-hidden para que el box-shadow de la guía fluya por todo el visor) */}
-        <div className="flex-1 flex flex-col items-center justify-center p-4 relative">
+        {/* CONTENIDO CENTRAL */}
+        <div className="flex-1 flex flex-col items-center justify-center p-4 relative z-20">
           
           {/* Pantalla de Carga WebRTC */}
           {useLiveCamera && !stream && (
-            <div className="flex flex-col items-center justify-center space-y-4 bg-black/75 p-6 rounded-2xl backdrop-blur-md border border-white/10">
+            <div className="flex flex-col items-center justify-center space-y-4 bg-black/80 p-6 rounded-2xl backdrop-blur-md border border-white/10">
               <RefreshCw className="w-8 h-8 text-emerald-500 animate-spin" />
               <p className="font-bold text-sm">Encendiendo Cámara...</p>
             </div>
@@ -452,6 +453,7 @@ export default function DocumentScannerModal({
               )}
 
               <button
+                type="button"
                 onClick={triggerNativeCamera}
                 className="w-full py-4 px-6 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl font-bold text-xs uppercase tracking-widest transition-all shadow-xl shadow-emerald-600/25 flex items-center justify-center gap-2 border border-emerald-500/20"
               >
@@ -461,11 +463,11 @@ export default function DocumentScannerModal({
             </div>
           )}
 
-          {/* Dotted Grid (Solo si la cámara está activa) */}
+          {/* Dotted Grid (Marco de Hoja Carta Limpio y Centrado) */}
           {useLiveCamera && stream && (
             <div 
               ref={guideBoxRef}
-              className="w-full max-w-[88vw] sm:max-w-sm aspect-[8.5/11] max-h-[58vh] border-2 border-dashed border-emerald-400/90 bg-emerald-400/10 rounded-2xl flex flex-col items-center justify-center relative shadow-[0_0_0_9999px_rgba(0,0,0,0.65)] shrink-0"
+              className="w-[85vw] sm:w-[360px] aspect-[8.5/11] max-h-[54vh] border-2 border-dashed border-emerald-400/90 bg-emerald-400/10 rounded-2xl flex flex-col items-center justify-center relative z-20 shrink-0 shadow-2xl"
             >
               <div className="absolute inset-0 border border-emerald-500/40 rounded-2xl" />
               <div className="absolute -top-1 -left-1 w-8 h-8 border-t-4 border-l-4 border-emerald-500 rounded-tl-2xl" />
@@ -488,28 +490,28 @@ export default function DocumentScannerModal({
 
         {/* FOOTER BOTONERA (Opaco con fondo sólido y borde superior) */}
         {useLiveCamera && stream && (
-          <div className="relative z-20 flex-none bg-[#090d16]/95 backdrop-blur-md px-6 pb-8 pt-6 flex items-center justify-center gap-3 pointer-events-auto border-t border-white/10 shadow-2xl">
-            <div
-              role="button"
+          <div className="relative z-30 flex-none bg-[#090d16] px-6 py-5 pb-[max(1.5rem,env(safe-area-inset-bottom))] flex items-center justify-center gap-3 pointer-events-auto border-t border-white/10 shadow-2xl">
+            <button
+              type="button"
               onClick={() => {
                 if (processing) return
                 stopLiveCamera()
                 setUseLiveCamera(false)
                 triggerNativeCamera()
               }}
-              className={`py-4 px-4 bg-white/10 hover:bg-white/20 text-white rounded-xl text-[11px] font-bold uppercase transition-all backdrop-blur-md border border-white/15 shadow-md flex items-center justify-center gap-2 cursor-pointer ${processing ? 'opacity-50 pointer-events-none' : ''}`}
+              className={`py-3.5 px-4 bg-white/10 hover:bg-white/20 text-white rounded-xl text-xs font-bold uppercase transition-all border border-white/15 shadow-md flex items-center justify-center gap-2 ${processing ? 'opacity-50 pointer-events-none' : ''}`}
             >
-              <RefreshCw size={14} /> Nativa
-            </div>
-            <div
-              role="button"
+              <RefreshCw size={16} /> Nativa
+            </button>
+            <button
+              type="button"
               onClick={() => {
                 if (processing) return
                 captureLiveFrame()
               }}
-              className={`flex-1 py-4 px-6 rounded-xl text-xs font-black uppercase tracking-widest shadow-xl flex items-center justify-center gap-2 border border-green-400/30 transition-all cursor-pointer ${processing ? 'opacity-50 pointer-events-none' : ''}`}
+              className={`flex-1 py-3.5 px-6 rounded-xl text-xs font-black uppercase tracking-widest shadow-xl flex items-center justify-center gap-2 border border-green-400/30 transition-all ${processing ? 'opacity-50 pointer-events-none' : ''}`}
               style={{
-                backgroundColor: processing ? '#166534' : '#22c55e', // green-800 : green-500
+                backgroundColor: processing ? '#166534' : '#22c55e',
                 color: processing ? '#bbf7d0' : '#ffffff',
                 boxShadow: processing ? 'none' : '0 10px 25px -5px rgba(34, 197, 94, 0.5)'
               }}
@@ -524,7 +526,7 @@ export default function DocumentScannerModal({
                   <Camera size={18} /> Capturar Foto
                 </>
               )}
-            </div>
+            </button>
           </div>
         )}
       </div>
