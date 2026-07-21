@@ -375,9 +375,11 @@ export default function DocumentScannerModal({
     }, 50)
   }
 
-  return (
+  if (!isOpen || !mounted) return null
+
+  const modalContent = (
     <div 
-      className="fixed inset-0 z-[99999] bg-black overflow-hidden select-none touch-none text-white"
+      className="fixed inset-0 h-[100dvh] w-screen z-[99999] bg-black overflow-hidden select-none touch-none text-white flex flex-col justify-between"
     >
       {/* 
         Video en el fondo absoluto. 
@@ -393,11 +395,11 @@ export default function DocumentScannerModal({
             console.warn("Auto-play requirió intervención:", err)
           })
         }}
-        className="absolute inset-0 w-full h-full object-cover z-0"
+        className="absolute inset-0 w-full h-full object-cover z-0 min-h-full min-w-full"
       />
 
       {/* Capa de interfaz: Flexbox en columna para distribuir espacios perfectamente */}
-      <div className="relative z-10 w-full h-full flex flex-col pointer-events-none">
+      <div className="relative z-10 w-full h-full flex flex-col justify-between pointer-events-none">
         
         {/* HEADER (No flexiona, ocupa su espacio) */}
         <div className="relative z-20 flex-none bg-gradient-to-b from-black/80 to-transparent p-5 pt-8 flex items-start justify-between pointer-events-auto">
@@ -418,7 +420,7 @@ export default function DocumentScannerModal({
         </div>
 
         {/* CONTENIDO CENTRAL (Se expande para ocupar todo el espacio restante) */}
-        <div className="flex-1 flex flex-col items-center justify-center p-4">
+        <div className="flex-1 flex flex-col items-center justify-center p-4 overflow-hidden">
           
           {/* Pantalla de Carga WebRTC */}
           {useLiveCamera && !stream && (
@@ -462,7 +464,7 @@ export default function DocumentScannerModal({
           {useLiveCamera && stream && (
             <div 
               ref={guideBoxRef}
-              className="w-full max-w-sm aspect-[8.5/11] max-h-[65vh] border-2 border-dashed border-emerald-400/80 bg-emerald-400/5 rounded-2xl flex flex-col items-center justify-center relative shadow-[0_0_0_4000px_rgba(0,0,0,0.65)]"
+              className="w-full max-w-[85vw] sm:max-w-sm aspect-[8.5/11] max-h-[55vh] border-2 border-dashed border-emerald-400/80 bg-emerald-400/5 rounded-2xl flex flex-col items-center justify-center relative shadow-[0_0_0_9999px_rgba(0,0,0,0.7)] shrink-0"
             >
               <div className="absolute inset-0 border border-emerald-500/30 rounded-2xl" />
               <div className="absolute -top-1 -left-1 w-8 h-8 border-t-4 border-l-4 border-emerald-500 rounded-tl-2xl" />
@@ -538,4 +540,6 @@ export default function DocumentScannerModal({
       <canvas ref={canvasRef} className="hidden" />
     </div>
   )
+
+  return createPortal(modalContent, document.body)
 }
