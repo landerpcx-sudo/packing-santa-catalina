@@ -4,6 +4,7 @@ import { supabaseAdmin } from '@/lib/supabase-admin'
 import { createFolder } from '@/lib/drive'
 import { syncDocsToDrive } from '@/lib/drive-sync'
 import { recalculateLotStatus } from '@/lib/status-helper'
+import { resolveMimeType } from '@/lib/mime-helper'
 
 // Margen para que la sincronización a Drive en segundo plano (after()) complete.
 export const maxDuration = 60
@@ -131,11 +132,13 @@ export async function POST(
     // Ruta en Storage con versión
     const storagePath = `lotes/${lot.internal_code}/${document_type}/v${version_number}_${timestamp}_${sanitizedName}`
 
+    const mimeType = resolveMimeType(sanitizedName, file.type)
+
     // Subir a Supabase Storage usando el cliente admin (omite RLS)
     const { data: storageData, error: storageError } = await supabaseAdmin.storage
       .from('documentos')
       .upload(storagePath, buffer, {
-        contentType: file.type,
+        contentType: mimeType,
         upsert: false,
       })
 

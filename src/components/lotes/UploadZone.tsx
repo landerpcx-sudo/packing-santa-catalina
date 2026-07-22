@@ -7,6 +7,8 @@ import { Upload, FileText, Image, X, CheckCircle, AlertCircle, Loader2, External
 import dynamic from 'next/dynamic'
 import { triggerConfetti } from '@/components/layout/Confetti'
 
+import { useAuth } from '@/context/AuthContext'
+
 // Carga diferida: el escáner es pesado y solo se usa al abrirlo
 const DocumentScannerModal = dynamic(() => import('@/components/layout/DocumentScannerModal'), { ssr: false })
 
@@ -37,10 +39,13 @@ export default function UploadZone({
   accept = {
     'application/pdf': ['.pdf'],
     'image/*': ['.png', '.jpg', '.jpeg', '.webp', '.heic'],
+    'application/vnd.ms-excel': ['.xls'],
+    'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet': ['.xlsx'],
   },
   onUploadSuccess,
   uploadUrl,
 }: UploadZoneProps) {
+  const { user } = useAuth()
   const [state, setState] = useState<UploadState>('idle')
   const [message, setMessage] = useState('')
   const [driveUrl, setDriveUrl] = useState('')
@@ -52,7 +57,7 @@ export default function UploadZone({
   const performUpload = async (uploadFile: File, fileHash: string) => {
     setState('uploading')
     setFileName(uploadFile.name)
-    setMessage('Subiendo archivo a Google Drive...')
+    setMessage('Procesando y guardando archivo...')
     setDriveUrl('')
 
     try {
@@ -62,16 +67,26 @@ export default function UploadZone({
       formData.append('file_hash', fileHash)
 
       const finalUrl = uploadUrl || `/api/lotes/${lotId}`
+      const headersInit: HeadersInit = {}
+      if (user?.userId) headersInit['x-user-id'] = user.userId
+      if (user?.role) headersInit['x-user-role'] = user.role
+
       const res = await fetch(finalUrl, {
         method: 'POST',
+        headers: headersInit,
         body: formData,
       })
 
-      const json = await res.json()
+      let json: any = {}
+      try {
+        json = await res.json()
+      } catch (parseErr) {
+        throw new Error(`Respuesta no válida del servidor (${res.status} ${res.statusText})`)
+      }
 
       if (!res.ok) {
         setState('error')
-        setMessage(json.error || 'Error al subir el archivo')
+        setMessage(json.error || `Error ${res.status}: No se pudo subir el archivo`)
         return
       }
 
@@ -87,9 +102,10 @@ export default function UploadZone({
         setFileName('')
         setMessage('')
       }, 6000)
-    } catch {
+    } catch (err: any) {
+      console.error('Error en UploadZone:', err)
       setState('error')
-      setMessage('Error de conexión. Intenta nuevamente.')
+      setMessage(err.message || 'Error de conexión. Intenta nuevamente.')
     }
   }
 

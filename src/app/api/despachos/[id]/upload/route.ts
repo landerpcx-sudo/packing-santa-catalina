@@ -2,6 +2,7 @@ import { NextResponse, after } from 'next/server'
 import { headers } from 'next/headers'
 import { supabaseAdmin } from '@/lib/supabase-admin'
 import { syncDocsToDrive } from '@/lib/drive-sync'
+import { resolveMimeType } from '@/lib/mime-helper'
 
 // Margen para que la sincronización a Drive en segundo plano (after()) complete.
 export const maxDuration = 60
@@ -117,10 +118,12 @@ export async function POST(
 
     const storagePath = `despachos/${dispatchRecord.internal_code}/${document_type}/v${version_number}_${timestamp}_${sanitizedName}`
 
+    const mimeType = resolveMimeType(sanitizedName, file.type)
+
     const { data: storageData, error: storageError } = await supabaseAdmin.storage
       .from('documentos')
       .upload(storagePath, buffer, {
-        contentType: file.type,
+        contentType: mimeType,
         upsert: false,
       })
 
