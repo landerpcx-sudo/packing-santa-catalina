@@ -151,6 +151,9 @@ CREATE TABLE IF NOT EXISTS dispatches (
     CHECK (photos_status IN ('incomplete','complete')),
   overall_status TEXT NOT NULL DEFAULT 'pending'
     CHECK (overall_status IN ('pending','complete','observed','late','closed')),
+  payment_status TEXT NOT NULL DEFAULT 'pending',
+  invoice_amount NUMERIC(12,2) DEFAULT NULL,
+  advance_amount NUMERIC(12,2) DEFAULT 0,
   observation TEXT,
   created_by UUID REFERENCES users_app(id),
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),

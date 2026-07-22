@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { X, Truck, Calendar, MapPin, Building2, Package } from 'lucide-react'
+import { X, Truck, Calendar, MapPin, Building2, Package, DollarSign } from 'lucide-react'
 
 interface Props {
   onClose: () => void
@@ -28,7 +28,9 @@ export default function NewDispatchModal({ onClose, onSuccess, initialData }: Pr
     destination: initialData?.destination || '',
     expected_pallets: initialData?.expected_pallets?.toString() || '',
     dispatch_date: initialData?.dispatch_date ? initialData.dispatch_date.split('T')[0] : getLocalDateString(),
-    container_number: initialData?.container_number || ''
+    container_number: initialData?.container_number || '',
+    invoice_amount: initialData?.invoice_amount !== undefined && initialData?.invoice_amount !== null ? initialData.invoice_amount.toString() : '',
+    advance_amount: initialData?.advance_amount !== undefined && initialData?.advance_amount !== null ? initialData.advance_amount.toString() : ''
   })
 
   useEffect(() => {
@@ -225,6 +227,44 @@ export default function NewDispatchModal({ onClose, onSuccess, initialData }: Pr
                   placeholder="Ej: MSKU1234567"
                   className="w-full bg-white/5 border border-white/10 rounded-xl pl-10 pr-4 py-2.5 text-white placeholder-gray-500 text-sm focus:outline-none focus:border-indigo-400/50 transition-all"
                 />
+              </div>
+            </div>
+
+            {/* Montos Financieros */}
+            <div className="grid grid-cols-2 gap-4 border-t border-white/5 pt-3">
+              <div>
+                <label className="block text-xs font-medium text-gray-300 mb-1.5">
+                  Monto Factura ($ CLP)
+                </label>
+                <div className="relative">
+                  <DollarSign className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-emerald-400" />
+                  <input
+                    type="number"
+                    min="0"
+                    step="1"
+                    value={formData.invoice_amount}
+                    onChange={(e) => setFormData({ ...formData, invoice_amount: e.target.value })}
+                    placeholder="Ej: 10000000"
+                    className="w-full bg-white/5 border border-white/10 rounded-xl pl-10 pr-4 py-2.5 text-white placeholder-gray-500 text-sm focus:outline-none focus:border-emerald-400/50 transition-all"
+                  />
+                </div>
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-gray-300 mb-1.5">
+                  Monto Abonos/Adelantos ($)
+                </label>
+                <div className="relative">
+                  <DollarSign className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-indigo-400" />
+                  <input
+                    type="number"
+                    min="0"
+                    step="1"
+                    value={formData.advance_amount}
+                    onChange={(e) => setFormData({ ...formData, advance_amount: e.target.value })}
+                    placeholder="Ej: 5000000"
+                    className="w-full bg-white/5 border border-white/10 rounded-xl pl-10 pr-4 py-2.5 text-white placeholder-gray-500 text-sm focus:outline-none focus:border-indigo-400/50 transition-all"
+                  />
+                </div>
               </div>
             </div>
           </div>

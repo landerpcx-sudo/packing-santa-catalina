@@ -42,7 +42,7 @@ export async function POST(request: Request) {
     const headersList = await headers()
     const userId = headersList.get('x-user-id')
     const body = await request.json()
-    const { dispatch_code, client, destination, expected_pallets, dispatch_date, container_number } = body
+    const { dispatch_code, client, destination, expected_pallets, dispatch_date, container_number, invoice_amount, advance_amount } = body
 
     if (!dispatch_code) {
       return NextResponse.json({ error: 'El código de despacho es requerido.' }, { status: 400 })
@@ -127,6 +127,8 @@ export async function POST(request: Request) {
         expected_pallets: expected_pallets ? parseInt(expected_pallets) : null,
         dispatch_date: dispatch_date || new Date().toISOString().split('T')[0],
         container_number: container_number ? container_number.trim() : null,
+        invoice_amount: invoice_amount !== undefined && invoice_amount !== null && invoice_amount !== '' ? parseFloat(invoice_amount) : null,
+        advance_amount: advance_amount !== undefined && advance_amount !== null && advance_amount !== '' ? parseFloat(advance_amount) : 0,
         created_by: userId || null,
         drive_folder_id: driveFolderId,
         drive_folder_url: driveFolderUrl,

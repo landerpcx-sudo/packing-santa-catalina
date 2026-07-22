@@ -6,7 +6,7 @@ import { useAuth } from '@/context/AuthContext'
 import {
   ArrowLeft, Truck, CheckCircle, Clock, AlertCircle, Check,
   XCircle, FileText, RefreshCw, ExternalLink, FolderOpen,
-  Calendar, User, MapPin, Building2, Package, Image as ImageIcon, Trash2, Edit2, Download, Eye, Lock, ShieldAlert
+  Calendar, User, MapPin, Building2, Package, Image as ImageIcon, Trash2, Edit2, Download, Eye, Lock, ShieldAlert, DollarSign, Save
 } from 'lucide-react'
 import ValidationModal from '@/components/lotes/ValidationModal'
 import PalletUploadZone from '@/components/despachos/PalletUploadZone'
@@ -47,6 +47,8 @@ interface Dispatch {
   thermograph_photos_count: number
   overall_status: string
   payment_status: 'pending' | 'paid'
+  invoice_amount: number | null
+  advance_amount: number | null
   drive_folder_id: string | null
   drive_folder_finance_id: string | null
   drive_folder_url: string | null
@@ -76,6 +78,9 @@ export default function DispatchDetailPage({ params }: { params: Promise<{ id: s
   const [validatingDocId, setValidatingDocId] = useState<string | null>(null)
   const [showEditModal, setShowEditModal] = useState(false)
   const [previewFile, setPreviewFile] = useState<{ isOpen: boolean; url: string; name: string } | null>(null)
+  const [editingInvoiceAmount, setEditingInvoiceAmount] = useState<string>('')
+  const [editingAdvanceAmount, setEditingAdvanceAmount] = useState<string>('')
+  const [savingAmounts, setSavingAmounts] = useState(false)
 
   const fetchDispatch = useCallback(async (silent = false) => {
     if (!silent) setLoading(true)
@@ -84,6 +89,8 @@ export default function DispatchDetailPage({ params }: { params: Promise<{ id: s
     if (res.ok) {
       const json = await res.json()
       setDispatch(json.data)
+      setEditingInvoiceAmount(json.data.invoice_amount !== null && json.data.invoice_amount !== undefined ? json.data.invoice_amount.toString() : '')
+      setEditingAdvanceAmount(json.data.advance_amount !== null && json.data.advance_amount !== undefined ? json.data.advance_amount.toString() : '')
     }
     setLoading(false)
     setRefreshing(false)
@@ -92,6 +99,45 @@ export default function DispatchDetailPage({ params }: { params: Promise<{ id: s
   useEffect(() => {
     fetchDispatch(false)
   }, [fetchDispatch])
+
+  const handleSaveAmounts = async () => {
+    if (dispatch?.overall_status === 'closed') {
+      alert('No se pueden modificar montos de un despacho cerrado.')
+      return
+    }
+    setSavingAmounts(true)
+    try {
+      const inv = editingInvoiceAmount.trim() !== '' ? parseFloat(editingInvoiceAmount) : null
+      const adv = editingAdvanceAmount.trim() !== '' ? parseFloat(editingAdvanceAmount) : 0
+      const res = await fetch(`/api/despachos/${id}`, {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+          'x-user-id': user?.userId || '',
+          'x-user-role': user?.role || ''
+        },
+        body: JSON.stringify({
+          invoice_amount: inv,
+          advance_amount: adv
+        })
+      })
+      if (res.ok) {
+        await fetchDispatch(true)
+      } else {
+        const data = await res.json()
+        alert(data.error || 'Error al guardar los montos')
+      }
+    } catch (e) {
+      alert('Error de conexión al guardar los montos')
+    } finally {
+      setSavingAmounts(false)
+    }
+  }
+
+  const formatCLP = (val: number | null | undefined) => {
+    if (val === null || val === undefined || isNaN(val)) return '—'
+    return new Intl.NumberFormat('es-CL', { style: 'currency', currency: 'CLP', maximumFractionDigits: 0 }).format(val)
+  }
 
   if (loading) {
     return (
@@ -243,6 +289,75 @@ export default function DispatchDetailPage({ params }: { params: Promise<{ id: s
             {docs.length}
           </span>
         </div>
+        
+        {docType === 'factura' && (
+          <div className="mb-4 p-3 bg-white/5 border border-white/10 rounded-xl space-y-2">
+            <label className="block text-xs font-semibold text-emerald-400 flex items-center justify-between">
+              <span>Monto Total de Factura ($ CLP)</span>
+              {dispatch?.invoice_amount !== null && dispatch?.invoice_amount !== undefined && (
+                <span className="text-gray-400 font-normal">{formatCLP(dispatch.invoice_amount)}</span>
+              )}
+            </label>
+            <div className="flex gap-2">
+              <div className="relative flex-1">
+                <DollarSign className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+                <input
+                  type="number"
+                  min="0"
+                  step="1"
+                  placeholder="Ej: 10000000"
+                  value={editingInvoiceAmount}
+                  onChange={(e) => setEditingInvoiceAmount(e.target.value)}
+                  disabled={dispatch?.overall_status === 'closed' || savingAmounts}
+                  className="w-full bg-white/5 border border-white/10 rounded-lg pl-9 pr-3 py-1.5 text-sm text-white placeholder-gray-500 focus:outline-none focus:border-emerald-400/50"
+                />
+              </div>
+              <button
+                onClick={handleSaveAmounts}
+                disabled={dispatch?.overall_status === 'closed' || savingAmounts}
+                className="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg text-xs font-medium transition-colors flex items-center gap-1.5 disabled:opacity-50"
+              >
+                <Save className="w-3.5 h-3.5" />
+                Guardar
+              </button>
+            </div>
+          </div>
+        )}
+
+        {docType === 'abonos_adelantos' && (
+          <div className="mb-4 p-3 bg-white/5 border border-white/10 rounded-xl space-y-2">
+            <label className="block text-xs font-semibold text-indigo-400 flex items-center justify-between">
+              <span>Monto Abonos / Adelantos ($ CLP)</span>
+              {dispatch?.advance_amount !== null && dispatch?.advance_amount !== undefined && (
+                <span className="text-gray-400 font-normal">{formatCLP(dispatch.advance_amount)}</span>
+              )}
+            </label>
+            <div className="flex gap-2">
+              <div className="relative flex-1">
+                <DollarSign className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+                <input
+                  type="number"
+                  min="0"
+                  step="1"
+                  placeholder="Ej: 5000000"
+                  value={editingAdvanceAmount}
+                  onChange={(e) => setEditingAdvanceAmount(e.target.value)}
+                  disabled={dispatch?.overall_status === 'closed' || savingAmounts}
+                  className="w-full bg-white/5 border border-white/10 rounded-lg pl-9 pr-3 py-1.5 text-sm text-white placeholder-gray-500 focus:outline-none focus:border-indigo-400/50"
+                />
+              </div>
+              <button
+                onClick={handleSaveAmounts}
+                disabled={dispatch?.overall_status === 'closed' || savingAmounts}
+                className="px-3 py-1.5 bg-indigo-600 hover:bg-indigo-500 text-white rounded-lg text-xs font-medium transition-colors flex items-center gap-1.5 disabled:opacity-50"
+              >
+                <Save className="w-3.5 h-3.5" />
+                Guardar
+              </button>
+            </div>
+          </div>
+        )}
+
         <div className="space-y-3 mb-4">
           {docs.sort((a,b) => b.version_number - a.version_number).map((doc, index) => {
             const isLatest = index === 0 && docs.length > 1
@@ -929,6 +1044,36 @@ export default function DispatchDetailPage({ params }: { params: Promise<{ id: s
             </button>
           )}
         </div>
+
+        {/* Resumen Financiero del Contenedor */}
+        {dispatch.invoice_amount !== null && dispatch.invoice_amount !== undefined && dispatch.invoice_amount > 0 && (
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 bg-white/3 border border-white/8 rounded-2xl p-4">
+            <div className="bg-white/5 border border-white/10 rounded-xl p-3.5">
+              <p className="text-gray-400 text-xs font-semibold uppercase tracking-wider">Monto Factura Total</p>
+              <p className="text-xl font-bold text-white mt-1">{formatCLP(dispatch.invoice_amount)}</p>
+            </div>
+            <div className="bg-white/5 border border-white/10 rounded-xl p-3.5">
+              <p className="text-gray-400 text-xs font-semibold uppercase tracking-wider">Abonos / Adelantos</p>
+              <p className="text-xl font-bold text-indigo-300 mt-1">{formatCLP(dispatch.advance_amount || 0)}</p>
+            </div>
+            {(() => {
+              const debt = Number(dispatch.invoice_amount || 0) - Number(dispatch.advance_amount || 0)
+              const isPaid = debt <= 0
+              return (
+                <div className={`border rounded-xl p-3.5 ${
+                  isPaid ? 'bg-emerald-500/10 border-emerald-500/30' : 'bg-amber-500/10 border-amber-500/30'
+                }`}>
+                  <p className={`text-xs font-bold uppercase tracking-wider ${isPaid ? 'text-emerald-400' : 'text-amber-400'}`}>
+                    Saldo Adeudado
+                  </p>
+                  <p className={`text-xl font-black mt-1 ${isPaid ? 'text-emerald-300' : 'text-amber-300'}`}>
+                    {formatCLP(debt)} {isPaid ? '✓' : ''}
+                  </p>
+                </div>
+              )
+            })()}
+          </div>
+        )}
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
           {renderDocumentCard('guia_despacho', '1. Guía de Despacho', <FileText className="w-4 h-4 text-emerald-400" />, true)}

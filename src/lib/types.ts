@@ -115,6 +115,8 @@ export interface Dispatch {
   photos_status: string
   overall_status: string
   payment_status: 'pending' | 'paid'
+  invoice_amount?: number | null
+  advance_amount?: number | null
   drive_folder_finance_id: string | null
   observation: string | null
   created_by: string

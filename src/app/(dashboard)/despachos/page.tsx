@@ -27,6 +27,8 @@ interface Dispatch {
   photos_status: string
   overall_status: string
   payment_status: 'pending' | 'paid'
+  invoice_amount: number | null
+  advance_amount: number | null
   drive_folder_url: string | null
   created_at: string
 }
@@ -236,6 +238,11 @@ export default function DespachosPage() {
     if (!dateStr) return '—'
     const [y, m, d] = dateStr.split('T')[0].split('-')
     return `${d}/${m}/${y}`
+  }
+
+  const formatCLP = (val: number | null | undefined) => {
+    if (val === null || val === undefined || isNaN(val)) return '—'
+    return new Intl.NumberFormat('es-CL', { style: 'currency', currency: 'CLP', maximumFractionDigits: 0 }).format(val)
   }
 
   return (
@@ -469,6 +476,28 @@ export default function DespachosPage() {
                         {formatDate(dispatch.dispatch_date)}
                         {dispatch.container_number && ` • Cont: ${dispatch.container_number}`}
                       </p>
+                      {dispatch.invoice_amount !== null && dispatch.invoice_amount !== undefined && Number(dispatch.invoice_amount) > 0 && (() => {
+                        const inv = Number(dispatch.invoice_amount)
+                        const adv = Number(dispatch.advance_amount || 0)
+                        const debt = inv - adv
+                        return (
+                          <div className="flex flex-wrap items-center gap-1.5 mt-1.5">
+                            <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-semibold bg-emerald-500/10 text-emerald-300 border border-emerald-500/20" title="Monto Factura">
+                              Fact: {formatCLP(inv)}
+                            </span>
+                            <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-semibold bg-indigo-500/10 text-indigo-300 border border-indigo-500/20" title="Abonos / Adelantos">
+                              Abono: {formatCLP(adv)}
+                            </span>
+                            <span className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-bold border ${
+                              debt <= 0 
+                                ? 'bg-emerald-500/15 text-emerald-400 border-emerald-500/30' 
+                                : 'bg-amber-500/15 text-amber-300 border-amber-500/30'
+                            }`} title="Saldo Adeudado">
+                              Adeudan: {formatCLP(debt)}
+                            </span>
+                          </div>
+                        )
+                      })()}
                     </div>
                   </div>
                 </div>
