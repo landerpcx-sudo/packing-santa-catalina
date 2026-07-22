@@ -57,42 +57,105 @@ export default function UploadZone({
   const performUpload = async (uploadFile: File, fileHash: string) => {
     setState('uploading')
     setFileName(uploadFile.name)
-    setMessage('Procesando y guardando archivo...')
+    setMessage('Preparando subida...')
     setDriveUrl('')
 
     try {
-      const formData = new FormData()
-      formData.append('file', uploadFile)
-      formData.append('document_type', documentType)
-      formData.append('file_hash', fileHash)
+      let entity = 'lotes'
+      let entityId = lotId
 
-      const finalUrl = uploadUrl || `/api/lotes/${lotId}`
-      const headersInit: HeadersInit = {}
+      if (uploadUrl) {
+        if (uploadUrl.includes('/despachos/')) {
+          entity = 'despachos'
+          const match = uploadUrl.match(/\/despachos\/([^\/]+)/)
+          if (match) entityId = match[1]
+        } else if (uploadUrl.includes('/temperaturas/')) {
+          entity = 'temperaturas'
+          const match = uploadUrl.match(/\/temperaturas\/([^\/]+)/)
+          if (match) entityId = match[1]
+        }
+      }
+
+      const headersInit: HeadersInit = { 'Content-Type': 'application/json' }
       if (user?.userId) headersInit['x-user-id'] = user.userId
       if (user?.role) headersInit['x-user-role'] = user.role
 
-      const res = await fetch(finalUrl, {
+      // Paso 1: Presign en Vercel (JSON ligero < 1KB)
+      const presignRes = await fetch('/api/upload/presign', {
         method: 'POST',
         headers: headersInit,
-        body: formData,
+        body: JSON.stringify({
+          entity,
+          entityId,
+          documentType,
+          fileName: uploadFile.name,
+          fileType: uploadFile.type,
+          fileHash
+        }),
       })
 
-      let json: any = {}
+      let presignJson: any = {}
       try {
-        json = await res.json()
-      } catch (parseErr) {
-        throw new Error(`Respuesta no válida del servidor (${res.status} ${res.statusText})`)
+        presignJson = await presignRes.json()
+      } catch (e) {
+        throw new Error(`Respuesta no válida al preparar subida (${presignRes.status})`)
       }
 
-      if (!res.ok) {
+      if (!presignRes.ok) {
         setState('error')
-        setMessage(json.error || `Error ${res.status}: No se pudo subir el archivo`)
+        setMessage(presignJson.error || `Error ${presignRes.status}: no se pudo preparar la subida`)
+        return
+      }
+
+      const { signedUrl, storagePath, sanitizedName, versionNumber, mimeType } = presignJson
+
+      // Paso 2: Subir directamente desde el cliente a Supabase Storage (Soporta 50MB, Omite limite 4.5MB Vercel)
+      setMessage('Guardando archivo en almacenamiento de alta velocidad...')
+
+      const uploadRes = await fetch(signedUrl, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': mimeType || 'application/pdf',
+        },
+        body: uploadFile,
+      })
+
+      if (!uploadRes.ok) {
+        throw new Error(`Error al guardar en almacenamiento (${uploadRes.status})`)
+      }
+
+      // Paso 3: Confirmación en BD y sync a Drive en segundo plano
+      setMessage('Finalizando registro...')
+      const confirmRes = await fetch('/api/upload/confirm', {
+        method: 'POST',
+        headers: headersInit,
+        body: JSON.stringify({
+          entity,
+          entityId,
+          documentType,
+          storagePath,
+          sanitizedName,
+          versionNumber,
+          fileHash
+        }),
+      })
+
+      let confirmJson: any = {}
+      try {
+        confirmJson = await confirmRes.json()
+      } catch (e) {
+        throw new Error(`Respuesta no válida al confirmar subida (${confirmRes.status})`)
+      }
+
+      if (!confirmRes.ok) {
+        setState('error')
+        setMessage(confirmJson.error || `Error ${confirmRes.status}: fallo al confirmar la subida`)
         return
       }
 
       setState('success')
       setMessage(`¡Archivo subido exitosamente!`)
-      setDriveUrl(json.data?.drive_file_url || '')
+      setDriveUrl(confirmJson.data?.drive_file_url || '')
       triggerConfetti()
       onUploadSuccess()
 
@@ -105,7 +168,7 @@ export default function UploadZone({
     } catch (err: any) {
       console.error('Error en UploadZone:', err)
       setState('error')
-      setMessage(err.message || 'Error de conexión. Intenta nuevamente.')
+      setMessage(err.message || 'Error al subir el archivo. Intenta nuevamente.')
     }
   }
 
@@ -116,32 +179,31 @@ export default function UploadZone({
 
       let uploadFile = file
 
-      // Si el archivo es una imagen (probablemente foto del celular), lo renombramos a un formato limpio
-      if (uploadFile.type.startsWith('image/')) {
+      const isImage = uploadFile.type.startsWith('image/') || /\.(jpg|jpeg|png|webp|heic|heif)$/i.test(uploadFile.name)
+
+      // Si el archivo es una imagen, comprimir si es necesario
+      if (isImage) {
         const ext = uploadFile.name.split('.').pop() || 'jpg'
-        // Ej: "Informe de Recepción Lote 155.jpg"
-        const cleanLabel = documentLabel.replace(/ \(.*\)/, '') // Elimina cosas como "(PDF)"
+        const cleanLabel = documentLabel.replace(/ \(.*\)/, '')
         const newName = `${cleanLabel} ${lotCode}.${ext}`
         
-        // Comprimir la imagen si es mayor a 100KB para optimizar almacenamiento y velocidad
-        if (uploadFile.size > 100 * 1024) {
+        if (uploadFile.size > 200 * 1024) {
           setState('uploading')
-          setMessage('Comprimiendo imagen (optimizando para PDF)...')
+          setMessage('Comprimiendo imagen (optimizando)...')
           try {
             const options = {
-              maxSizeMB: 0.4, // Máximo 400KB
-              maxWidthOrHeight: 1200, // Resolución nítida y óptima para el PDF A4
+              maxSizeMB: 0.5,
+              maxWidthOrHeight: 1600,
               useWebWorker: true
             }
             const compressedBlob = await imageCompression(uploadFile, options)
-            uploadFile = new File([compressedBlob], newName, { type: uploadFile.type })
+            uploadFile = new File([compressedBlob], newName, { type: compressedBlob.type || 'image/jpeg' })
           } catch (error) {
             console.error('Error al comprimir la imagen', error)
-            // Si falla la compresión, renombramos el archivo original de todas formas
-            uploadFile = new File([uploadFile], newName, { type: uploadFile.type })
+            uploadFile = new File([uploadFile], newName, { type: uploadFile.type || 'image/jpeg' })
           }
         } else {
-          uploadFile = new File([uploadFile], newName, { type: uploadFile.type })
+          uploadFile = new File([uploadFile], newName, { type: uploadFile.type || 'image/jpeg' })
         }
       }
 
@@ -156,7 +218,6 @@ export default function UploadZone({
         const checkJson = await checkRes.json()
 
         if (checkRes.ok && checkJson.exists) {
-          // Si ya existe duplicado, abrir modal de confirmación
           setPendingFile({ file: uploadFile, hash })
           setDuplicateInfo({
             fileName: checkJson.fileName,
