@@ -147,6 +147,55 @@ export interface DispatchDocument {
   uploader?: User
 }
 
+export interface DispatchPacklistItem {
+  id: string
+  dispatch_id: string
+  especie: string | null
+  variedad: string | null
+  envase: string
+  calibre: string
+  cajas: number
+  peso_neto_unitario: number | null
+  peso_neto_total: number | null
+  created_at: string
+}
+
+export interface DispatchLiquidationItem {
+  id?: string
+  liquidation_id?: string
+  packlist_item_id?: string | null
+  envase: string
+  calibre: string
+  cajas: number
+  price_per_box: number
+  subtotal: number
+}
+
+export interface DispatchLiquidation {
+  id: string
+  dispatch_id: string
+  currency: string
+  gross_sales: number
+  commission_percentage: number
+  commission_amount: number
+  freight_amount: number
+  handling_amount: number
+  cold_storage_amount: number
+  surveyor_amount: number
+  transport_amount: number
+  other_expenses: number
+  total_expenses: number
+  net_amount: number
+  advance_amount: number
+  exchange_rate: number
+  final_balance: number
+  status: 'draft' | 'finalized'
+  created_by?: string | null
+  created_at: string
+  updated_at: string
+  items?: DispatchLiquidationItem[]
+}
+
 export interface AuditLog {
   id: string
   user_id: string | null

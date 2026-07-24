@@ -163,3 +163,12 @@ export async function moveFolderOrFile(fileId: string, newParentId: string) {
   }
 }
 
+export async function getDriveFileStream(fileId: string) {
+  const drive = await getDriveClient()
+  const res = await drive.files.get(
+    { fileId, alt: 'media', supportsAllDrives: true },
+    { responseType: 'stream' }
+  )
+  return res.data as Readable
+}
+

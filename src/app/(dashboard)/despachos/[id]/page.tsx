@@ -12,6 +12,7 @@ import ValidationModal from '@/components/lotes/ValidationModal'
 import PalletUploadZone from '@/components/despachos/PalletUploadZone'
 import UploadZone from '@/components/lotes/UploadZone' // General UploadZone
 import InlineValidation from '@/components/lotes/InlineValidation'
+import ContainerLiquidationCard from '@/components/despachos/ContainerLiquidationCard'
 import { useRouter } from 'next/navigation'
 import dynamic from 'next/dynamic'
 
@@ -1001,7 +1002,16 @@ export default function DispatchDetailPage({ params }: { params: Promise<{ id: s
             )}
           </div>
         </div>
+      </div>
 
+      {/* Módulo de Liquidación de Contenedor (Sector Financiero) */}
+      <div className="border-t border-white/10 pt-8 mt-8">
+        <ContainerLiquidationCard
+          dispatchId={id}
+          dispatchCode={dispatch.dispatch_code}
+          isClosed={dispatch.overall_status === 'closed'}
+          userId={user?.userId}
+        />
       </div>
 
       {/* Sección Documentos Financieros */}
