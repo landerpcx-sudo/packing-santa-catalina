@@ -541,11 +541,11 @@ export default function ContainerLiquidationCard({
           </div>
         </div>
 
-        {/* SECCIÓN 3: RESUMEN FINANCIERO Y CONVERSIÓN DE MONEDA A TRANSFERIR */}
+        {/* SECCIÓN 3: RESUMEN FINANCIERO Y UTILIDAD DEL NEGOCIO */}
         <div className="space-y-4">
           <h3 className="text-sm font-semibold text-slate-800 dark:text-gray-200 flex items-center gap-2">
             <DollarSign className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
-            3. Resumen y Conversión a Moneda Final
+            3. Resumen Financiero y Utilidad del Negocio
           </h3>
 
           <div className="bg-slate-50/80 dark:bg-gray-950/60 border border-slate-200 dark:border-gray-800 rounded-xl p-5 space-y-4">
@@ -566,7 +566,10 @@ export default function ContainerLiquidationCard({
 
             <div className="space-y-3 pt-1 border-b border-slate-200 dark:border-gray-800 pb-3">
               <div className="flex items-center justify-between text-xs">
-                <label className="text-slate-700 dark:text-gray-300 font-medium">Anticipo Recibido ({currSymbol})</label>
+                <div>
+                  <label className="text-slate-700 dark:text-gray-300 font-semibold block">Monto Facturado / Costo FOB Mínimo ({currSymbol})</label>
+                  <span className="text-[10px] text-slate-400 dark:text-gray-500">Adelanto / Base garantizada de la operación</span>
+                </div>
                 <input
                   type="number"
                   step="0.01"
@@ -574,7 +577,7 @@ export default function ContainerLiquidationCard({
                   onChange={(e) => setAdvanceAmount(parseFloat(e.target.value) || 0)}
                   disabled={isClosed}
                   placeholder="0.00"
-                  className="w-32 bg-white dark:bg-gray-900 border border-slate-300 dark:border-gray-700 rounded-lg px-2 py-1 text-right font-mono text-slate-900 dark:text-white outline-none focus:border-indigo-500 text-xs"
+                  className="w-32 bg-white dark:bg-gray-900 border border-slate-300 dark:border-gray-700 rounded-lg px-2 py-1 text-right font-mono font-bold text-slate-900 dark:text-white outline-none focus:border-indigo-500 text-xs"
                 />
               </div>
 
@@ -637,13 +640,23 @@ export default function ContainerLiquidationCard({
               </div>
             </div>
 
-            {/* TARJETA DE SALDO FINAL A TRANSFERIR */}
-            <div className="bg-gradient-to-r from-emerald-50 to-indigo-50 dark:from-emerald-950/60 dark:to-indigo-950/60 border border-emerald-200 dark:border-emerald-500/30 rounded-xl p-4 space-y-1 shadow-sm">
-              <div className="text-[11px] uppercase font-bold text-emerald-800 dark:text-emerald-400 tracking-wider">
-                Saldo Pendiente a Transferir ({targetCurrency})
+            {/* TARJETA DE UTILIDAD Y RESULTADO DEL NEGOCIO */}
+            <div className={`border rounded-xl p-4 space-y-1 shadow-sm transition-all ${
+              finalBalanceInCurrency >= 0
+                ? 'bg-gradient-to-r from-emerald-50 to-teal-50 dark:from-emerald-950/70 dark:to-teal-950/70 border-emerald-300 dark:border-emerald-500/40'
+                : 'bg-gradient-to-r from-amber-50 to-orange-50 dark:from-amber-950/70 dark:to-orange-950/70 border-amber-300 dark:border-amber-500/40'
+            }`}>
+              <div className={`text-[11px] uppercase font-black tracking-wider ${
+                finalBalanceInCurrency >= 0
+                  ? 'text-emerald-800 dark:text-emerald-300'
+                  : 'text-amber-800 dark:text-amber-300'
+              }`}>
+                {finalBalanceInCurrency >= 0 ? 'Utilidad del Negocio (Importe Neto - Facturado FOB)' : 'Resultado por debajo de Costo FOB Facturado'}
               </div>
               <div className="flex items-baseline justify-between">
-                <span className="text-2xl font-black font-mono text-slate-900 dark:text-white">
+                <span className={`text-2xl font-black font-mono ${
+                  finalBalanceInCurrency >= 0 ? 'text-emerald-900 dark:text-emerald-200' : 'text-amber-900 dark:text-amber-200'
+                }`}>
                   {targetCurrSymbol} {finalBalanceTargetCurrency.toLocaleString('es-CL', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} {targetCurrency}
                 </span>
                 <span className="text-xs text-slate-500 dark:text-gray-400 font-mono font-medium">
