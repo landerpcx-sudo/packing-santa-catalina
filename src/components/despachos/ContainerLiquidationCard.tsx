@@ -3,7 +3,7 @@
 import React, { useState, useEffect, useCallback } from 'react'
 import {
   DollarSign, Calculator, RefreshCw, FileText, CheckCircle2,
-  AlertCircle, Save, Printer, ArrowRight, Package, Percent, FileCheck
+  AlertCircle, Save, Printer, ArrowRight, Package, Percent, FileCheck, Globe, Calendar
 } from 'lucide-react'
 import { DispatchPacklistItem, DispatchLiquidationItem, DispatchLiquidation } from '@/lib/types'
 
@@ -14,6 +14,16 @@ interface ContainerLiquidationCardProps {
   userId?: string
 }
 
+export const CURRENCIES = [
+  { code: 'EUR', symbol: '€', label: 'Euro (EUR €)' },
+  { code: 'USD', symbol: '$', label: 'Dólar Estadounidense (USD $)' },
+  { code: 'CLP', symbol: '$', label: 'Peso Chileno (CLP $)' },
+  { code: 'GBP', symbol: '£', label: 'Libra Esterlina (GBP £)' },
+  { code: 'CAD', symbol: '$', label: 'Dólar Canadiense (CAD $)' },
+  { code: 'BRL', symbol: 'R$', label: 'Real Brasileño (BRL R$)' },
+  { code: 'CNY', symbol: '¥', label: 'Yuan Chino (CNY ¥)' },
+]
+
 export default function ContainerLiquidationCard({
   dispatchId,
   dispatchCode,
@@ -23,11 +33,15 @@ export default function ContainerLiquidationCard({
   const [loading, setLoading] = useState(true)
   const [parsingPacklist, setParsingPacklist] = useState(false)
   const [saving, setSaving] = useState(false)
+  const [fetchingRate, setFetchingRate] = useState(false)
   const [message, setMessage] = useState<{ type: 'success' | 'error' | 'info'; text: string } | null>(null)
 
   // Datos
   const [packlistItems, setPacklistItems] = useState<DispatchPacklistItem[]>([])
-  const [currency, setCurrency] = useState<'USD' | 'EUR' | 'CLP'>('EUR')
+  const [currency, setCurrency] = useState<'EUR' | 'USD' | 'CLP' | 'GBP' | 'CAD' | 'BRL' | 'CNY'>('EUR')
+  const [targetCurrency, setTargetCurrency] = useState<'EUR' | 'USD' | 'CLP' | 'GBP' | 'CAD' | 'BRL' | 'CNY'>('USD')
+  const [rateDate, setRateDate] = useState<string>(() => new Date().toISOString().split('T')[0])
+  const [rateProviderInfo, setRateProviderInfo] = useState<string>('')
   const [liquidationStatus, setLiquidationStatus] = useState<'draft' | 'finalized'>('draft')
 
   // Filas de precios por caja por calibre/embalaje
@@ -52,7 +66,15 @@ export default function ContainerLiquidationCard({
   // Anticipos y Tipo de Cambio
   const [advanceAmount, setAdvanceAmount] = useState<number>(0)
   const [exchangeRate, setExchangeRate] = useState<number>(1)
-  const [targetCurrency, setTargetCurrency] = useState<'USD' | 'EUR' | 'CLP'>('USD')
+
+  // Obtener símbolo de moneda según código
+  const getCurrencySymbol = (code: string) => {
+    const found = CURRENCIES.find(c => c.code === code)
+    return found ? found.symbol : '$'
+  }
+
+  const currSymbol = getCurrencySymbol(currency)
+  const targetCurrSymbol = getCurrencySymbol(targetCurrency)
 
   // Cargar datos al montar
   const fetchLiquidationData = useCallback(async () => {
@@ -88,7 +110,6 @@ export default function ContainerLiquidationCard({
               subtotal: it.subtotal || (it.cajas * (it.price_per_box || 0))
             })))
           } else if (fetchedPacklist.length > 0) {
-            // Construir filas a partir de packlist
             setRows(fetchedPacklist.map(pk => ({
               packlist_item_id: pk.id,
               envase: pk.envase,
@@ -119,6 +140,34 @@ export default function ContainerLiquidationCard({
   useEffect(() => {
     fetchLiquidationData()
   }, [fetchLiquidationData])
+
+  // Consultar tipo de cambio a la API oficial según fecha
+  const handleFetchExchangeRate = async () => {
+    if (currency === targetCurrency) {
+      setExchangeRate(1)
+      setRateProviderInfo('Misma moneda (1:1)')
+      return
+    }
+    setFetchingRate(true)
+    try {
+      const res = await fetch(`/api/tipo-cambio?from=${currency}&to=${targetCurrency}&date=${rateDate}`)
+      const data = await res.json()
+      if (res.ok && data.rate) {
+        setExchangeRate(data.rate)
+        setRateProviderInfo(data.provider || 'API Divisas')
+        setMessage({
+          type: 'info',
+          text: `Tipo de cambio (${currency} $\\rightarrow$ ${targetCurrency}) según fecha ${rateDate}: 1 ${currency} = ${data.rate} ${targetCurrency} [Fuente: ${data.provider}]`
+        })
+      } else {
+        setMessage({ type: 'error', text: data.error || 'No se pudo obtener la tasa de cambio.' })
+      }
+    } catch (e) {
+      setMessage({ type: 'error', text: 'Error al consultar servicio de tipo de cambio.' })
+    } finally {
+      setFetchingRate(false)
+    }
+  }
 
   // Ejecutar extracción de Packlist PDF
   const handleParsePacklist = async () => {
@@ -228,8 +277,8 @@ export default function ContainerLiquidationCard({
     }
   }
 
-  const formatMoney = (val: number, currSymbol = '€') => {
-    return `${currSymbol} ${val.toLocaleString('es-CL', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+  const formatMoney = (val: number, symbol = currSymbol) => {
+    return `${symbol} ${val.toLocaleString('es-CL', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
   }
 
   if (loading) {
@@ -243,10 +292,10 @@ export default function ContainerLiquidationCard({
 
   return (
     <div className="bg-white dark:bg-gray-900/80 border border-slate-200 dark:border-gray-800 rounded-2xl p-6 shadow-xl dark:shadow-2xl space-y-6">
-      {/* HEADER DE LIQUIDACIÓN */}
+      {/* HEADER DE LIQUIDACIÓN Y SELECTOR DE MONEDA */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-slate-200 dark:border-gray-800 pb-4">
         <div>
-          <div className="flex items-center gap-3">
+          <div className="flex flex-wrap items-center gap-3">
             <h2 className="text-xl font-bold text-slate-900 dark:text-white flex items-center gap-2">
               <Calculator className="w-6 h-6 text-emerald-600 dark:text-emerald-400" />
               Liquidación de Contenedor ({dispatchCode})
@@ -259,16 +308,31 @@ export default function ContainerLiquidationCard({
               {liquidationStatus === 'finalized' ? 'FINALIZADA' : 'BORRADOR'}
             </span>
           </div>
-          <p className="text-xs text-slate-500 dark:text-gray-400 mt-1">
-            Captura de cajas por calibre desde Packlist e ingreso de precios medios de venta por caja.
-          </p>
+
+          {/* Selector de Moneda de Venta Primaria */}
+          <div className="flex items-center gap-2 mt-2">
+            <span className="text-xs font-semibold text-slate-600 dark:text-gray-300 flex items-center gap-1">
+              <DollarSign className="w-3.5 h-3.5 text-emerald-500" />
+              Moneda de Venta de Cajas:
+            </span>
+            <select
+              value={currency}
+              onChange={(e) => setCurrency(e.target.value as any)}
+              disabled={isClosed}
+              className="bg-slate-50 dark:bg-gray-950 border border-slate-300 dark:border-gray-700 rounded-lg px-2.5 py-1 text-xs font-bold text-slate-900 dark:text-white outline-none focus:border-indigo-500 transition shadow-sm"
+            >
+              {CURRENCIES.map(c => (
+                <option key={c.code} value={c.code}>{c.label}</option>
+              ))}
+            </select>
+          </div>
         </div>
 
         <div className="flex items-center gap-2">
           <button
             onClick={handleParsePacklist}
             disabled={parsingPacklist || isClosed}
-            className="flex items-center gap-2 px-3 py-2 text-xs font-medium bg-indigo-50 dark:bg-indigo-600/20 text-indigo-700 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-500/30 rounded-lg hover:bg-indigo-100 dark:hover:bg-indigo-600/30 transition disabled:opacity-50"
+            className="flex items-center gap-2 px-3 py-2 text-xs font-medium bg-indigo-50 dark:bg-indigo-600/20 text-indigo-700 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-500/30 rounded-lg hover:bg-indigo-100 dark:hover:bg-indigo-600/30 transition disabled:opacity-50 shadow-sm"
           >
             <RefreshCw className={`w-3.5 h-3.5 ${parsingPacklist ? 'animate-spin' : ''}`} />
             {parsingPacklist ? 'Procesando PDF...' : 'Extraer / Re-procesar Packlist'}
@@ -293,7 +357,7 @@ export default function ContainerLiquidationCard({
         <div className="flex items-center justify-between">
           <h3 className="text-sm font-semibold text-slate-800 dark:text-gray-200 flex items-center gap-2">
             <Package className="w-4 h-4 text-indigo-600 dark:text-indigo-400" />
-            1. Desglose de Fruta por Embalaje y Calibre (Venta por Caja)
+            1. Desglose de Fruta por Embalaje y Calibre (Venta por Caja en {currency})
           </h3>
           <span className="text-xs text-slate-500 dark:text-gray-400 font-mono">
             Total Cajas: <strong className="text-slate-900 dark:text-white font-bold">{totalCajas.toLocaleString()}</strong>
@@ -320,8 +384,8 @@ export default function ContainerLiquidationCard({
                   <th className="py-3 px-4">Embalaje / Envase</th>
                   <th className="py-3 px-4">Calibre</th>
                   <th className="py-3 px-4 text-right">Cajas Totales</th>
-                  <th className="py-3 px-4 text-right">Precio Venta / Caja (€)</th>
-                  <th className="py-3 px-4 text-right">Subtotal (€)</th>
+                  <th className="py-3 px-4 text-right">Precio Venta / Caja ({currSymbol})</th>
+                  <th className="py-3 px-4 text-right">Subtotal ({currSymbol})</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-200 dark:divide-gray-800/60 text-slate-700 dark:text-gray-300">
@@ -331,8 +395,8 @@ export default function ContainerLiquidationCard({
                     <td className="py-3 px-4 font-mono font-bold text-indigo-600 dark:text-indigo-400">{row.calibre}</td>
                     <td className="py-3 px-4 text-right font-mono text-slate-800 dark:text-gray-200">{row.cajas.toLocaleString()}</td>
                     <td className="py-3 px-4 text-right">
-                      <div className="inline-flex items-center gap-1 bg-white dark:bg-gray-950 border border-slate-300 dark:border-gray-700 rounded-lg px-2 py-1 focus-within:border-indigo-500">
-                        <span className="text-slate-400 dark:text-gray-500">€</span>
+                      <div className="inline-flex items-center gap-1 bg-white dark:bg-gray-950 border border-slate-300 dark:border-gray-700 rounded-lg px-2 py-1 focus-within:border-indigo-500 shadow-inner">
+                        <span className="text-slate-400 dark:text-gray-500 font-bold">{currSymbol}</span>
                         <input
                           type="number"
                           step="0.01"
@@ -353,7 +417,7 @@ export default function ContainerLiquidationCard({
               </tbody>
               <tfoot className="bg-slate-100 dark:bg-gray-950/90 font-bold border-t border-slate-200 dark:border-gray-800 text-slate-900 dark:text-white">
                 <tr>
-                  <td colSpan={2} className="py-3 px-4 uppercase text-slate-500 dark:text-gray-400">Total Venta Bruta Contenedor</td>
+                  <td colSpan={2} className="py-3 px-4 uppercase text-slate-500 dark:text-gray-400">Total Venta Bruta Contenedor ({currency})</td>
                   <td className="py-3 px-4 text-right font-mono">{totalCajas.toLocaleString()} cajas</td>
                   <td className="py-3 px-4"></td>
                   <td className="py-3 px-4 text-right font-mono text-emerald-600 dark:text-emerald-400 text-sm">
@@ -371,7 +435,7 @@ export default function ContainerLiquidationCard({
         <div className="space-y-4">
           <h3 className="text-sm font-semibold text-slate-800 dark:text-gray-200 flex items-center gap-2">
             <Percent className="w-4 h-4 text-red-500 dark:text-red-400" />
-            2. Gastos en Destino y Comisión
+            2. Gastos en Destino y Comisión ({currency})
           </h3>
 
           <div className="bg-slate-50/80 dark:bg-gray-950/60 border border-slate-200 dark:border-gray-800 rounded-xl p-4 space-y-3">
@@ -393,7 +457,7 @@ export default function ContainerLiquidationCard({
             </div>
 
             <div className="flex items-center justify-between text-xs">
-              <label className="text-slate-700 dark:text-gray-300 font-medium">Flete Marítimo (€)</label>
+              <label className="text-slate-700 dark:text-gray-300 font-medium">Flete Marítimo ({currSymbol})</label>
               <input
                 type="number"
                 step="0.01"
@@ -406,7 +470,7 @@ export default function ContainerLiquidationCard({
             </div>
 
             <div className="flex items-center justify-between text-xs">
-              <label className="text-slate-700 dark:text-gray-300 font-medium">Handling / Puerto (€)</label>
+              <label className="text-slate-700 dark:text-gray-300 font-medium">Handling / Puerto ({currSymbol})</label>
               <input
                 type="number"
                 step="0.01"
@@ -419,7 +483,7 @@ export default function ContainerLiquidationCard({
             </div>
 
             <div className="flex items-center justify-between text-xs">
-              <label className="text-slate-700 dark:text-gray-300 font-medium">Almacén Frigorífico (€)</label>
+              <label className="text-slate-700 dark:text-gray-300 font-medium">Almacén Frigorífico ({currSymbol})</label>
               <input
                 type="number"
                 step="0.01"
@@ -432,7 +496,7 @@ export default function ContainerLiquidationCard({
             </div>
 
             <div className="flex items-center justify-between text-xs">
-              <label className="text-slate-700 dark:text-gray-300 font-medium">Surveyor / Inspección (€)</label>
+              <label className="text-slate-700 dark:text-gray-300 font-medium">Surveyor / Inspección ({currSymbol})</label>
               <input
                 type="number"
                 step="0.01"
@@ -445,7 +509,7 @@ export default function ContainerLiquidationCard({
             </div>
 
             <div className="flex items-center justify-between text-xs">
-              <label className="text-slate-700 dark:text-gray-300 font-medium">Transporte Local (€)</label>
+              <label className="text-slate-700 dark:text-gray-300 font-medium">Transporte Local ({currSymbol})</label>
               <input
                 type="number"
                 step="0.01"
@@ -458,7 +522,7 @@ export default function ContainerLiquidationCard({
             </div>
 
             <div className="flex items-center justify-between text-xs">
-              <label className="text-slate-700 dark:text-gray-300 font-medium">Otros Gastos (€)</label>
+              <label className="text-slate-700 dark:text-gray-300 font-medium">Otros Gastos ({currSymbol})</label>
               <input
                 type="number"
                 step="0.01"
@@ -477,32 +541,32 @@ export default function ContainerLiquidationCard({
           </div>
         </div>
 
-        {/* SECCIÓN 3: RESUMEN FINANCIERO Y SALDO FINAL */}
+        {/* SECCIÓN 3: RESUMEN FINANCIERO Y CONVERSIÓN DE MONEDA A TRANSFERIR */}
         <div className="space-y-4">
           <h3 className="text-sm font-semibold text-slate-800 dark:text-gray-200 flex items-center gap-2">
             <DollarSign className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
-            3. Resumen y Saldo Final a Transferir
+            3. Resumen y Conversión a Moneda Final
           </h3>
 
           <div className="bg-slate-50/80 dark:bg-gray-950/60 border border-slate-200 dark:border-gray-800 rounded-xl p-5 space-y-4">
             <div className="flex items-center justify-between border-b border-slate-200 dark:border-gray-800 pb-3">
-              <span className="text-xs text-slate-500 dark:text-gray-400">Venta Bruta Total:</span>
+              <span className="text-xs text-slate-500 dark:text-gray-400">Venta Bruta Total ({currency}):</span>
               <span className="font-mono font-bold text-slate-900 dark:text-white text-sm">{formatMoney(grossSales)}</span>
             </div>
 
             <div className="flex items-center justify-between border-b border-slate-200 dark:border-gray-800 pb-3">
-              <span className="text-xs text-slate-500 dark:text-gray-400">Total Deducciones:</span>
+              <span className="text-xs text-slate-500 dark:text-gray-400">Total Deducciones ({currency}):</span>
               <span className="font-mono font-bold text-red-600 dark:text-red-400 text-sm">-{formatMoney(totalExpenses)}</span>
             </div>
 
             <div className="flex items-center justify-between border-b border-slate-200 dark:border-gray-800 pb-3 bg-emerald-500/10 p-2 rounded-lg border border-emerald-500/20">
-              <span className="text-xs font-bold text-emerald-800 dark:text-emerald-300">Importe Neto a Favor (€):</span>
+              <span className="text-xs font-bold text-emerald-800 dark:text-emerald-300">Importe Neto a Favor ({currSymbol}):</span>
               <span className="font-mono font-bold text-emerald-700 dark:text-emerald-400 text-base">{formatMoney(netAmount)}</span>
             </div>
 
-            <div className="space-y-2 pt-1">
+            <div className="space-y-3 pt-1 border-b border-slate-200 dark:border-gray-800 pb-3">
               <div className="flex items-center justify-between text-xs">
-                <label className="text-slate-700 dark:text-gray-300 font-medium">Anticipo Recibido (€)</label>
+                <label className="text-slate-700 dark:text-gray-300 font-medium">Anticipo Recibido ({currSymbol})</label>
                 <input
                   type="number"
                   step="0.01"
@@ -514,30 +578,76 @@ export default function ContainerLiquidationCard({
                 />
               </div>
 
-              <div className="flex items-center justify-between text-xs">
-                <label className="text-slate-700 dark:text-gray-300 font-medium">Tipo de Cambio (EUR $\rightarrow$ USD)</label>
-                <input
-                  type="number"
-                  step="0.0001"
-                  value={exchangeRate}
-                  onChange={(e) => setExchangeRate(parseFloat(e.target.value) || 1)}
-                  disabled={isClosed}
-                  className="w-24 bg-white dark:bg-gray-900 border border-slate-300 dark:border-gray-700 rounded-lg px-2 py-1 text-right font-mono text-slate-900 dark:text-white outline-none focus:border-indigo-500 text-xs"
-                />
+              {/* Selector de Moneda Objetivo y Tasa por Fecha API */}
+              <div className="bg-slate-100 dark:bg-gray-900/80 border border-slate-200 dark:border-gray-800 rounded-xl p-3 space-y-3">
+                <div className="flex items-center justify-between gap-2 text-xs">
+                  <span className="font-bold text-slate-700 dark:text-gray-300">Moneda Final Transferencia:</span>
+                  <select
+                    value={targetCurrency}
+                    onChange={(e) => setTargetCurrency(e.target.value as any)}
+                    disabled={isClosed}
+                    className="bg-white dark:bg-gray-950 border border-slate-300 dark:border-gray-700 rounded-lg px-2 py-1 text-xs font-bold text-slate-900 dark:text-white outline-none focus:border-indigo-500"
+                  >
+                    {CURRENCIES.map(c => (
+                      <option key={c.code} value={c.code}>{c.label}</option>
+                    ))}
+                  </select>
+                </div>
+
+                <div className="flex flex-wrap items-center justify-between gap-2 text-xs">
+                  <div className="flex items-center gap-1.5">
+                    <Calendar className="w-3.5 h-3.5 text-indigo-500" />
+                    <span className="text-slate-600 dark:text-gray-400 font-medium">Fecha Cambio:</span>
+                    <input
+                      type="date"
+                      value={rateDate}
+                      onChange={(e) => setRateDate(e.target.value)}
+                      disabled={isClosed}
+                      className="bg-white dark:bg-gray-950 border border-slate-300 dark:border-gray-700 rounded-lg px-2 py-0.5 text-xs text-slate-900 dark:text-white outline-none focus:border-indigo-500"
+                    />
+                  </div>
+
+                  <button
+                    type="button"
+                    onClick={handleFetchExchangeRate}
+                    disabled={fetchingRate || isClosed}
+                    className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold bg-indigo-600 hover:bg-indigo-500 text-white rounded-lg transition shadow-sm disabled:opacity-50"
+                  >
+                    <Globe className={`w-3.5 h-3.5 ${fetchingRate ? 'animate-spin' : ''}`} />
+                    {fetchingRate ? 'Consultando...' : 'Obtener Cambio API'}
+                  </button>
+                </div>
+
+                <div className="flex items-center justify-between text-xs pt-1">
+                  <div>
+                    <label className="text-slate-700 dark:text-gray-300 font-medium">Tasa de Cambio ({currency} $\rightarrow$ {targetCurrency})</label>
+                    {rateProviderInfo && (
+                      <p className="text-[10px] text-indigo-600 dark:text-indigo-400">{rateProviderInfo}</p>
+                    )}
+                  </div>
+                  <input
+                    type="number"
+                    step="0.0001"
+                    value={exchangeRate}
+                    onChange={(e) => setExchangeRate(parseFloat(e.target.value) || 1)}
+                    disabled={isClosed}
+                    className="w-24 bg-white dark:bg-gray-950 border border-slate-300 dark:border-gray-700 rounded-lg px-2 py-1 text-right font-mono font-bold text-slate-900 dark:text-white outline-none focus:border-indigo-500 text-xs"
+                  />
+                </div>
               </div>
             </div>
 
             {/* TARJETA DE SALDO FINAL A TRANSFERIR */}
             <div className="bg-gradient-to-r from-emerald-50 to-indigo-50 dark:from-emerald-950/60 dark:to-indigo-950/60 border border-emerald-200 dark:border-emerald-500/30 rounded-xl p-4 space-y-1 shadow-sm">
               <div className="text-[11px] uppercase font-bold text-emerald-800 dark:text-emerald-400 tracking-wider">
-                Saldo Pendiente a Transferir
+                Saldo Pendiente a Transferir ({targetCurrency})
               </div>
               <div className="flex items-baseline justify-between">
                 <span className="text-2xl font-black font-mono text-slate-900 dark:text-white">
-                  $ {finalBalanceTargetCurrency.toLocaleString('es-CL', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} USD
+                  {targetCurrSymbol} {finalBalanceTargetCurrency.toLocaleString('es-CL', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} {targetCurrency}
                 </span>
                 <span className="text-xs text-slate-500 dark:text-gray-400 font-mono font-medium">
-                  ({formatMoney(finalBalanceInCurrency, '€')})
+                  ({formatMoney(finalBalanceInCurrency, currSymbol)})
                 </span>
               </div>
             </div>
