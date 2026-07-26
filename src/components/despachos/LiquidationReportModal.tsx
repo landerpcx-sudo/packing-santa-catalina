@@ -172,6 +172,60 @@ export default function LiquidationReportModal({
   const maxProfitBar = Math.max(...calibreAnalysis.map(c => Math.abs(c.profitPerBox)), 0.01)
   const maxVolumeBar = Math.max(...calibreAnalysis.map(c => c.cajas), 1)
 
+  // Manejador Inteligente de Impresión y Generación de PDF en Lienzo Aislado
+  const handlePrintOrPDF = () => {
+    const reportEl = document.getElementById('commercial-report-print')
+    if (!reportEl) {
+      window.print()
+      return
+    }
+
+    const reportHtml = reportEl.innerHTML
+    const printWindow = window.open('', '_blank', 'width=950,height=1100')
+    
+    if (!printWindow) {
+      window.print()
+      return
+    }
+
+    printWindow.document.write(`
+      <!DOCTYPE html>
+      <html lang="es">
+      <head>
+        <meta charset="UTF-8" />
+        <title>Informe Comercial de Liquidación - LIQ-${dispatchCode}</title>
+        <script src="https://cdn.tailwindcss.com"></script>
+        <style>
+          @page { size: A4 portrait; margin: 10mm; }
+          body { 
+            font-family: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; 
+            background-color: #ffffff !important; 
+            color: #0f172a !important; 
+            padding: 15px; 
+          }
+          * { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
+          .print\\:hidden { display: none !important; }
+        </style>
+      </head>
+      <body>
+        <div class="max-w-4xl mx-auto bg-white p-4">
+          ${reportHtml}
+        </div>
+        <script>
+          window.onload = function() {
+            setTimeout(function() {
+              window.print();
+              window.close();
+            }, 400);
+          };
+        </script>
+      </body>
+      </html>
+    `)
+
+    printWindow.document.close()
+  }
+
   return (
     <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/85 backdrop-blur-md p-2 sm:p-6 overflow-y-auto print:p-0 print:bg-white print:static print:block">
       {/* Contenedor principal del modal (oculto el marco al imprimir) */}
@@ -185,7 +239,7 @@ export default function LiquidationReportModal({
           </div>
           <div className="flex items-center gap-3">
             <button
-              onClick={() => window.print()}
+              onClick={handlePrintOrPDF}
               className="flex items-center gap-2 px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs rounded-xl shadow-lg transition-all"
             >
               <Printer className="w-4 h-4" />
