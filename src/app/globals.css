@@ -209,6 +209,26 @@ body {
 [data-theme="light"] .border-white\/20    { border-color: #cbd5e1 !important; }
 [data-theme="light"] .border-slate-700\/50 { border-color: #d1d5db !important; }
 
+/* — Fondos y bordes gray-* en modo claro — */
+[data-theme="light"] .bg-gray-900\/80     { background-color: #ffffff !important; border-color: #e2e8f0 !important; }
+[data-theme="light"] .bg-gray-900\/60     { background-color: #ffffff !important; border-color: #e2e8f0 !important; }
+[data-theme="light"] .bg-gray-900        { background-color: #ffffff !important; border-color: #e2e8f0 !important; }
+[data-theme="light"] .bg-gray-950\/60     { background-color: #f8fafc !important; border-color: #e2e8f0 !important; }
+[data-theme="light"] .bg-gray-950\/80     { background-color: #f1f5f9 !important; border-color: #e2e8f0 !important; }
+[data-theme="light"] .bg-gray-950\/90     { background-color: #e2e8f0 !important; border-color: #cbd5e1 !important; }
+[data-theme="light"] .bg-gray-950        { background-color: #f8fafc !important; border-color: #e2e8f0 !important; }
+[data-theme="light"] .bg-gray-800        { background-color: #e2e8f0 !important; border-color: #cbd5e1 !important; color: #0f172a !important; }
+[data-theme="light"] .bg-gray-800\/60     { background-color: #f8fafc !important; }
+[data-theme="light"] .hover\:bg-gray-700:hover { background-color: #cbd5e1 !important; }
+
+[data-theme="light"] .border-gray-800     { border-color: #e2e8f0 !important; }
+[data-theme="light"] .border-gray-800\/60  { border-color: #e2e8f0 !important; }
+[data-theme="light"] .border-gray-700     { border-color: #cbd5e1 !important; }
+[data-theme="light"] .divide-gray-800\/60 > :not([hidden]) ~ :not([hidden]) { border-color: #e2e8f0 !important; }
+
+[data-theme="light"] .bg-indigo-600\/20   { background-color: rgba(79, 70, 229, 0.1) !important; color: #4338ca !important; border-color: rgba(79, 70, 229, 0.25) !important; }
+[data-theme="light"] .hover\:bg-indigo-600\/30:hover { background-color: rgba(79, 70, 229, 0.18) !important; }
+
 /* — Inputs y selects — */
 [data-theme="light"] input,
 [data-theme="light"] select,

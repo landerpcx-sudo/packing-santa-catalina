@@ -234,32 +234,32 @@ export default function ContainerLiquidationCard({
 
   if (loading) {
     return (
-      <div className="bg-gray-900/60 border border-gray-800 rounded-xl p-8 text-center text-gray-400 flex items-center justify-center gap-3">
-        <RefreshCw className="w-5 h-5 animate-spin text-indigo-400" />
+      <div className="bg-white/80 dark:bg-gray-900/60 border border-slate-200 dark:border-gray-800 rounded-xl p-8 text-center text-slate-500 dark:text-gray-400 flex items-center justify-center gap-3 shadow-lg">
+        <RefreshCw className="w-5 h-5 animate-spin text-indigo-500 dark:text-indigo-400" />
         Cargando módulo de liquidación...
       </div>
     )
   }
 
   return (
-    <div className="bg-gray-900/80 border border-gray-800 rounded-2xl p-6 shadow-2xl space-y-6">
+    <div className="bg-white dark:bg-gray-900/80 border border-slate-200 dark:border-gray-800 rounded-2xl p-6 shadow-xl dark:shadow-2xl space-y-6">
       {/* HEADER DE LIQUIDACIÓN */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-gray-800 pb-4">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-slate-200 dark:border-gray-800 pb-4">
         <div>
           <div className="flex items-center gap-3">
-            <h2 className="text-xl font-bold text-white flex items-center gap-2">
-              <Calculator className="w-6 h-6 text-emerald-400" />
+            <h2 className="text-xl font-bold text-slate-900 dark:text-white flex items-center gap-2">
+              <Calculator className="w-6 h-6 text-emerald-600 dark:text-emerald-400" />
               Liquidación de Contenedor ({dispatchCode})
             </h2>
             <span className={`px-3 py-0.5 text-xs font-semibold rounded-full border ${
               liquidationStatus === 'finalized'
-                ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/30'
-                : 'bg-yellow-500/10 text-yellow-400 border-yellow-500/30'
+                ? 'bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 border-emerald-500/30'
+                : 'bg-yellow-500/10 text-yellow-700 dark:text-yellow-400 border-yellow-500/30'
             }`}>
               {liquidationStatus === 'finalized' ? 'FINALIZADA' : 'BORRADOR'}
             </span>
           </div>
-          <p className="text-xs text-gray-400 mt-1">
+          <p className="text-xs text-slate-500 dark:text-gray-400 mt-1">
             Captura de cajas por calibre desde Packlist e ingreso de precios medios de venta por caja.
           </p>
         </div>
@@ -268,7 +268,7 @@ export default function ContainerLiquidationCard({
           <button
             onClick={handleParsePacklist}
             disabled={parsingPacklist || isClosed}
-            className="flex items-center gap-2 px-3 py-2 text-xs font-medium bg-indigo-600/20 text-indigo-300 border border-indigo-500/30 rounded-lg hover:bg-indigo-600/30 transition disabled:opacity-50"
+            className="flex items-center gap-2 px-3 py-2 text-xs font-medium bg-indigo-50 dark:bg-indigo-600/20 text-indigo-700 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-500/30 rounded-lg hover:bg-indigo-100 dark:hover:bg-indigo-600/30 transition disabled:opacity-50"
           >
             <RefreshCw className={`w-3.5 h-3.5 ${parsingPacklist ? 'animate-spin' : ''}`} />
             {parsingPacklist ? 'Procesando PDF...' : 'Extraer / Re-procesar Packlist'}
@@ -279,9 +279,9 @@ export default function ContainerLiquidationCard({
       {/* MENSAJES DE NOTIFICACIÓN */}
       {message && (
         <div className={`p-4 rounded-xl text-sm flex items-center gap-3 border ${
-          message.type === 'success' ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-300' :
-          message.type === 'error' ? 'bg-red-500/10 border-red-500/30 text-red-300' :
-          'bg-blue-500/10 border-blue-500/30 text-blue-300'
+          message.type === 'success' ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-700 dark:text-emerald-300' :
+          message.type === 'error' ? 'bg-red-500/10 border-red-500/30 text-red-700 dark:text-red-300' :
+          'bg-blue-500/10 border-blue-500/30 text-blue-700 dark:text-blue-300'
         }`}>
           {message.type === 'success' ? <CheckCircle2 className="w-5 h-5 shrink-0" /> : <AlertCircle className="w-5 h-5 shrink-0" />}
           <div className="flex-1">{message.text}</div>
@@ -291,31 +291,31 @@ export default function ContainerLiquidationCard({
       {/* TABLA DE PRECIOS POR CAJA POR EMBALAJE Y CALIBRE */}
       <div className="space-y-3">
         <div className="flex items-center justify-between">
-          <h3 className="text-sm font-semibold text-gray-200 flex items-center gap-2">
-            <Package className="w-4 h-4 text-indigo-400" />
+          <h3 className="text-sm font-semibold text-slate-800 dark:text-gray-200 flex items-center gap-2">
+            <Package className="w-4 h-4 text-indigo-600 dark:text-indigo-400" />
             1. Desglose de Fruta por Embalaje y Calibre (Venta por Caja)
           </h3>
-          <span className="text-xs text-gray-400 font-mono">
-            Total Cajas: <strong className="text-white">{totalCajas.toLocaleString()}</strong>
+          <span className="text-xs text-slate-500 dark:text-gray-400 font-mono">
+            Total Cajas: <strong className="text-slate-900 dark:text-white font-bold">{totalCajas.toLocaleString()}</strong>
           </span>
         </div>
 
         {rows.length === 0 ? (
-          <div className="bg-gray-950/60 border border-gray-800 rounded-xl p-8 text-center text-gray-400 space-y-3">
-            <FileText className="w-10 h-10 text-gray-600 mx-auto" />
-            <p className="text-sm">No hay datos del Packlist cargados en esta liquidación.</p>
+          <div className="bg-slate-50 dark:bg-gray-950/60 border border-slate-200 dark:border-gray-800 rounded-xl p-8 text-center text-slate-500 dark:text-gray-400 space-y-3">
+            <FileText className="w-10 h-10 text-slate-400 dark:text-gray-600 mx-auto" />
+            <p className="text-sm font-medium">No hay datos del Packlist cargados en esta liquidación.</p>
             <button
               onClick={handleParsePacklist}
               disabled={parsingPacklist}
-              className="px-4 py-2 bg-indigo-600 hover:bg-indigo-500 text-white rounded-lg text-xs font-semibold transition"
+              className="px-4 py-2 bg-indigo-600 hover:bg-indigo-500 text-white rounded-lg text-xs font-semibold transition shadow-md"
             >
               Extraer Información del Packlist PDF
             </button>
           </div>
         ) : (
-          <div className="overflow-x-auto border border-gray-800 rounded-xl">
+          <div className="overflow-x-auto border border-slate-200 dark:border-gray-800 rounded-xl shadow-sm">
             <table className="w-full text-left text-xs">
-              <thead className="bg-gray-950/80 text-gray-400 uppercase tracking-wider font-semibold border-b border-gray-800">
+              <thead className="bg-slate-100 dark:bg-gray-950/80 text-slate-600 dark:text-gray-400 uppercase tracking-wider font-semibold border-b border-slate-200 dark:border-gray-800">
                 <tr>
                   <th className="py-3 px-4">Embalaje / Envase</th>
                   <th className="py-3 px-4">Calibre</th>
@@ -324,15 +324,15 @@ export default function ContainerLiquidationCard({
                   <th className="py-3 px-4 text-right">Subtotal (€)</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-gray-800/60 text-gray-300">
+              <tbody className="divide-y divide-slate-200 dark:divide-gray-800/60 text-slate-700 dark:text-gray-300">
                 {rows.map((row, idx) => (
-                  <tr key={`${row.envase}_${row.calibre}_${idx}`} className="hover:bg-white/5 transition">
-                    <td className="py-3 px-4 font-medium text-white">{row.envase}</td>
-                    <td className="py-3 px-4 font-mono font-bold text-indigo-400">{row.calibre}</td>
-                    <td className="py-3 px-4 text-right font-mono text-gray-200">{row.cajas.toLocaleString()}</td>
+                  <tr key={`${row.envase}_${row.calibre}_${idx}`} className="hover:bg-slate-50 dark:hover:bg-white/5 transition">
+                    <td className="py-3 px-4 font-medium text-slate-900 dark:text-white">{row.envase}</td>
+                    <td className="py-3 px-4 font-mono font-bold text-indigo-600 dark:text-indigo-400">{row.calibre}</td>
+                    <td className="py-3 px-4 text-right font-mono text-slate-800 dark:text-gray-200">{row.cajas.toLocaleString()}</td>
                     <td className="py-3 px-4 text-right">
-                      <div className="inline-flex items-center gap-1 bg-gray-950 border border-gray-700 rounded-lg px-2 py-1 focus-within:border-indigo-500">
-                        <span className="text-gray-500">€</span>
+                      <div className="inline-flex items-center gap-1 bg-white dark:bg-gray-950 border border-slate-300 dark:border-gray-700 rounded-lg px-2 py-1 focus-within:border-indigo-500">
+                        <span className="text-slate-400 dark:text-gray-500">€</span>
                         <input
                           type="number"
                           step="0.01"
@@ -341,22 +341,22 @@ export default function ContainerLiquidationCard({
                           onChange={(e) => handlePriceChange(idx, e.target.value)}
                           disabled={isClosed}
                           placeholder="0.00"
-                          className="w-24 bg-transparent text-right font-mono font-bold text-white outline-none"
+                          className="w-24 bg-transparent text-right font-mono font-bold text-slate-900 dark:text-white outline-none"
                         />
                       </div>
                     </td>
-                    <td className="py-3 px-4 text-right font-mono font-bold text-emerald-400">
+                    <td className="py-3 px-4 text-right font-mono font-bold text-emerald-600 dark:text-emerald-400">
                       {formatMoney(row.subtotal)}
                     </td>
                   </tr>
                 ))}
               </tbody>
-              <tfoot className="bg-gray-950/90 font-bold border-t border-gray-800 text-white">
+              <tfoot className="bg-slate-100 dark:bg-gray-950/90 font-bold border-t border-slate-200 dark:border-gray-800 text-slate-900 dark:text-white">
                 <tr>
-                  <td colSpan={2} className="py-3 px-4 uppercase text-gray-400">Total Venta Bruta Contenedor</td>
+                  <td colSpan={2} className="py-3 px-4 uppercase text-slate-500 dark:text-gray-400">Total Venta Bruta Contenedor</td>
                   <td className="py-3 px-4 text-right font-mono">{totalCajas.toLocaleString()} cajas</td>
                   <td className="py-3 px-4"></td>
-                  <td className="py-3 px-4 text-right font-mono text-emerald-400 text-sm">
+                  <td className="py-3 px-4 text-right font-mono text-emerald-600 dark:text-emerald-400 text-sm">
                     {formatMoney(grossSales)}
                   </td>
                 </tr>
@@ -367,16 +367,16 @@ export default function ContainerLiquidationCard({
       </div>
 
       {/* SECCIÓN 2: GASTOS Y DEDUCCIONES EN DESTINO */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-6 pt-4 border-t border-gray-800">
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-6 pt-4 border-t border-slate-200 dark:border-gray-800">
         <div className="space-y-4">
-          <h3 className="text-sm font-semibold text-gray-200 flex items-center gap-2">
-            <Percent className="w-4 h-4 text-red-400" />
+          <h3 className="text-sm font-semibold text-slate-800 dark:text-gray-200 flex items-center gap-2">
+            <Percent className="w-4 h-4 text-red-500 dark:text-red-400" />
             2. Gastos en Destino y Comisión
           </h3>
 
-          <div className="bg-gray-950/60 border border-gray-800 rounded-xl p-4 space-y-3">
+          <div className="bg-slate-50/80 dark:bg-gray-950/60 border border-slate-200 dark:border-gray-800 rounded-xl p-4 space-y-3">
             <div className="flex items-center justify-between text-xs">
-              <label className="text-gray-300">Comisión sobre Venta (%)</label>
+              <label className="text-slate-700 dark:text-gray-300 font-medium">Comisión sobre Venta (%)</label>
               <div className="flex items-center gap-2">
                 <input
                   type="number"
@@ -386,14 +386,14 @@ export default function ContainerLiquidationCard({
                   value={commissionPct}
                   onChange={(e) => setCommissionPct(parseFloat(e.target.value) || 0)}
                   disabled={isClosed}
-                  className="w-20 bg-gray-900 border border-gray-700 rounded-lg px-2 py-1 text-right font-mono font-bold text-white outline-none focus:border-indigo-500 text-xs"
+                  className="w-20 bg-white dark:bg-gray-900 border border-slate-300 dark:border-gray-700 rounded-lg px-2 py-1 text-right font-mono font-bold text-slate-900 dark:text-white outline-none focus:border-indigo-500 text-xs"
                 />
-                <span className="font-mono text-red-400">{formatMoney(commissionAmount)}</span>
+                <span className="font-mono text-red-600 dark:text-red-400 font-bold">{formatMoney(commissionAmount)}</span>
               </div>
             </div>
 
             <div className="flex items-center justify-between text-xs">
-              <label className="text-gray-300">Flete Marítimo (€)</label>
+              <label className="text-slate-700 dark:text-gray-300 font-medium">Flete Marítimo (€)</label>
               <input
                 type="number"
                 step="0.01"
@@ -401,12 +401,12 @@ export default function ContainerLiquidationCard({
                 onChange={(e) => setFreight(parseFloat(e.target.value) || 0)}
                 disabled={isClosed}
                 placeholder="0.00"
-                className="w-32 bg-gray-900 border border-gray-700 rounded-lg px-2 py-1 text-right font-mono text-white outline-none focus:border-indigo-500 text-xs"
+                className="w-32 bg-white dark:bg-gray-900 border border-slate-300 dark:border-gray-700 rounded-lg px-2 py-1 text-right font-mono text-slate-900 dark:text-white outline-none focus:border-indigo-500 text-xs"
               />
             </div>
 
             <div className="flex items-center justify-between text-xs">
-              <label className="text-gray-300">Handling / Puerto (€)</label>
+              <label className="text-slate-700 dark:text-gray-300 font-medium">Handling / Puerto (€)</label>
               <input
                 type="number"
                 step="0.01"
@@ -414,12 +414,12 @@ export default function ContainerLiquidationCard({
                 onChange={(e) => setHandling(parseFloat(e.target.value) || 0)}
                 disabled={isClosed}
                 placeholder="0.00"
-                className="w-32 bg-gray-900 border border-gray-700 rounded-lg px-2 py-1 text-right font-mono text-white outline-none focus:border-indigo-500 text-xs"
+                className="w-32 bg-white dark:bg-gray-900 border border-slate-300 dark:border-gray-700 rounded-lg px-2 py-1 text-right font-mono text-slate-900 dark:text-white outline-none focus:border-indigo-500 text-xs"
               />
             </div>
 
             <div className="flex items-center justify-between text-xs">
-              <label className="text-gray-300">Almacén Frigorífico (€)</label>
+              <label className="text-slate-700 dark:text-gray-300 font-medium">Almacén Frigorífico (€)</label>
               <input
                 type="number"
                 step="0.01"
@@ -427,12 +427,12 @@ export default function ContainerLiquidationCard({
                 onChange={(e) => setColdStorage(parseFloat(e.target.value) || 0)}
                 disabled={isClosed}
                 placeholder="0.00"
-                className="w-32 bg-gray-900 border border-gray-700 rounded-lg px-2 py-1 text-right font-mono text-white outline-none focus:border-indigo-500 text-xs"
+                className="w-32 bg-white dark:bg-gray-900 border border-slate-300 dark:border-gray-700 rounded-lg px-2 py-1 text-right font-mono text-slate-900 dark:text-white outline-none focus:border-indigo-500 text-xs"
               />
             </div>
 
             <div className="flex items-center justify-between text-xs">
-              <label className="text-gray-300">Surveyor / Inspección (€)</label>
+              <label className="text-slate-700 dark:text-gray-300 font-medium">Surveyor / Inspección (€)</label>
               <input
                 type="number"
                 step="0.01"
@@ -440,12 +440,12 @@ export default function ContainerLiquidationCard({
                 onChange={(e) => setSurveyor(parseFloat(e.target.value) || 0)}
                 disabled={isClosed}
                 placeholder="0.00"
-                className="w-32 bg-gray-900 border border-gray-700 rounded-lg px-2 py-1 text-right font-mono text-white outline-none focus:border-indigo-500 text-xs"
+                className="w-32 bg-white dark:bg-gray-900 border border-slate-300 dark:border-gray-700 rounded-lg px-2 py-1 text-right font-mono text-slate-900 dark:text-white outline-none focus:border-indigo-500 text-xs"
               />
             </div>
 
             <div className="flex items-center justify-between text-xs">
-              <label className="text-gray-300">Transporte Local (€)</label>
+              <label className="text-slate-700 dark:text-gray-300 font-medium">Transporte Local (€)</label>
               <input
                 type="number"
                 step="0.01"
@@ -453,12 +453,12 @@ export default function ContainerLiquidationCard({
                 onChange={(e) => setTransport(parseFloat(e.target.value) || 0)}
                 disabled={isClosed}
                 placeholder="0.00"
-                className="w-32 bg-gray-900 border border-gray-700 rounded-lg px-2 py-1 text-right font-mono text-white outline-none focus:border-indigo-500 text-xs"
+                className="w-32 bg-white dark:bg-gray-900 border border-slate-300 dark:border-gray-700 rounded-lg px-2 py-1 text-right font-mono text-slate-900 dark:text-white outline-none focus:border-indigo-500 text-xs"
               />
             </div>
 
             <div className="flex items-center justify-between text-xs">
-              <label className="text-gray-300">Otros Gastos (€)</label>
+              <label className="text-slate-700 dark:text-gray-300 font-medium">Otros Gastos (€)</label>
               <input
                 type="number"
                 step="0.01"
@@ -466,11 +466,11 @@ export default function ContainerLiquidationCard({
                 onChange={(e) => setOtherExpenses(parseFloat(e.target.value) || 0)}
                 disabled={isClosed}
                 placeholder="0.00"
-                className="w-32 bg-gray-900 border border-gray-700 rounded-lg px-2 py-1 text-right font-mono text-white outline-none focus:border-indigo-500 text-xs"
+                className="w-32 bg-white dark:bg-gray-900 border border-slate-300 dark:border-gray-700 rounded-lg px-2 py-1 text-right font-mono text-slate-900 dark:text-white outline-none focus:border-indigo-500 text-xs"
               />
             </div>
 
-            <div className="pt-2 border-t border-gray-800 flex items-center justify-between text-xs font-bold text-red-400">
+            <div className="pt-2 border-t border-slate-200 dark:border-gray-800 flex items-center justify-between text-xs font-bold text-red-600 dark:text-red-400">
               <span>TOTAL GASTOS Y DEDUCCIONES</span>
               <span className="font-mono text-sm">-{formatMoney(totalExpenses)}</span>
             </div>
@@ -479,30 +479,30 @@ export default function ContainerLiquidationCard({
 
         {/* SECCIÓN 3: RESUMEN FINANCIERO Y SALDO FINAL */}
         <div className="space-y-4">
-          <h3 className="text-sm font-semibold text-gray-200 flex items-center gap-2">
-            <DollarSign className="w-4 h-4 text-emerald-400" />
+          <h3 className="text-sm font-semibold text-slate-800 dark:text-gray-200 flex items-center gap-2">
+            <DollarSign className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
             3. Resumen y Saldo Final a Transferir
           </h3>
 
-          <div className="bg-gray-950/60 border border-gray-800 rounded-xl p-5 space-y-4">
-            <div className="flex items-center justify-between border-b border-gray-800 pb-3">
-              <span className="text-xs text-gray-400">Venta Bruta Total:</span>
-              <span className="font-mono font-bold text-white text-sm">{formatMoney(grossSales)}</span>
+          <div className="bg-slate-50/80 dark:bg-gray-950/60 border border-slate-200 dark:border-gray-800 rounded-xl p-5 space-y-4">
+            <div className="flex items-center justify-between border-b border-slate-200 dark:border-gray-800 pb-3">
+              <span className="text-xs text-slate-500 dark:text-gray-400">Venta Bruta Total:</span>
+              <span className="font-mono font-bold text-slate-900 dark:text-white text-sm">{formatMoney(grossSales)}</span>
             </div>
 
-            <div className="flex items-center justify-between border-b border-gray-800 pb-3">
-              <span className="text-xs text-gray-400">Total Deducciones:</span>
-              <span className="font-mono font-bold text-red-400 text-sm">-{formatMoney(totalExpenses)}</span>
+            <div className="flex items-center justify-between border-b border-slate-200 dark:border-gray-800 pb-3">
+              <span className="text-xs text-slate-500 dark:text-gray-400">Total Deducciones:</span>
+              <span className="font-mono font-bold text-red-600 dark:text-red-400 text-sm">-{formatMoney(totalExpenses)}</span>
             </div>
 
-            <div className="flex items-center justify-between border-b border-gray-800 pb-3 bg-emerald-500/5 p-2 rounded-lg border border-emerald-500/20">
-              <span className="text-xs font-bold text-emerald-300">Importe Neto a Favor (€):</span>
-              <span className="font-mono font-bold text-emerald-400 text-base">{formatMoney(netAmount)}</span>
+            <div className="flex items-center justify-between border-b border-slate-200 dark:border-gray-800 pb-3 bg-emerald-500/10 p-2 rounded-lg border border-emerald-500/20">
+              <span className="text-xs font-bold text-emerald-800 dark:text-emerald-300">Importe Neto a Favor (€):</span>
+              <span className="font-mono font-bold text-emerald-700 dark:text-emerald-400 text-base">{formatMoney(netAmount)}</span>
             </div>
 
             <div className="space-y-2 pt-1">
               <div className="flex items-center justify-between text-xs">
-                <label className="text-gray-300">Anticipo Recibido (€)</label>
+                <label className="text-slate-700 dark:text-gray-300 font-medium">Anticipo Recibido (€)</label>
                 <input
                   type="number"
                   step="0.01"
@@ -510,33 +510,33 @@ export default function ContainerLiquidationCard({
                   onChange={(e) => setAdvanceAmount(parseFloat(e.target.value) || 0)}
                   disabled={isClosed}
                   placeholder="0.00"
-                  className="w-32 bg-gray-900 border border-gray-700 rounded-lg px-2 py-1 text-right font-mono text-white outline-none focus:border-indigo-500 text-xs"
+                  className="w-32 bg-white dark:bg-gray-900 border border-slate-300 dark:border-gray-700 rounded-lg px-2 py-1 text-right font-mono text-slate-900 dark:text-white outline-none focus:border-indigo-500 text-xs"
                 />
               </div>
 
               <div className="flex items-center justify-between text-xs">
-                <label className="text-gray-300">Tipo de Cambio (EUR $\rightarrow$ USD)</label>
+                <label className="text-slate-700 dark:text-gray-300 font-medium">Tipo de Cambio (EUR $\rightarrow$ USD)</label>
                 <input
                   type="number"
                   step="0.0001"
                   value={exchangeRate}
                   onChange={(e) => setExchangeRate(parseFloat(e.target.value) || 1)}
                   disabled={isClosed}
-                  className="w-24 bg-gray-900 border border-gray-700 rounded-lg px-2 py-1 text-right font-mono text-white outline-none focus:border-indigo-500 text-xs"
+                  className="w-24 bg-white dark:bg-gray-900 border border-slate-300 dark:border-gray-700 rounded-lg px-2 py-1 text-right font-mono text-slate-900 dark:text-white outline-none focus:border-indigo-500 text-xs"
                 />
               </div>
             </div>
 
             {/* TARJETA DE SALDO FINAL A TRANSFERIR */}
-            <div className="bg-gradient-to-r from-emerald-950/60 to-indigo-950/60 border border-emerald-500/30 rounded-xl p-4 space-y-1">
-              <div className="text-[11px] uppercase font-bold text-emerald-400 tracking-wider">
+            <div className="bg-gradient-to-r from-emerald-50 to-indigo-50 dark:from-emerald-950/60 dark:to-indigo-950/60 border border-emerald-200 dark:border-emerald-500/30 rounded-xl p-4 space-y-1 shadow-sm">
+              <div className="text-[11px] uppercase font-bold text-emerald-800 dark:text-emerald-400 tracking-wider">
                 Saldo Pendiente a Transferir
               </div>
               <div className="flex items-baseline justify-between">
-                <span className="text-2xl font-black font-mono text-white">
+                <span className="text-2xl font-black font-mono text-slate-900 dark:text-white">
                   $ {finalBalanceTargetCurrency.toLocaleString('es-CL', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} USD
                 </span>
-                <span className="text-xs text-gray-400 font-mono">
+                <span className="text-xs text-slate-500 dark:text-gray-400 font-mono font-medium">
                   ({formatMoney(finalBalanceInCurrency, '€')})
                 </span>
               </div>
@@ -546,10 +546,10 @@ export default function ContainerLiquidationCard({
       </div>
 
       {/* BOTONES DE ACCIÓN */}
-      <div className="flex flex-wrap items-center justify-end gap-3 pt-4 border-t border-gray-800">
+      <div className="flex flex-wrap items-center justify-end gap-3 pt-4 border-t border-slate-200 dark:border-gray-800">
         <button
           onClick={() => window.print()}
-          className="flex items-center gap-2 px-4 py-2 text-xs font-semibold bg-gray-800 text-gray-300 hover:bg-gray-700 rounded-xl transition"
+          className="flex items-center gap-2 px-4 py-2 text-xs font-semibold bg-slate-100 hover:bg-slate-200 dark:bg-gray-800 dark:hover:bg-gray-700 text-slate-700 dark:text-gray-300 border border-slate-300 dark:border-gray-700 rounded-xl transition"
         >
           <Printer className="w-4 h-4" />
           Imprimir / Exportar
@@ -558,9 +558,9 @@ export default function ContainerLiquidationCard({
         <button
           onClick={() => handleSaveLiquidation('draft')}
           disabled={saving || isClosed}
-          className="flex items-center gap-2 px-4 py-2 text-xs font-semibold bg-gray-800 hover:bg-gray-700 text-white rounded-xl transition border border-gray-700 disabled:opacity-50"
+          className="flex items-center gap-2 px-4 py-2 text-xs font-semibold bg-slate-100 hover:bg-slate-200 dark:bg-gray-800 dark:hover:bg-gray-700 text-slate-800 dark:text-white rounded-xl transition border border-slate-300 dark:border-gray-700 disabled:opacity-50"
         >
-          <Save className="w-4 h-4 text-yellow-400" />
+          <Save className="w-4 h-4 text-amber-500 dark:text-yellow-400" />
           Guardar Borrador
         </button>
 
