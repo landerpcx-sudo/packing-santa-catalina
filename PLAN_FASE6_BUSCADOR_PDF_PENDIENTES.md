@@ -166,7 +166,37 @@ Lo que **no es viable**: gráficos que se puedan interactuar (zoom, hover con to
 - Agregar `doc.outline` (bookmarks) de PDFKit para las 5 secciones.
 - Un link en el encabezado "Ver en la plataforma →" apuntando a `https://<dominio>/despachos/{id}?tab=financiero`.
 
-### Alcance sugerido para la sesión de rediseño
+### ✅ Resultado (26/07/2026) — REDISEÑADO Y REVISADO PÁGINA A PÁGINA
+
+El usuario aclaró el alcance: quería **«que se vea espectacular al imprimirlo»**, no
+enlaces dentro del PDF. Hecho:
+
+- **Portada ejecutiva nueva** (página 1): cuatro tarjetas de métricas con cifra grande
+  (Venta Bruta · Utilidad Final · Utilidad media por caja · Saldo de la factura FOB),
+  semáforo de rentabilidad de tres tramos con el que aplica resaltado, la **cascada
+  financiera**, las cinco barras de calibres que más aportaron y el dictamen ejecutivo
+  (que antes llegaba en la página 3, tarde para quien solo mira la primera).
+- **Cascada financiera real**: bloques que bajan desde Venta Bruta hasta Utilidad Final
+  pasando por Deducciones y Costo FOB, con línea del cero y guías punteadas. Funciona
+  también cuando el contenedor pierde plata (las barras bajan del cero).
+- **Marcadores/índice navegable** por sección (I a V) en el lector de PDF.
+- **Ejes en la matriz 2x2**: flecha de margen a la izquierda y de volumen abajo, para que
+  se lea como matriz y no como cuatro cajas sueltas. Ojo: la columna izquierda es la de
+  MAYOR volumen, no al revés.
+- Porcentajes con coma decimal (31,6% y no 31.6%), como el resto de cifras del documento.
+
+**Cómo se verificó** — el dibujo del PDF se sacó de la ruta HTTP a `src/lib/informe-financiero-pdf.ts`
+(la ruta pasó de 883 a 81 líneas) precisamente para poder generarlo sin base de datos ni
+sesión. Con `scripts/previsualizar-informe-financiero.mjs` se generaron y se miraron
+página a página cuatro escenarios: normal, **contenedor en pérdida**, **liquidación vacía**
+y **34 calibres**. Defectos encontrados y corregidos así:
+- la cifra de la barra más alta de la cascada se montaba sobre el borde (se reservaron 14pt de aire arriba);
+- la primera fila del ranking se partía en dos líneas (columna «Cajas (%)» de 56 a 62pt);
+- la tarjeta de FOB decía «Pendiente de X» mostrando el total facturado, no el saldo;
+- el saldo pendiente de factura quedaba descolgado una línea respecto de los abonos;
+- los nombres de embalaje del ranking salían alineados a la derecha.
+
+### Alcance sugerido para la sesión de rediseño (referencia previa)
 Dado que esto es un cambio grande, sugerido dividir en:
 1. Confirmar con el usuario el alcance real de "interactivo" (la pregunta de arriba).
 2. Implementar el waterfall visual de la Sección III (el cambio de mayor impacto visual).
@@ -194,9 +224,12 @@ Ninguno de estos es urgente frente a los dos bugs de arriba, pero quedan anotado
 1. ~~**Arreglar el buscador**~~ — ✅ hecho y verificado el 26/07/2026.
 2. ~~**Verificar en vivo el bug del PDF** y aplicar el blindaje~~ — ✅ blindado el 26/07/2026;
    falta solo confirmarlo con sesión iniciada.
-3. **Preguntar al usuario** qué entiende por "interactivo" antes de invertir tiempo en el rediseño grande. ← **siguiente paso**
-4. **Rediseño del PDF** según lo que se confirme en el punto 3.
-5. Si sobra tiempo: seguir con el backlog de la sección 4.
+3. ~~**Preguntar al usuario** qué entiende por "interactivo"~~ — ✅ respondido: «que se vea
+   espectacular al imprimirlo».
+4. ~~**Rediseño del PDF**~~ — ✅ hecho y revisado página a página el 26/07/2026.
+5. **Backlog de la sección 4** ← **siguiente paso**: los ~15 `alert`/`confirm` nativos que
+   quedan (sobre todo en `DocumentScannerModal.tsx`), el refactor de `temperaturas/page.tsx`
+   (1.331 líneas) y los enlaces directos desde Auditoría a la entidad afectada.
 
 ### Encontrado de paso, sin arreglar (no forma parte de este plan)
 - **`login/page.tsx` da error de hidratación en cada carga**: las partículas decorativas
