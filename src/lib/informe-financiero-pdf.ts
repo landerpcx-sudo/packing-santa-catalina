@@ -236,32 +236,57 @@ export async function construirInformeFinancieroPDF(
       doc.y = y + 26
     }
 
-    // ── ENCABEZADO ──────────────────────────────────────────────────────────
+    // ── ENCABEZADO CON LOGOS ────────────────────────────────────────────────
+    // Intento de carga del logo del cliente (The Growers Club)
+    let clientLogoPath: string | null = null
+    const posiblesRutas = [
+      path.join(process.cwd(), 'the growers club.png'),
+      path.join(process.cwd(), '..', 'the growers club.png'),
+      path.join(process.cwd(), 'public', 'the growers club.png'),
+    ]
+    for (const r of posiblesRutas) {
+      try {
+        if (require('fs').existsSync(r)) {
+          clientLogoPath = r
+          break
+        }
+      } catch {}
+    }
+
     doc.circle(L + 5, 48, 5).fill(COLOR.verde)
-    doc.fillColor(COLOR.tinta).font('B').fontSize(17).text('SANTA CATALINA', L + 16, 40)
-    doc.fillColor(COLOR.suave).font('B').fontSize(7)
-      .text('CONTROL DOCUMENTAL & GESTIÓN FINANCIERA DE EXPORTACIONES', L + 16, 60)
-    doc.fillColor(COLOR.tenue).font('R').fontSize(6.5)
-      .text('Plataforma de Liquidaciones, Comercio Internacional e Inteligencia Comercial', L + 16, 70)
+    doc.fillColor(COLOR.tinta).font('B').fontSize(16).text('SANTA CATALINA', L + 16, 38)
+    doc.fillColor(COLOR.suave).font('B').fontSize(6.5)
+      .text('CONTROL DOCUMENTAL & GESTIÓN FINANCIERA DE EXPORTACIONES', L + 16, 57)
+    doc.fillColor(COLOR.tenue).font('R').fontSize(6)
+      .text('Plataforma de Liquidaciones, Comercio Internacional e Inteligencia Comercial', L + 16, 67)
+
+    // Dibujar logo del cliente si existe
+    if (clientLogoPath) {
+      try {
+        doc.image(clientLogoPath, R - 130, 36, { height: 26 })
+      } catch (e) {
+        console.error('Error al incrustar logo del cliente en PDF:', e)
+      }
+    }
 
     const finalizada = liq.status === 'finalized'
-    doc.rect(R - 200, 38, 200, 16).fill(COLOR.fondoCabecera)
-    doc.fillColor(COLOR.tinta).font('B').fontSize(7)
-      .text('INFORME FINANCIERO DEL CONTENEDOR', R - 200, 43, { width: 200, align: 'center' })
-    doc.fillColor(COLOR.tinta).font('B').fontSize(9)
-      .text(`FOLIO: LIQ-${dispatch.dispatch_code}`, R - 200, 58, { width: 200, align: 'right' })
-    doc.fillColor(COLOR.suave).font('R').fontSize(7)
-      .text(`Emitido: ${new Date().toLocaleDateString('es-CL')}`, R - 200, 70, { width: 200, align: 'right' })
+    doc.rect(R - 190, 68, 190, 14).fill(COLOR.fondoCabecera)
+    doc.fillColor(COLOR.tinta).font('B').fontSize(6.5)
+      .text('INFORME FINANCIERO DEL CONTENEDOR', R - 190, 72, { width: 190, align: 'center' })
+    doc.fillColor(COLOR.tinta).font('B').fontSize(8.5)
+      .text(`FOLIO: LIQ-${dispatch.dispatch_code}`, R - 190, 84, { width: 190, align: 'right' })
+    doc.fillColor(COLOR.suave).font('R').fontSize(6.5)
+      .text(`Emitido: ${new Date().toLocaleDateString('es-CL')}`, R - 190, 94, { width: 190, align: 'right' })
 
-    doc.rect(R - 110, 80, 110, 13).fill(finalizada ? COLOR.verdeFondo : COLOR.ambarFondo)
+    doc.rect(L, 102, 110, 13).fill(finalizada ? COLOR.verdeFondo : COLOR.ambarFondo)
     doc.fillColor(finalizada ? COLOR.verde : COLOR.ambar).font('B').fontSize(6.5)
-      .text(finalizada ? 'DOCUMENTO FINALIZADO' : 'BORRADOR DE LIQUIDACIÓN', R - 110, 84, { width: 110, align: 'center' })
+      .text(finalizada ? 'DOCUMENTO FINALIZADO' : 'BORRADOR DE LIQUIDACIÓN', L, 106, { width: 110, align: 'center' })
 
-    doc.moveTo(L, 100).lineTo(R, 100).lineWidth(1.5).strokeColor(COLOR.tinta).stroke()
+    doc.moveTo(L, 118).lineTo(R, 118).lineWidth(1.2).strokeColor(COLOR.tinta).stroke()
 
     // ── DATOS DEL DESPACHO ──────────────────────────────────────────────────
-    doc.rect(L, 110, W, 40).fill(COLOR.fondo)
-    doc.rect(L, 110, W, 40).lineWidth(0.5).strokeColor(COLOR.lineaSuave).stroke()
+    doc.rect(L, 124, W, 36).fill(COLOR.fondo)
+    doc.rect(L, 124, W, 36).lineWidth(0.5).strokeColor(COLOR.lineaSuave).stroke()
 
     const datos = [
       ['CLIENTE / EXPORTADOR', dispatch.client || '—'],
@@ -271,59 +296,55 @@ export async function construirInformeFinancieroPDF(
     ]
     datos.forEach(([etiqueta, valor], i) => {
       const x = L + 10 + i * (W / 4)
-      doc.fillColor(COLOR.tenue).font('B').fontSize(6).text(etiqueta, x, 119, { width: W / 4 - 12 })
-      doc.fillColor(COLOR.tinta).font('B').fontSize(8.5).text(valor, x, 130, { width: W / 4 - 12, lineBreak: false })
+      doc.fillColor(COLOR.tenue).font('B').fontSize(5.8).text(etiqueta, x, 130, { width: W / 4 - 12 })
+      doc.fillColor(COLOR.tinta).font('B').fontSize(8).text(valor, x, 141, { width: W / 4 - 12, lineBreak: false })
     })
 
-    doc.y = 165
+    doc.y = 168
 
     // ── PORTADA EJECUTIVA ───────────────────────────────────────────────────
-    // Quien recibe este informe decide en treinta segundos. Esta página
-    // responde solo dos preguntas —¿ganamos o perdimos?, ¿gracias a qué
-    // calibre?— y deja todo el detalle numérico para las secciones siguientes.
     const marcador = (titulo: string) => {
-      try { doc.outline.addItem(titulo) } catch { /* el índice es un extra: nunca debe tumbar el informe */ }
+      try { doc.outline.addItem(titulo) } catch { /* el índice es un extra */ }
     }
 
     marcador('Resumen ejecutivo')
     tituloSeccion('Resumen ejecutivo del contenedor', COLOR.verde)
 
-    // Tarjetas de métricas: cuatro cifras grandes, legibles de un vistazo.
+    // Tarjetas de métricas: cuatro cifras grandes en doble moneda (USD y CLP).
     const saldoFob = Math.max(advanceAmount - abonosAmount, 0)
     const facturaPagada = saldoFob <= 0 && advanceAmount > 0
     const rentable = finalBalance >= 0
     const margenPct = grossSales > 0 ? (finalBalance / grossSales) * 100 : 0
     const retornoPromedioProductorCLP = (fobEnMonedaVenta * (fobExchangeRate || 1000)) / safeCajas
+    const utilidadTotalCLPEst = finalBalanceTarget * (fobExchangeRate || 1000)
 
     const tarjetas: Array<{ etiqueta: string; cifra: string; pie: string; color: string; fondo: string }> = [
       {
-        etiqueta: 'VENTA BRUTA EN DESTINO',
+        etiqueta: 'VENTA BRUTA DESTINO',
         cifra: dinero(grossSales),
-        pie: `${totalCajas.toLocaleString('es-CL')} cajas embarcadas`,
+        pie: `${totalCajas.toLocaleString('es-CL')} cajas · ${dinero(grossSales * exchangeRate, simbTarget)} ${targetCurrency}`,
         color: COLOR.indigo, fondo: COLOR.fondo,
       },
       {
-        etiqueta: rentable ? 'UTILIDAD FINAL EXPORTADOR' : 'PÉRDIDA DEL NEGOCIO',
-        cifra: `${simbTarget} ${finalBalanceTarget.toLocaleString('es-CL', { maximumFractionDigits: 0 })}`,
-        pie: `${targetCurrency} · equivale a ${dinero(finalBalance)}`,
+        etiqueta: rentable ? 'UTILIDAD EXPORTADOR' : 'PÉRDIDA DEL NEGOCIO',
+        cifra: `${simbTarget} ${finalBalanceTarget.toLocaleString('es-CL', { maximumFractionDigits: 0 })} ${targetCurrency}`,
+        pie: `Tot. CLP: ${clp(utilidadTotalCLPEst)}`,
         color: rentable ? COLOR.verde : COLOR.rojo,
         fondo: rentable ? COLOR.verdeFondo : COLOR.rojoFondo,
       },
       {
-        etiqueta: 'RETORNO PROMEDIO PRODUCTOR',
+        etiqueta: 'RETORNO PROMEDIO PROD.',
         cifra: clp(retornoPromedioProductorCLP),
-        pie: `Costo FOB Fruta: ${dinero(advanceAmount, simbFob)}`,
+        pie: `FOB Fruta: ${dinero(advanceAmount, simbFob)}`,
         color: COLOR.teal,
         fondo: COLOR.tealFondo,
       },
       {
-        etiqueta: facturaPagada ? 'FACTURA FOB' : 'FACTURA FOB — SALDO PENDIENTE',
+        etiqueta: facturaPagada ? 'FACTURA FOB' : 'SALDO FACTURA FOB',
         cifra: facturaPagada ? 'PAGADA' : dinero(saldoFob, simbFob),
-        // Ojo: la cifra grande es el SALDO, no el total facturado. El pie da el
-        // total para que no se lean como el mismo número.
         pie: facturaPagada
-          ? `Cobrada por completo: ${dinero(advanceAmount, simbFob)}`
-          : `De un total facturado de ${dinero(advanceAmount, simbFob)}`,
+          ? `Cobrada: ${dinero(advanceAmount, simbFob)}`
+          : `Facturado: ${dinero(advanceAmount, simbFob)}`,
         color: facturaPagada ? COLOR.verde : COLOR.ambar,
         fondo: facturaPagada ? COLOR.verdeFondo : COLOR.ambarFondo,
       },
@@ -594,7 +615,22 @@ export async function construirInformeFinancieroPDF(
     doc.y = yTotalGastos + 24
     doc.fillColor(COLOR.tenue).font('R').fontSize(6.3)
       .text('Incluye flete marítimo y transporte local a destino, además de comisión, handling, frío y surveyor.', L, doc.y, { width: W })
-    doc.y += 12
+    doc.y += 10
+
+    // Barra visual de distribución porcentual de deducciones en destino
+    if (totalExpenses > 0) {
+      doc.rect(L, doc.y, W, 7).fill(COLOR.fondoCabecera)
+      let xSeg = L
+      const coloresGastos = [COLOR.rojo, COLOR.indigo, COLOR.ambar, COLOR.teal, COLOR.verde, COLOR.tinta, COLOR.suave]
+      gastos.forEach(([_, monto], i) => {
+        const anchoSeg = (monto / totalExpenses) * W
+        if (anchoSeg > 0.5) {
+          doc.rect(xSeg, doc.y, anchoSeg, 7).fill(coloresGastos[i % coloresGastos.length])
+          xSeg += anchoSeg
+        }
+      })
+      doc.y += 12
+    }
 
     // ── III. RESUMEN FINANCIERO — CASCADA HASTA LA UTILIDAD FINAL ───────────
     // Fila a fila, para que se vea con toda claridad la resta del flete +
@@ -667,25 +703,33 @@ export async function construirInformeFinancieroPDF(
       doc.y += 14
     }
 
-    // Cuadro destacado con el resultado final del negocio
-    asegurar(50)
+    // Cuadro destacado con el resultado final del negocio en Doble Moneda (USD & CLP)
+    asegurar(60)
     const yDetalle = doc.y
     const positivo = finalBalance >= 0
-    doc.rect(L, yDetalle, W, 46).fill(positivo ? COLOR.verdeFondo : COLOR.ambarFondo)
-    doc.rect(L, yDetalle, W, 46).lineWidth(1).strokeColor(positivo ? COLOR.verde : COLOR.ambar).stroke()
+    doc.rect(L, yDetalle, W, 52).fill(positivo ? COLOR.verdeFondo : COLOR.ambarFondo)
+    doc.rect(L, yDetalle, W, 52).lineWidth(1).strokeColor(positivo ? COLOR.verde : COLOR.ambar).stroke()
     doc.fillColor(positivo ? COLOR.verde : COLOR.ambar).font('B').fontSize(7.5)
       .text(
         positivo
-          ? '(=) UTILIDAD FINAL DEL NEGOCIO PARA LA EXPORTADORA (VENTA - GASTOS - FOB)'
+          ? '(=) UTILIDAD FINAL DEL NEGOCIO (VENTA DESTINO - DEDUCCIONES - COSTO FOB FRUTA)'
           : 'RESULTADO POR DEBAJO DEL COSTO FOB FACTURADO',
-        L + 12, yDetalle + 8, { width: W - 24 }
+        L + 12, yDetalle + 7, { width: W - 24 }
       )
-    doc.fillColor(positivo ? COLOR.verde : COLOR.ambar).font('B').fontSize(19)
-      .text(`${simbTarget} ${finalBalanceTarget.toLocaleString('es-CL', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} ${targetCurrency}`, L + 12, yDetalle + 20)
-    doc.fillColor(COLOR.suave).font('R').fontSize(7)
-      .text(`Equivalente: ${dinero(finalBalance)}`, R - 210, yDetalle + 28, { width: 198, align: 'right' })
 
-    doc.y = yDetalle + 62
+    // Cifra en Moneda Objetivo (ej. USD)
+    doc.fillColor(positivo ? COLOR.verde : COLOR.ambar).font('B').fontSize(16)
+      .text(`${simbTarget} ${finalBalanceTarget.toLocaleString('es-CL', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} ${targetCurrency}`, L + 12, yDetalle + 18)
+    
+    // Cifra equivalente en Pesos Chilenos (CLP)
+    const utilidadCLPEquiv = finalBalanceTarget * (fobExchangeRate || 1000)
+    doc.fillColor(COLOR.tinta).font('B').fontSize(14)
+      .text(`${clp(utilidadCLPEquiv)}`, R - 210, yDetalle + 18, { width: 198, align: 'right', lineBreak: false })
+
+    doc.fillColor(COLOR.suave).font('R').fontSize(6.5)
+      .text(`Equivalente Moneda Venta: ${dinero(finalBalance)}  ·  Tasa FOB: 1 USD = $ ${fobExchangeRate} CLP`, L + 12, yDetalle + 38, { width: W - 24 })
+
+    doc.y = yDetalle + 60
 
     // ── IV. RANKING POR CALIBRE — con barra de margen integrada ─────────────
     // Página nueva siempre: antes la tabla arrancaba a dos filas del final
@@ -743,11 +787,65 @@ export async function construirInformeFinancieroPDF(
       )
     })
 
-    doc.y += 14
+    doc.y += 10
+
+    // ── NICO GRÁFICO 1 & 2: INTELIGENCIA GRÁFICA DE CALIBRES EN PÁGINA 3 ───────
+    asegurar(160)
+    const yGraficosP3 = doc.y
+
+    // Título de la subsección gráfica
+    doc.rect(L, yGraficosP3, W, 16).fill(COLOR.fondoCabecera)
+    doc.fillColor(COLOR.tinta).font('B').fontSize(7.5)
+      .text('INTELIGENCIA GRÁFICA: CURVA DE CAJAS & RETORNO EN PESOS CHILENOS (CLP / CAJA)', L + 8, yGraficosP3 + 4)
+
+    let yFilaGraf = yGraficosP3 + 22
+    const anchoMitad = (W - 14) / 2
+
+    // Gráfico Izquierdo: Curva de Cajas por Calibre
+    doc.rect(L, yFilaGraf, anchoMitad, 130).fill(COLOR.fondo)
+    doc.rect(L, yFilaGraf, anchoMitad, 130).lineWidth(0.5).strokeColor(COLOR.lineaSuave).stroke()
+    doc.fillColor(COLOR.indigo).font('B').fontSize(7)
+      .text('DISTRIBUCIÓN DE CAJAS POR CALIBRE (CURVA HUERTO)', L + 8, yFilaGraf + 6)
+
+    const maxCajasCalibre = Math.max(...analisis.map((a: any) => a.cajas), 1)
+    let yBarraCajas = yFilaGraf + 18
+
+    analisis.slice(0, 6).forEach((a: any) => {
+      doc.fillColor(COLOR.tinta).font('B').fontSize(6.5)
+        .text(`Cal. ${a.calibre}`, L + 8, yBarraCajas, { width: 35 })
+      doc.fillColor(COLOR.tenue).font('R').fontSize(6)
+        .text(`${a.cajas} cj (${pct(a.porcentajeVolumen)})`, L + 45, yBarraCajas, { width: 65 })
+      
+      const anchoBarraVisual = Math.max(3, (a.cajas / maxCajasCalibre) * (anchoMitad - 120))
+      doc.rect(L + 112, yBarraCajas + 1, anchoBarraVisual, 7).fill(COLOR.indigo)
+      yBarraCajas += 17
+    })
+
+    // Gráfico Derecho: Retorno Neto al Productor en CLP
+    const xGrafDerecha = L + anchoMitad + 14
+    doc.rect(xGrafDerecha, yFilaGraf, anchoMitad, 130).fill(COLOR.fondo)
+    doc.rect(xGrafDerecha, yFilaGraf, anchoMitad, 130).lineWidth(0.5).strokeColor(COLOR.lineaSuave).stroke()
+    doc.fillColor(COLOR.teal).font('B').fontSize(7)
+      .text('RETORNO ESTIMADO PRODUCTOR ($ CLP / CAJA)', xGrafDerecha + 8, yFilaGraf + 6)
+
+    const maxRetornoCLP = Math.max(...analisis.map((a: any) => Math.abs(a.retornoProductorCLP)), 1)
+    let yBarraCLP = yFilaGraf + 18
+
+    analisis.slice(0, 6).forEach((a: any) => {
+      const esPositivo = a.retornoProductorCLP >= 0
+      doc.fillColor(COLOR.tinta).font('B').fontSize(6.5)
+        .text(`Cal. ${a.calibre}`, xGrafDerecha + 8, yBarraCLP, { width: 35 })
+      doc.fillColor(esPositivo ? COLOR.verde : COLOR.rojo).font('B').fontSize(6)
+        .text(clp(a.retornoProductorCLP), xGrafDerecha + 45, yBarraCLP, { width: 75 })
+
+      const anchoBarraCLP = Math.max(3, (Math.abs(a.retornoProductorCLP) / maxRetornoCLP) * (anchoMitad - 130))
+      doc.rect(xGrafDerecha + 122, yBarraCLP + 1, anchoBarraCLP, 7).fill(esPositivo ? COLOR.teal : COLOR.rojo)
+      yBarraCLP += 17
+    })
+
+    doc.y = yFilaGraf + 140
 
     // ── V. MATRIZ GERENCIAL 2x2 — cuadrantes visuales de colores ────────────
-    // Antes eran listas de texto plano; se restituye la matriz visual que
-    // tenía la vista en pantalla, con un color por cuadrante.
     nuevaPagina()
     marcador('V. Matriz gerencial 2x2')
     tituloSeccion('V. Matriz gerencial 2x2 de decisiones de cosecha')
