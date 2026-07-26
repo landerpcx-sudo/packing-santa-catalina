@@ -222,14 +222,6 @@ export default function LiquidationReportModal({
               </button>
             )}
             <button
-              onClick={handlePrintOrPDF}
-              className="flex items-center gap-2 px-3 py-2 bg-slate-800 hover:bg-slate-700 text-slate-200 font-bold text-xs rounded-xl border border-slate-700 transition-all"
-              title="Imprimir esta vista tal como se ve"
-            >
-              <Printer className="w-4 h-4 text-indigo-400" />
-              Imprimir vista
-            </button>
-            <button
               onClick={onClose}
               className="p-2 text-slate-400 hover:text-white rounded-xl hover:bg-white/10 transition-colors"
             >
