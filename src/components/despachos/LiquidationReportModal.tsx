@@ -289,9 +289,15 @@ export default function LiquidationReportModal({
   }
 
   return (
-    <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/85 backdrop-blur-md p-2 sm:p-6 overflow-y-auto print:p-0 print:bg-white print:static print:block">
+    <div 
+      onClick={onClose}
+      className="fixed inset-0 z-[60] flex items-center justify-center bg-black/85 backdrop-blur-md p-2 sm:p-6 overflow-y-auto print:p-0 print:bg-white print:static print:block cursor-pointer"
+    >
       {/* Contenedor principal del modal (oculto el marco al imprimir) */}
-      <div className="relative w-full max-w-5xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl shadow-2xl overflow-hidden my-auto max-h-[95vh] flex flex-col print:max-h-none print:shadow-none print:border-none print:rounded-none print:w-full print:bg-white">
+      <div 
+        onClick={(e) => e.stopPropagation()}
+        className="relative w-full max-w-5xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl shadow-2xl overflow-hidden my-auto max-h-[95vh] flex flex-col print:max-h-none print:shadow-none print:border-none print:rounded-none print:w-full print:bg-white cursor-default"
+      >
         
         {/* BARRA SUPERIOR DE ACCIONES (Oculta al imprimir) */}
         <div className="flex items-center justify-between px-6 py-4 bg-slate-900 text-white border-b border-slate-800 shrink-0 print:hidden">
@@ -657,81 +663,99 @@ export default function LiquidationReportModal({
               </table>
             </div>
 
-            {/* GRÁFICO DUO INTERACTIVO: CURVA DE CALIBRES (VOLUMEN) + RENTABILIDAD POR CAJA */}
-            <div className="bg-slate-50 border border-slate-300 rounded-2xl p-5 space-y-4">
+            {/* GRÁFICO COMPACTO SINTÉTICO: CURVA DE CALIBRES Y MARGEN DE COSECHA */}
+            <div className="bg-slate-50 border border-slate-300 rounded-2xl p-4 space-y-3 print-avoid-break" style={{ breakInside: 'avoid', pageBreakInside: 'avoid' }}>
               <div className="flex items-center justify-between border-b border-slate-200 pb-2">
                 <h4 className="text-xs font-bold uppercase tracking-wider text-slate-900 flex items-center gap-2">
                   <BarChart3 className="w-4 h-4 text-indigo-600" />
-                  Curva de Calibres vs Margen Neto por Caja (Ranking de Mayor a Menor Utilidad)
+                  Matriz Sintética de Curva de Calibres & Margen de Cosecha
                 </h4>
-                <span className="text-[11px] font-mono text-slate-500">
-                  Orden Actual: <strong className="text-indigo-700 uppercase">{sortBy === 'profitPerBox' ? 'Por Utilidad/Caja' : sortBy === 'boxes' ? 'Por Curva de Volumen' : 'Por Aporte $'}</strong>
+                <span className="text-[10px] font-mono text-slate-500">
+                  Orden: <strong className="text-indigo-700 uppercase">{sortBy === 'profitPerBox' ? 'Utilidad/Caja' : sortBy === 'boxes' ? 'Curva Volumen' : 'Aporte $'}</strong>
                 </span>
               </div>
 
-              <div className="space-y-3 pt-1">
+              {/* MATRIZ DE FILAS SINTÉTICAS (VISTA DE UN VISTAZO) */}
+              <div className="space-y-2">
                 {sortedCalibres.map((item, idx) => {
-                  const profitPct = Math.min(Math.max((Math.abs(item.profitPerBox) / maxProfitBar) * 100, 6), 100)
-                  const volumeBarPct = Math.min(Math.max((item.cajas / maxVolumeBar) * 100, 6), 100)
+                  const profitPct = Math.min(Math.max((Math.abs(item.profitPerBox) / maxProfitBar) * 100, 8), 100)
                   const isPositive = item.profitPerBox >= 0
 
                   return (
-                    <div key={idx} className="bg-white border border-slate-200 rounded-xl p-3 space-y-2 shadow-sm">
-                      <div className="flex flex-wrap items-center justify-between gap-2 text-xs font-bold">
-                        <div className="flex items-center gap-2">
-                          <span className="w-5 h-5 rounded-full bg-slate-900 text-white flex items-center justify-center font-mono text-[10px]">
-                            #{idx + 1}
-                          </span>
-                          <span className="font-mono text-slate-900 text-sm">Calibre {item.calibre} ({item.envase})</span>
-                          <span className="text-[11px] text-slate-500 font-normal">({item.cajas.toLocaleString()} cajas • {item.volumePct.toFixed(1)}% del contenedor)</span>
-                        </div>
-                        <div className="flex items-center gap-3 font-mono">
-                          <span className="text-slate-500 text-[11px]">Break-even: {formatMoney(item.breakEvenPrice)}</span>
-                          <span className={`text-sm font-black ${isPositive ? 'text-emerald-700' : 'text-red-600'}`}>
-                            {isPositive ? '+' : ''}{formatMoney(item.profitPerBox)} / caja
-                          </span>
+                    <div key={idx} className="bg-white border border-slate-200 rounded-xl p-2.5 flex flex-wrap items-center justify-between gap-3 text-xs shadow-sm">
+                      {/* IDENTIFICACIÓN Y CURVA DE CAJAS */}
+                      <div className="flex items-center gap-2.5 min-w-[220px]">
+                        <span className="w-5 h-5 rounded-full bg-slate-900 text-white flex items-center justify-center font-mono text-[10px] font-bold">
+                          #{idx + 1}
+                        </span>
+                        <div>
+                          <div className="font-mono font-bold text-slate-900 text-xs">
+                            Calibre {item.calibre} <span className="text-[10px] text-slate-500 font-normal">({item.envase})</span>
+                          </div>
+                          <div className="text-[10px] text-slate-500 font-mono">
+                            {item.cajas.toLocaleString()} cajas • <strong className="text-indigo-700">{item.volumePct.toFixed(1)}% del lote</strong>
+                          </div>
                         </div>
                       </div>
 
-                      {/* DOBLE BARRAS: MARGEN NETO Y CURVA DE VOLUMEN */}
-                      <div className="grid grid-cols-1 md:grid-cols-2 gap-3 pt-1">
-                        {/* BARRA 1: MARGEN NETO POR CAJA */}
-                        <div className="space-y-1">
-                          <div className="flex items-center justify-between text-[10px] font-bold text-slate-500 uppercase">
-                            <span>Utilidad Neta / Caja</span>
-                            <span>{formatMoney(item.profitPerBox)}</span>
-                          </div>
-                          <div className="w-full bg-slate-100 rounded-full h-3 overflow-hidden p-0.5 flex items-center border border-slate-200">
-                            <div
-                              className={`h-full rounded-full transition-all duration-500 ${
-                                isPositive
-                                  ? idx === 0
-                                    ? 'bg-emerald-600'
-                                    : 'bg-indigo-600'
-                                  : 'bg-red-500'
-                              }`}
-                              style={{ width: `${profitPct}%` }}
-                            />
-                          </div>
+                      {/* BARRA DE RENTABILIDAD NETA Y MARGEN */}
+                      <div className="flex-1 min-w-[200px] space-y-1">
+                        <div className="flex items-center justify-between text-[10px] font-mono">
+                          <span className="text-slate-400">Break-even: {formatMoney(item.breakEvenPrice)}</span>
+                          <span className={`font-black ${isPositive ? 'text-emerald-700' : 'text-red-600'}`}>
+                            {isPositive ? '+' : ''}{formatMoney(item.profitPerBox)} / caja
+                          </span>
                         </div>
+                        <div className="w-full bg-slate-100 rounded-full h-2.5 overflow-hidden flex items-center border border-slate-200">
+                          <div
+                            className={`h-full rounded-full transition-all duration-300 ${
+                              isPositive
+                                ? idx === 0 ? 'bg-emerald-600' : 'bg-indigo-600'
+                                : 'bg-red-500'
+                            }`}
+                            style={{ width: `${profitPct}%` }}
+                          />
+                        </div>
+                      </div>
 
-                        {/* BARRA 2: CURVA DE VOLUMEN (CAJAS) */}
-                        <div className="space-y-1">
-                          <div className="flex items-center justify-between text-[10px] font-bold text-slate-500 uppercase">
-                            <span>Curva de Volumen (Cajas)</span>
-                            <span>{item.cajas.toLocaleString()} cajas ({item.volumePct.toFixed(1)}%)</span>
-                          </div>
-                          <div className="w-full bg-slate-100 rounded-full h-3 overflow-hidden p-0.5 flex items-center border border-slate-200">
-                            <div
-                              className="h-full rounded-full bg-slate-700 transition-all duration-500"
-                              style={{ width: `${volumeBarPct}%` }}
-                            />
-                          </div>
-                        </div>
+                      {/* CONTRIBUCIÓN TOTAL EN MONEDA OBJETIVO */}
+                      <div className="text-right min-w-[110px] font-mono">
+                        <span className="text-[9px] text-slate-400 block uppercase font-bold">Aporte Total</span>
+                        <span className="font-bold text-slate-900 text-xs">{formatMoney(item.totalProfitTargetCurr, targetSymbol)}</span>
                       </div>
                     </div>
                   )
                 })}
+              </div>
+
+              {/* DICTAMEN EJECUTIVO DE INTELIGENCIA FRUTÍCOLA */}
+              <div className="bg-indigo-50/70 border border-indigo-200 rounded-xl p-3.5 space-y-1.5 text-xs text-indigo-950">
+                <div className="flex items-center gap-2 font-black uppercase text-[10.5px] text-indigo-900">
+                  <ShieldCheck className="w-4 h-4 text-indigo-600" />
+                  Dictamen Ejecutivo Frutícola Comercial (Análisis de Cosecha & Mercado)
+                </div>
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-3 text-[11px] pt-1">
+                  <div className="bg-white/80 p-2.5 rounded-lg border border-indigo-100 space-y-0.5">
+                    <strong className="text-indigo-900 block text-[10px] uppercase font-bold">1. Perfil de Curva de Cosecha:</strong>
+                    <p className="text-slate-700 leading-snug">
+                      La carga presenta una concentración relevante en <strong className="text-indigo-900">Calibre {maxVolumeCalibre?.calibre || '—'} ({maxVolumeCalibre?.cajas || 0} cajas, {maxVolumeCalibre?.volumePct.toFixed(1)}% del lote)</strong>. La curva promedio promedia {avgBoxesPerCalibre.toFixed(0)} cajas por tamaño.
+                    </p>
+                  </div>
+
+                  <div className="bg-white/80 p-2.5 rounded-lg border border-indigo-100 space-y-0.5">
+                    <strong className="text-indigo-900 block text-[10px] uppercase font-bold">2. Calibre Máxima Utilidad:</strong>
+                    <p className="text-slate-700 leading-snug">
+                      El mejor retorno unitario lo entregó el <strong className="text-emerald-800">Calibre {maxProfitCalibre?.calibre || '—'} (+{formatMoney(maxProfitCalibre?.profitPerBox || 0)} / caja)</strong>, superando por {formatMoney((maxProfitCalibre?.profitPerBox || 0) - (minProfitCalibre?.profitPerBox || 0))} al calibre más bajo.
+                    </p>
+                  </div>
+
+                  <div className="bg-white/80 p-2.5 rounded-lg border border-indigo-100 space-y-0.5">
+                    <strong className="text-indigo-900 block text-[10px] uppercase font-bold">3. Directriz para Packing & Campo:</strong>
+                    <p className="text-slate-700 leading-snug">
+                      Se recomienda ajustar la labor de raleo en huerto y potenciar el embalaje de fruta mediana-grande. Derivar fruta de calibre menor a mercado interno o industria para optimizar el retorno de fletes marítimos.
+                    </p>
+                  </div>
+                </div>
               </div>
             </div>
 
