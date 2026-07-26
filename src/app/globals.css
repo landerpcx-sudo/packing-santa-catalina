@@ -991,4 +991,61 @@ body::after {
   }
 }
 
+/* =============================================
+   REGLAS DE IMPRESIÓN Y DESCARGA A4/LETTER (ALTA CALIDAD)
+   ============================================= */
+@media print {
+  /* Ocultar elementos de UI globales */
+  aside,
+  header,
+  nav,
+  .print\:hidden {
+    display: none !important;
+  }
+
+  /* Reset de fondo de página para impresión */
+  html, body {
+    background: #ffffff !important;
+    color: #000000 !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    overflow: visible !important;
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+  }
+
+  /* Modal backdrop reset al imprimir */
+  .fixed.inset-0 {
+    position: static !important;
+    background: #ffffff !important;
+    padding: 0 !important;
+    margin: 0 !important;
+    display: block !important;
+    overflow: visible !important;
+  }
+
+  /* Ocultar contenedor exterior del modal */
+  .max-w-5xl {
+    max-width: 100% !important;
+    border: none !important;
+    box-shadow: none !important;
+    border-radius: 0 !important;
+    margin: 0 !important;
+    max-height: none !important;
+    background: #ffffff !important;
+  }
+
+  /* Estilos del documento de informe comercial */
+  #commercial-report-print {
+    padding: 10mm !important;
+    margin: 0 !important;
+    width: 100% !important;
+    max-width: 100% !important;
+    background: #ffffff !important;
+    color: #000000 !important;
+    box-shadow: none !important;
+    overflow: visible !important;
+  }
+}
+
 
