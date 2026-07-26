@@ -27,6 +27,8 @@ interface LiquidationReportModalProps {
   netAmount: number
   advanceAmount: number // Costo FOB Facturado (Monto Factura)
   abonosAmount?: number // Abonos recibidos contra la factura
+  fobCurrency?: string
+  fobExchangeRate?: number
   finalBalanceInCurrency: number
   finalBalanceTargetCurrency: number
   liquidationStatus: 'draft' | 'finalized'
@@ -64,6 +66,8 @@ export default function LiquidationReportModal({
   netAmount,
   advanceAmount,
   abonosAmount = 0,
+  fobCurrency = 'CLP',
+  fobExchangeRate = 1000,
   finalBalanceInCurrency,
   finalBalanceTargetCurrency,
   liquidationStatus,
@@ -87,6 +91,7 @@ export default function LiquidationReportModal({
 
   const currSymbol = getSymbol(currency)
   const targetSymbol = getSymbol(targetCurrency)
+  const fobCurrSymbol = getSymbol(fobCurrency)
 
   const formatMoney = (val: number, sym = currSymbol) => {
     return `${sym} ${val.toLocaleString('es-CL', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
@@ -101,7 +106,10 @@ export default function LiquidationReportModal({
   // CÁLCULOS AVANZADOS DE INTELIGENCIA COMERCIAL POR CALIBRE
   const safeTotalCajas = totalCajas > 0 ? totalCajas : 1
   const expensePerBox = totalExpenses / safeTotalCajas
-  const fobPerBox = advanceAmount / safeTotalCajas
+  const fobInSalesCurrency = fobCurrency === currency 
+    ? advanceAmount 
+    : (fobExchangeRate > 0 ? advanceAmount / fobExchangeRate : advanceAmount)
+  const fobPerBox = fobInSalesCurrency / safeTotalCajas
   const avgProfitPerBox = finalBalanceInCurrency / safeTotalCajas
 
   // Análisis por fila de calibre
@@ -316,7 +324,10 @@ export default function LiquidationReportModal({
                 </div>
                 <div>
                   <span className="text-slate-400 text-[10px] block uppercase font-bold">(-) Valor FOB Facturado</span>
-                  <span className="font-mono font-bold text-slate-900 text-sm">{formatMoney(advanceAmount)}</span>
+                  <span className="font-mono font-bold text-slate-900 text-sm">{formatMoney(advanceAmount, fobCurrSymbol)}</span>
+                  {fobCurrency !== currency && (
+                    <span className="block text-[10px] text-slate-500 font-mono">({formatMoney(fobInSalesCurrency, currSymbol)})</span>
+                  )}
                 </div>
               </div>
 
@@ -324,11 +335,11 @@ export default function LiquidationReportModal({
               <div className="flex flex-wrap items-center justify-between text-xs bg-slate-50 p-2.5 rounded-xl border border-slate-200 text-slate-700 gap-2">
                 <div>
                   <span className="text-slate-500 font-medium">Abonos Recibidos a Factura: </span>
-                  <strong className="font-mono font-bold text-emerald-700">{formatMoney(abonosAmount)}</strong>
+                  <strong className="font-mono font-bold text-emerald-700">{formatMoney(abonosAmount, fobCurrSymbol)}</strong>
                 </div>
                 <div>
                   <span className="text-slate-500 font-medium">Saldo Pendiente de Factura FOB: </span>
-                  <strong className="font-mono font-bold text-amber-700">{formatMoney(Math.max(advanceAmount - abonosAmount, 0))}</strong>
+                  <strong className="font-mono font-bold text-amber-700">{formatMoney(Math.max(advanceAmount - abonosAmount, 0), fobCurrSymbol)}</strong>
                 </div>
               </div>
 

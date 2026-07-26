@@ -71,10 +71,12 @@ export default function ContainerLiquidationCard({
   const [transport, setTransport] = useState<number>(0)
   const [otherExpenses, setOtherExpenses] = useState<number>(0)
 
-  // Anticipos y Tipo de Cambio
+  // Anticipos, Moneda FOB y Tipo de Cambio
   const [advanceAmount, setAdvanceAmount] = useState<number>(0) // Valor Facturado FOB
   const [abonosAmount, setAbonosAmount] = useState<number>(0) // Abonos Recibidos de Factura
-  const [exchangeRate, setExchangeRate] = useState<number>(1)
+  const [fobCurrency, setFobCurrency] = useState<'CLP' | 'USD' | 'EUR' | 'GBP'>('CLP')
+  const [fobExchangeRate, setFobExchangeRate] = useState<number>(1000) // Tasa por defecto CLP / EUR
+  const [exchangeRate, setExchangeRate] = useState<number>(1) // Tasa Venta (EUR -> USD/CLP)
 
   // Obtener símbolo de moneda según código
   const getCurrencySymbol = (code: string) => {
@@ -84,6 +86,7 @@ export default function ContainerLiquidationCard({
 
   const currSymbol = getCurrencySymbol(currency)
   const targetCurrSymbol = getCurrencySymbol(targetCurrency)
+  const fobCurrSymbol = getCurrencySymbol(fobCurrency)
 
   // Cargar datos al montar
   const fetchLiquidationData = useCallback(async () => {
@@ -165,35 +168,29 @@ export default function ContainerLiquidationCard({
     fetchLiquidationData()
   }, [fetchLiquidationData])
 
-  // Consultar tipo de cambio a la API oficial según fecha
+  // Consultar API Tipo de Cambio Oficial por Fecha
   const handleFetchExchangeRate = async () => {
-    if (currency === targetCurrency) {
-      setExchangeRate(1)
-      setRateProviderInfo('Misma moneda (1:1)')
-      return
-    }
     setFetchingRate(true)
+    setMessage(null)
+    setRateProviderInfo('')
     try {
       const res = await fetch(`/api/tipo-cambio?from=${currency}&to=${targetCurrency}&date=${rateDate}`)
       const data = await res.json()
       if (res.ok && data.rate) {
         setExchangeRate(data.rate)
-        setRateProviderInfo(data.provider || 'API Divisas')
-        setMessage({
-          type: 'info',
-          text: `Tipo de cambio (${currency} $\\rightarrow$ ${targetCurrency}) según fecha ${rateDate}: 1 ${currency} = ${data.rate} ${targetCurrency} [Fuente: ${data.provider}]`
-        })
+        setRateProviderInfo(`Fuente: ${data.provider} (${data.date})`)
+        setMessage({ type: 'success', text: `Tasa obtenida: 1 ${currency} = ${data.rate} ${targetCurrency} [${data.provider}]` })
       } else {
-        setMessage({ type: 'error', text: data.error || 'No se pudo obtener la tasa de cambio.' })
+        setMessage({ type: 'error', text: data.error || 'No se pudo consultar el tipo de cambio oficial.' })
       }
     } catch (e) {
-      setMessage({ type: 'error', text: 'Error al consultar servicio de tipo de cambio.' })
+      setMessage({ type: 'error', text: 'Error al consultar el servicio de cambio.' })
     } finally {
       setFetchingRate(false)
     }
   }
 
-  // Ejecutar extracción de Packlist PDF
+  // Parsear Packlist PDF/Excel existente
   const handleParsePacklist = async () => {
     setParsingPacklist(true)
     setMessage(null)
@@ -235,7 +232,7 @@ export default function ContainerLiquidationCard({
     })
   }
 
-  // Cálculos Financieros
+  // Cálculos Financieros con Conversión Unificada de Monedas
   const totalCajas = rows.reduce((acc, r) => acc + r.cajas, 0)
   const grossSales = rows.reduce((acc, r) => acc + r.subtotal, 0)
   const commissionAmount = Math.round((grossSales * (commissionPct / 100)) * 100) / 100
@@ -243,7 +240,13 @@ export default function ContainerLiquidationCard({
     commissionAmount + freight + handling + coldStorage + surveyor + transport + otherExpenses
   ) * 100) / 100
   const netAmount = Math.round((grossSales - totalExpenses) * 100) / 100
-  const finalBalanceInCurrency = Math.round((netAmount - advanceAmount) * 100) / 100
+
+  // Conversión del Valor Facturado FOB a la moneda de venta en destino (ej: CLP -> EUR)
+  const fobAmountInCurrency = fobCurrency === currency 
+    ? advanceAmount 
+    : Math.round(((fobExchangeRate > 0 ? advanceAmount / fobExchangeRate : advanceAmount)) * 100) / 100
+
+  const finalBalanceInCurrency = Math.round((netAmount - fobAmountInCurrency) * 100) / 100
   const finalBalanceTargetCurrency = Math.round((finalBalanceInCurrency * exchangeRate) * 100) / 100
 
   // Guardar Liquidación
@@ -589,20 +592,65 @@ export default function ContainerLiquidationCard({
             </div>
 
             <div className="space-y-3 pt-1 border-b border-slate-200 dark:border-gray-800 pb-3">
-              <div className="flex items-center justify-between text-xs">
+              <div className="flex flex-wrap items-center justify-between gap-2 text-xs">
                 <div>
-                  <label className="text-slate-700 dark:text-gray-300 font-semibold block">Monto Facturado / Costo FOB Mínimo ({currSymbol})</label>
-                  <span className="text-[10px] text-slate-400 dark:text-gray-500">Adelanto / Base garantizada de la operación</span>
+                  <label className="text-slate-700 dark:text-gray-300 font-semibold block">Valor Factura FOB (Monto Facturado)</label>
+                  <span className="text-[10px] text-slate-400 dark:text-gray-500">Monto total facturado por la exportación</span>
                 </div>
-                <input
-                  type="number"
-                  step="0.01"
-                  value={advanceAmount || ''}
-                  onChange={(e) => setAdvanceAmount(parseFloat(e.target.value) || 0)}
-                  disabled={isClosed}
-                  placeholder="0.00"
-                  className="w-32 bg-white dark:bg-gray-900 border border-slate-300 dark:border-gray-700 rounded-lg px-2 py-1 text-right font-mono font-bold text-slate-900 dark:text-white outline-none focus:border-indigo-500 text-xs"
-                />
+                <div className="flex items-center gap-2">
+                  <select
+                    value={fobCurrency}
+                    onChange={(e) => setFobCurrency(e.target.value as any)}
+                    disabled={isClosed}
+                    className="bg-white dark:bg-gray-900 border border-slate-300 dark:border-gray-700 rounded-lg px-2 py-1 text-xs font-bold text-slate-900 dark:text-white outline-none focus:border-indigo-500"
+                  >
+                    {CURRENCIES.map(c => (
+                      <option key={c.code} value={c.code}>{c.code} ({c.symbol})</option>
+                    ))}
+                  </select>
+                  <input
+                    type="number"
+                    step="0.01"
+                    value={advanceAmount || ''}
+                    onChange={(e) => setAdvanceAmount(parseFloat(e.target.value) || 0)}
+                    disabled={isClosed}
+                    placeholder="0.00"
+                    className="w-32 bg-white dark:bg-gray-900 border border-slate-300 dark:border-gray-700 rounded-lg px-2 py-1 text-right font-mono font-bold text-slate-900 dark:text-white outline-none focus:border-indigo-500 text-xs"
+                  />
+                </div>
+              </div>
+
+              {fobCurrency !== currency && (
+                <div className="flex items-center justify-between text-xs bg-slate-100 dark:bg-gray-900/60 p-2 rounded-lg border border-slate-200 dark:border-gray-800">
+                  <span className="text-slate-600 dark:text-gray-400 font-medium">Equivalencia Factura FOB ({fobCurrency} $\rightarrow$ {currency}):</span>
+                  <div className="flex items-center gap-2 font-mono text-xs">
+                    <span className="text-slate-500">1 {currency} =</span>
+                    <input
+                      type="number"
+                      step="0.1"
+                      value={fobExchangeRate}
+                      onChange={(e) => setFobExchangeRate(parseFloat(e.target.value) || 1)}
+                      disabled={isClosed}
+                      className="w-20 bg-white dark:bg-gray-950 border border-slate-300 dark:border-gray-700 rounded px-1.5 py-0.5 text-right font-bold text-slate-900 dark:text-white outline-none"
+                    />
+                    <span className="text-slate-500">{fobCurrency}</span>
+                    <span className="font-bold text-indigo-600 dark:text-indigo-400 ml-1">
+                      ({formatMoney(fobAmountInCurrency, currSymbol)})
+                    </span>
+                  </div>
+                </div>
+              )}
+
+              {/* Muestreo de Abonos y Saldo Factura FOB */}
+              <div className="flex items-center justify-between text-xs bg-emerald-500/5 p-2.5 rounded-lg border border-emerald-500/20 text-slate-700 dark:text-gray-300">
+                <div className="flex items-center gap-2">
+                  <span className="text-slate-500">Abonos Recibidos:</span>
+                  <span className="font-mono font-bold text-emerald-700 dark:text-emerald-400">{formatMoney(abonosAmount, fobCurrSymbol)}</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <span className="text-slate-500">Saldo Factura Pendiente:</span>
+                  <span className="font-mono font-bold text-amber-700 dark:text-amber-400">{formatMoney(Math.max(advanceAmount - abonosAmount, 0), fobCurrSymbol)}</span>
+                </div>
               </div>
 
               {/* Selector de Moneda Objetivo y Tasa por Fecha API */}
@@ -753,6 +801,8 @@ export default function ContainerLiquidationCard({
           netAmount={netAmount}
           advanceAmount={advanceAmount}
           abonosAmount={abonosAmount}
+          fobCurrency={fobCurrency}
+          fobExchangeRate={fobExchangeRate}
           finalBalanceInCurrency={finalBalanceInCurrency}
           finalBalanceTargetCurrency={finalBalanceTargetCurrency}
           liquidationStatus={liquidationStatus}
