@@ -27,14 +27,18 @@ export async function GET(
       .order('envase', { ascending: true })
       .order('calibre', { ascending: true })
 
-    if (packErr) {
-      console.error('Error al obtener packlist items:', packErr)
-    }
+    // 3. Cargar metadatos del despacho
+    const { data: dispatchData } = await supabaseAdmin
+      .from('dispatches')
+      .select('id, dispatch_code, client, destination, container_number, dispatch_date')
+      .eq('id', dispatchId)
+      .maybeSingle()
 
     return NextResponse.json({
       success: true,
       liquidation: liquidation || null,
-      packlistItems: packlistItems || []
+      packlistItems: packlistItems || [],
+      dispatch: dispatchData || null
     })
   } catch (err: any) {
     console.error('Error en GET /api/despachos/[id]/liquidacion:', err)
