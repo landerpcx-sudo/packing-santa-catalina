@@ -1,7 +1,7 @@
 'use client'
 
-import React, { useEffect } from 'react'
-import { Printer, X, FileText, CheckCircle2, ShieldCheck, DollarSign, TrendingUp, Award, AlertTriangle, BarChart3, HelpCircle } from 'lucide-react'
+import React, { useState, useEffect } from 'react'
+import { Printer, X, FileText, CheckCircle2, ShieldCheck, DollarSign, TrendingUp, Award, AlertTriangle, BarChart3, HelpCircle, ArrowUpDown, Target, Layers, ChevronRight } from 'lucide-react'
 import { CURRENCIES } from './ContainerLiquidationCard'
 
 interface LiquidationReportModalProps {
@@ -75,6 +75,9 @@ export default function LiquidationReportModal({
   rows,
   onClose
 }: LiquidationReportModalProps) {
+  // Estado interactivo de ordenamiento
+  const [sortBy, setSortBy] = useState<'profitPerBox' | 'boxes' | 'totalContribution'>('profitPerBox')
+
   // Manejo de tecla ESC
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -111,14 +114,32 @@ export default function LiquidationReportModal({
     : (fobExchangeRate > 0 ? advanceAmount / fobExchangeRate : advanceAmount)
   const fobPerBox = fobInSalesCurrency / safeTotalCajas
   const avgProfitPerBox = finalBalanceInCurrency / safeTotalCajas
+  const avgBoxesPerCalibre = safeTotalCajas / (rows.length || 1)
 
-  // Análisis por fila de calibre
+  // Análisis por fila de calibre con métricas gerenciales
   const calibreAnalysis = rows.map(r => {
     const destPrice = r.price_per_box || 0
     const destNet = destPrice - expensePerBox
     const profitPerBox = destPrice - expensePerBox - fobPerBox
     const totalProfitRow = profitPerBox * r.cajas
     const totalProfitTargetCurr = totalProfitRow * exchangeRate
+    const volumePct = (r.cajas / safeTotalCajas) * 100
+    const breakEvenPrice = expensePerBox + fobPerBox
+
+    // Clasificación en Matriz 2x2
+    const isHighVolume = r.cajas >= avgBoxesPerCalibre
+    const isHighMargin = profitPerBox >= avgProfitPerBox
+
+    let quadrant: 'ESTRELLA' | 'NICHO' | 'COMMODITY' | 'DEFICITARIO' = 'COMMODITY'
+    if (profitPerBox < 0) {
+      quadrant = 'DEFICITARIO'
+    } else if (isHighVolume && isHighMargin) {
+      quadrant = 'ESTRELLA'
+    } else if (!isHighVolume && isHighMargin) {
+      quadrant = 'NICHO'
+    } else {
+      quadrant = 'COMMODITY'
+    }
 
     return {
       ...r,
@@ -128,17 +149,28 @@ export default function LiquidationReportModal({
       fobPerBox,
       profitPerBox,
       totalProfitRow,
-      totalProfitTargetCurr
+      totalProfitTargetCurr,
+      volumePct,
+      breakEvenPrice,
+      quadrant
     }
   })
 
-  // Ordenar por utilidad por caja (de mayor a menor)
-  const sortedByProfit = [...calibreAnalysis].sort((a, b) => b.profitPerBox - a.profitPerBox)
-  const maxProfitCalibre = sortedByProfit[0]
-  const minProfitCalibre = sortedByProfit[sortedByProfit.length - 1]
+  // Ordenamiento dinámico según preferencia
+  const sortedCalibres = [...calibreAnalysis].sort((a, b) => {
+    if (sortBy === 'profitPerBox') return b.profitPerBox - a.profitPerBox
+    if (sortBy === 'boxes') return b.cajas - a.cajas
+    if (sortBy === 'totalContribution') return b.totalProfitTargetCurr - a.totalProfitTargetCurr
+    return 0
+  })
 
-  // Encontrar la mayor utilidad por caja para escalar barras del gráfico
-  const maxBarValue = Math.max(...calibreAnalysis.map(c => Math.abs(c.profitPerBox)), 0.01)
+  const maxProfitCalibre = [...calibreAnalysis].sort((a, b) => b.profitPerBox - a.profitPerBox)[0]
+  const minProfitCalibre = [...calibreAnalysis].sort((a, b) => a.profitPerBox - b.profitPerBox)[0]
+  const maxVolumeCalibre = [...calibreAnalysis].sort((a, b) => b.cajas - a.cajas)[0]
+
+  // Encontrar máximos para escalar barras del gráfico
+  const maxProfitBar = Math.max(...calibreAnalysis.map(c => Math.abs(c.profitPerBox)), 0.01)
+  const maxVolumeBar = Math.max(...calibreAnalysis.map(c => c.cajas), 1)
 
   return (
     <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/85 backdrop-blur-md p-2 sm:p-6 overflow-y-auto print:p-0 print:bg-white print:static print:block">
@@ -149,7 +181,7 @@ export default function LiquidationReportModal({
         <div className="flex items-center justify-between px-6 py-4 bg-slate-900 text-white border-b border-slate-800 shrink-0 print:hidden">
           <div className="flex items-center gap-2">
             <BarChart3 className="w-5 h-5 text-emerald-400" />
-            <h3 className="font-bold text-sm sm:text-base">Informe Comercial de Liquidación & Inteligencia de Calibres</h3>
+            <h3 className="font-bold text-sm sm:text-base">Sistema Gerencial de Decisiones & Inteligencia de Mercados</h3>
           </div>
           <div className="flex items-center gap-3">
             <button
@@ -184,7 +216,7 @@ export default function LiquidationReportModal({
 
             <div className="text-right">
               <div className="inline-block px-3 py-1 bg-slate-100 border border-slate-300 rounded-lg text-xs font-black uppercase tracking-wider text-slate-800 mb-1">
-                INFORME COMERCIAL Y INTELIGENCIA DE MERCADO
+                INFORME COMERCIAL Y DECISIONES GERENCIALES
               </div>
               <p className="text-sm font-mono font-bold text-slate-900">FOLIO: LIQ-{dispatchCode}</p>
               <p className="text-[11px] text-slate-500">Fecha Emisión: {new Date().toLocaleDateString('es-CL')}</p>
@@ -381,64 +413,105 @@ export default function LiquidationReportModal({
 
           {/* SECCIÓN IV: INTELIGENCIA COMERCIAL Y ANÁLISIS DE RENTABILIDAD POR CALIBRE */}
           <div className="space-y-4 pt-4 border-t-2 border-slate-300">
-            <div className="flex items-center justify-between border-b border-slate-200 pb-2">
+            <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-200 pb-2">
               <div>
                 <h3 className="text-xs font-black uppercase tracking-wider text-indigo-900 flex items-center gap-2">
                   <TrendingUp className="w-4 h-4 text-indigo-600" />
-                  IV. Análisis de Inteligencia Comercial & Rentabilidad por Calibre (Decisión Estratégica)
+                  IV. Ranking Ordenado & Análisis de Rentabilidad por Calibre (Mejor a Menor Rendimiento)
                 </h3>
                 <p className="text-[11px] text-slate-500 mt-0.5">
-                  Desglose de Venta Destino, Gastos y Costo FOB por caja para identificar calibres de mayor y menor margen.
+                  Calibres ordenados estrictamente de mayor a menor margen neta por caja.
                 </p>
               </div>
-              <span className="px-3 py-1 bg-indigo-50 border border-indigo-200 text-indigo-800 rounded-xl text-xs font-bold font-mono">
-                Utilidad Promedio Contenedor: {formatMoney(avgProfitPerBox)} / caja
-              </span>
+
+              {/* BARRA INTERACTIVA DE CONTROLES DE ORDENAMIENTO (Oculta al imprimir) */}
+              <div className="flex items-center gap-1.5 bg-slate-100 p-1 rounded-xl border border-slate-300 print:hidden text-xs">
+                <span className="text-[10px] text-slate-500 font-bold uppercase px-2">Ordenar por:</span>
+                <button
+                  type="button"
+                  onClick={() => setSortBy('profitPerBox')}
+                  className={`px-2.5 py-1 rounded-lg font-bold text-[11px] transition ${
+                    sortBy === 'profitPerBox' ? 'bg-indigo-600 text-white shadow-sm' : 'text-slate-700 hover:bg-slate-200'
+                  }`}
+                >
+                  <DollarSign className="w-3 h-3 inline mr-1" />
+                  Utilidad / Caja
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setSortBy('boxes')}
+                  className={`px-2.5 py-1 rounded-lg font-bold text-[11px] transition ${
+                    sortBy === 'boxes' ? 'bg-indigo-600 text-white shadow-sm' : 'text-slate-700 hover:bg-slate-200'
+                  }`}
+                >
+                  <Layers className="w-3 h-3 inline mr-1" />
+                  Curva de Calibres (Volumen)
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setSortBy('totalContribution')}
+                  className={`px-2.5 py-1 rounded-lg font-bold text-[11px] transition ${
+                    sortBy === 'totalContribution' ? 'bg-indigo-600 text-white shadow-sm' : 'text-slate-700 hover:bg-slate-200'
+                  }`}
+                >
+                  <Award className="w-3 h-3 inline mr-1" />
+                  Aporte Total ($)
+                </button>
+              </div>
             </div>
 
-            {/* TABLA COMPARATIVA DE COSTO Y RENTABILIDAD POR CAJA */}
+            {/* TABLA RANKING COMPARATIVO DE COSTO Y RENTABILIDAD POR CAJA */}
             <div className="overflow-x-auto">
               <table className="w-full text-left text-xs border-collapse border border-slate-300">
                 <thead>
                   <tr className="bg-slate-800 text-white font-bold uppercase text-[9.5px]">
+                    <th className="border border-slate-300 py-2.5 px-2 text-center w-8">Rank</th>
                     <th className="border border-slate-300 py-2.5 px-3">Embalaje</th>
                     <th className="border border-slate-300 py-2.5 px-3">Calibre</th>
-                    <th className="border border-slate-300 py-2.5 px-3 text-right">Cajas</th>
-                    <th className="border border-slate-300 py-2.5 px-3 text-right">Venta Destino / Caja</th>
+                    <th className="border border-slate-300 py-2.5 px-3 text-right">Cajas (% Carga)</th>
+                    <th className="border border-slate-300 py-2.5 px-3 text-right">Venta Destino</th>
                     <th className="border border-slate-300 py-2.5 px-3 text-right">Gastos / Caja</th>
                     <th className="border border-slate-300 py-2.5 px-3 text-right">Costo FOB / Caja</th>
+                    <th className="border border-slate-300 py-2.5 px-3 text-right">Break-Even (Punto Eq.)</th>
                     <th className="border border-slate-300 py-2.5 px-3 text-right">Utilidad Neta / Caja ({currSymbol})</th>
                     <th className="border border-slate-300 py-2.5 px-3 text-right">Contribución Total ({targetCurrency})</th>
-                    <th className="border border-slate-300 py-2.5 px-3 text-center">Clasificación Comercial</th>
+                    <th className="border border-slate-300 py-2.5 px-3 text-center">Cuadrante Gerencial</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-200 font-medium">
-                  {calibreAnalysis.map((item, idx) => {
-                    const isStar = maxProfitCalibre && item.calibre === maxProfitCalibre.calibre && item.profitPerBox > 0
-                    const isCritical = minProfitCalibre && item.calibre === minProfitCalibre.calibre && (item.profitPerBox < avgProfitPerBox)
+                  {sortedCalibres.map((item, idx) => {
+                    const rankNum = idx + 1
+                    const isFirst = rankNum === 1
+                    const isLast = rankNum === sortedCalibres.length && item.profitPerBox < 0
 
                     let badgeColor = 'bg-slate-100 text-slate-700 border-slate-300'
-                    let badgeLabel = '🟢 Rendimiento Estándar'
+                    let badgeLabel = '🟢 COMMODITY'
 
-                    if (isStar) {
+                    if (item.quadrant === 'ESTRELLA') {
                       badgeColor = 'bg-emerald-100 text-emerald-900 border-emerald-300 font-bold'
-                      badgeLabel = '⭐ Máxima Utilidad (Estrella)'
-                    } else if (isCritical) {
-                      badgeColor = 'bg-amber-100 text-amber-900 border-amber-300 font-bold'
-                      badgeLabel = '⚠️ Bajo Margen (Revisar)'
-                    } else if (item.profitPerBox < 0) {
+                      badgeLabel = '⭐⭐ ESTRELLA EXPORTACIÓN'
+                    } else if (item.quadrant === 'NICHO') {
+                      badgeColor = 'bg-teal-100 text-teal-900 border-teal-300 font-bold'
+                      badgeLabel = '⭐ NICHO ALTO MARGEN'
+                    } else if (item.quadrant === 'DEFICITARIO') {
                       badgeColor = 'bg-red-100 text-red-900 border-red-300 font-bold'
-                      badgeLabel = '🔴 Pérdida Neta / Caja'
+                      badgeLabel = '🔴 PÉRDIDA NETA'
                     }
 
                     return (
-                      <tr key={idx} className={isStar ? 'bg-emerald-50/40 font-bold' : isCritical ? 'bg-amber-50/40' : idx % 2 === 0 ? 'bg-white' : 'bg-slate-50/50'}>
+                      <tr key={idx} className={isFirst ? 'bg-emerald-50/50 font-bold' : isLast ? 'bg-red-50/40' : idx % 2 === 0 ? 'bg-white' : 'bg-slate-50/50'}>
+                        <td className="border border-slate-300 py-2 px-2 text-center font-black font-mono text-indigo-900 text-xs">
+                          #{rankNum}
+                        </td>
                         <td className="border border-slate-300 py-2 px-3 font-semibold">{item.envase}</td>
                         <td className="border border-slate-300 py-2 px-3 font-mono font-bold text-indigo-800">{item.calibre}</td>
-                        <td className="border border-slate-300 py-2 px-3 text-right font-mono">{item.cajas.toLocaleString()}</td>
+                        <td className="border border-slate-300 py-2 px-3 text-right font-mono">
+                          {item.cajas.toLocaleString()} <span className="text-[10px] text-slate-500 font-normal">({item.volumePct.toFixed(1)}%)</span>
+                        </td>
                         <td className="border border-slate-300 py-2 px-3 text-right font-mono">{formatMoney(item.destPrice)}</td>
                         <td className="border border-slate-300 py-2 px-3 text-right font-mono text-red-700">-{formatMoney(item.expensePerBox)}</td>
                         <td className="border border-slate-300 py-2 px-3 text-right font-mono text-slate-700">-{formatMoney(item.fobPerBox)}</td>
+                        <td className="border border-slate-300 py-2 px-3 text-right font-mono text-slate-500 font-bold">{formatMoney(item.breakEvenPrice)}</td>
                         <td className={`border border-slate-300 py-2 px-3 text-right font-mono font-black ${
                           item.profitPerBox >= 0 ? 'text-emerald-700' : 'text-red-600'
                         }`}>
@@ -448,7 +521,7 @@ export default function LiquidationReportModal({
                           {formatMoney(item.totalProfitTargetCurr, targetSymbol)}
                         </td>
                         <td className="border border-slate-300 py-2 px-3 text-center">
-                          <span className={`inline-block px-2 py-0.5 text-[9.5px] uppercase rounded-full border ${badgeColor}`}>
+                          <span className={`inline-block px-2 py-0.5 text-[9px] uppercase rounded-full border ${badgeColor}`}>
                             {badgeLabel}
                           </span>
                         </td>
@@ -459,37 +532,77 @@ export default function LiquidationReportModal({
               </table>
             </div>
 
-            {/* GRÁFICO COMPARATIVO DE BARRAS DE UTILIDAD POR CAJA */}
-            <div className="bg-slate-50 border border-slate-300 rounded-2xl p-5 space-y-3">
-              <h4 className="text-xs font-bold uppercase tracking-wider text-slate-800 flex items-center gap-1.5">
-                <BarChart3 className="w-4 h-4 text-indigo-600" />
-                Gráfico Comparativo de Margen Neto por Caja (según Calibre)
-              </h4>
+            {/* GRÁFICO DUO INTERACTIVO: CURVA DE CALIBRES (VOLUMEN) + RENTABILIDAD POR CAJA */}
+            <div className="bg-slate-50 border border-slate-300 rounded-2xl p-5 space-y-4">
+              <div className="flex items-center justify-between border-b border-slate-200 pb-2">
+                <h4 className="text-xs font-bold uppercase tracking-wider text-slate-900 flex items-center gap-2">
+                  <BarChart3 className="w-4 h-4 text-indigo-600" />
+                  Curva de Calibres vs Margen Neto por Caja (Ranking de Mayor a Menor Utilidad)
+                </h4>
+                <span className="text-[11px] font-mono text-slate-500">
+                  Orden Actual: <strong className="text-indigo-700 uppercase">{sortBy === 'profitPerBox' ? 'Por Utilidad/Caja' : sortBy === 'boxes' ? 'Por Curva de Volumen' : 'Por Aporte $'}</strong>
+                </span>
+              </div>
 
-              <div className="space-y-2.5 pt-1">
-                {calibreAnalysis.map((item, idx) => {
-                  const pct = Math.min(Math.max((Math.abs(item.profitPerBox) / maxBarValue) * 100, 8), 100)
+              <div className="space-y-3 pt-1">
+                {sortedCalibres.map((item, idx) => {
+                  const profitPct = Math.min(Math.max((Math.abs(item.profitPerBox) / maxProfitBar) * 100, 6), 100)
+                  const volumeBarPct = Math.min(Math.max((item.cajas / maxVolumeBar) * 100, 6), 100)
                   const isPositive = item.profitPerBox >= 0
 
                   return (
-                    <div key={idx} className="space-y-1">
-                      <div className="flex items-center justify-between text-xs font-semibold">
-                        <span className="font-mono text-slate-800">Calibre {item.calibre} ({item.envase})</span>
-                        <span className={`font-mono font-bold ${isPositive ? 'text-emerald-700' : 'text-red-600'}`}>
-                          {isPositive ? '+' : ''}{formatMoney(item.profitPerBox)} / caja
-                        </span>
+                    <div key={idx} className="bg-white border border-slate-200 rounded-xl p-3 space-y-2 shadow-sm">
+                      <div className="flex flex-wrap items-center justify-between gap-2 text-xs font-bold">
+                        <div className="flex items-center gap-2">
+                          <span className="w-5 h-5 rounded-full bg-slate-900 text-white flex items-center justify-center font-mono text-[10px]">
+                            #{idx + 1}
+                          </span>
+                          <span className="font-mono text-slate-900 text-sm">Calibre {item.calibre} ({item.envase})</span>
+                          <span className="text-[11px] text-slate-500 font-normal">({item.cajas.toLocaleString()} cajas • {item.volumePct.toFixed(1)}% del contenedor)</span>
+                        </div>
+                        <div className="flex items-center gap-3 font-mono">
+                          <span className="text-slate-500 text-[11px]">Break-even: {formatMoney(item.breakEvenPrice)}</span>
+                          <span className={`text-sm font-black ${isPositive ? 'text-emerald-700' : 'text-red-600'}`}>
+                            {isPositive ? '+' : ''}{formatMoney(item.profitPerBox)} / caja
+                          </span>
+                        </div>
                       </div>
-                      <div className="w-full bg-slate-200 rounded-full h-3.5 overflow-hidden p-0.5 flex items-center">
-                        <div
-                          className={`h-full rounded-full transition-all duration-500 ${
-                            isPositive
-                              ? item.profitPerBox === maxProfitCalibre?.profitPerBox
-                                ? 'bg-emerald-600'
-                                : 'bg-indigo-600'
-                              : 'bg-red-500'
-                          }`}
-                          style={{ width: `${pct}%` }}
-                        />
+
+                      {/* DOBLE BARRAS: MARGEN NETO Y CURVA DE VOLUMEN */}
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-3 pt-1">
+                        {/* BARRA 1: MARGEN NETO POR CAJA */}
+                        <div className="space-y-1">
+                          <div className="flex items-center justify-between text-[10px] font-bold text-slate-500 uppercase">
+                            <span>Utilidad Neta / Caja</span>
+                            <span>{formatMoney(item.profitPerBox)}</span>
+                          </div>
+                          <div className="w-full bg-slate-100 rounded-full h-3 overflow-hidden p-0.5 flex items-center border border-slate-200">
+                            <div
+                              className={`h-full rounded-full transition-all duration-500 ${
+                                isPositive
+                                  ? idx === 0
+                                    ? 'bg-emerald-600'
+                                    : 'bg-indigo-600'
+                                  : 'bg-red-500'
+                              }`}
+                              style={{ width: `${profitPct}%` }}
+                            />
+                          </div>
+                        </div>
+
+                        {/* BARRA 2: CURVA DE VOLUMEN (CAJAS) */}
+                        <div className="space-y-1">
+                          <div className="flex items-center justify-between text-[10px] font-bold text-slate-500 uppercase">
+                            <span>Curva de Volumen (Cajas)</span>
+                            <span>{item.cajas.toLocaleString()} cajas ({item.volumePct.toFixed(1)}%)</span>
+                          </div>
+                          <div className="w-full bg-slate-100 rounded-full h-3 overflow-hidden p-0.5 flex items-center border border-slate-200">
+                            <div
+                              className="h-full rounded-full bg-slate-700 transition-all duration-500"
+                              style={{ width: `${volumeBarPct}%` }}
+                            />
+                          </div>
+                        </div>
                       </div>
                     </div>
                   )
@@ -497,31 +610,115 @@ export default function LiquidationReportModal({
               </div>
             </div>
 
-            {/* RECOMENDACIONES COMERCIALES Y DE ESTRATEGIA */}
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              {maxProfitCalibre && (
-                <div className="bg-emerald-50 border border-emerald-300 rounded-2xl p-4 space-y-1">
-                  <div className="flex items-center gap-1.5 text-xs font-bold text-emerald-900 uppercase">
-                    <Award className="w-4 h-4 text-emerald-600 shrink-0" />
-                    Calibre Estrella (Mayor Margen)
-                  </div>
-                  <p className="text-xs text-emerald-800">
-                    El calibre <strong className="font-mono font-bold">{maxProfitCalibre.calibre}</strong> entregó el mejor rendimiento económico con <strong className="font-mono font-bold">+{formatMoney(maxProfitCalibre.profitPerBox)} / caja</strong>. Se recomienda priorizar este calibre en negociaciones futuras para {destination || 'este destino'}.
-                  </p>
-                </div>
-              )}
+            {/* SECCIÓN V: MATRIZ DE DECISIONES DE COSECHA & EXPORTACIÓN 2x2 */}
+            <div className="space-y-3 pt-2">
+              <h4 className="text-xs font-bold uppercase tracking-wider text-slate-900 flex items-center gap-2 border-b border-slate-200 pb-1">
+                <Target className="w-4 h-4 text-indigo-600" />
+                V. Matriz Gerencial 2x2 de Decisiones de Cosecha & Comercialización
+              </h4>
 
-              {minProfitCalibre && (
-                <div className="bg-amber-50 border border-amber-300 rounded-2xl p-4 space-y-1">
-                  <div className="flex items-center gap-1.5 text-xs font-bold text-amber-900 uppercase">
-                    <AlertTriangle className="w-4 h-4 text-amber-600 shrink-0" />
-                    Calibre Crítico (Menor Margen)
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-xs">
+                {/* CUADRANTE 1: ESTRELLAS DE EXPORTACIÓN */}
+                <div className="bg-emerald-50 border-2 border-emerald-300 rounded-2xl p-4 space-y-2">
+                  <div className="flex items-center justify-between text-emerald-900 font-bold uppercase border-b border-emerald-200 pb-1">
+                    <span className="flex items-center gap-1.5">
+                      <Award className="w-4 h-4 text-emerald-600" />
+                      ⭐⭐ Estrellas de Exportación
+                    </span>
+                    <span className="text-[10px] font-normal">Alto Volumen + Alto Margen</span>
                   </div>
-                  <p className="text-xs text-amber-800">
-                    El calibre <strong className="font-mono font-bold">{minProfitCalibre.calibre}</strong> tuvo el margen más ajustado (<strong className="font-mono font-bold">{formatMoney(minProfitCalibre.profitPerBox)} / caja</strong>). Evaluar ajustes de precio de venta o redireccionar esta categoría a mercados alternativos.
+                  <p className="text-[11px] text-emerald-800">
+                    Motor principal de ganancias del despacho. Se recomienda priorizar la selección y envío masivo de estos calibres a {destination || 'este mercado'}.
                   </p>
+
+                  <div className="space-y-1 pt-1">
+                    {calibreAnalysis.filter(c => c.quadrant === 'ESTRELLA').map((c, i) => (
+                      <div key={i} className="flex items-center justify-between bg-white/80 px-2 py-1 rounded border border-emerald-200 font-mono text-[11px] text-emerald-900 font-bold">
+                        <span>Calibre {c.calibre} ({c.envase})</span>
+                        <span>+{formatMoney(c.profitPerBox)} / caja ({c.cajas} cajas)</span>
+                      </div>
+                    ))}
+                    {calibreAnalysis.filter(c => c.quadrant === 'ESTRELLA').length === 0 && (
+                      <p className="text-[11px] text-emerald-600 italic">No hay calibres en esta categoría en este contenedor.</p>
+                    )}
+                  </div>
                 </div>
-              )}
+
+                {/* CUADRANTE 2: NICHOS DE ALTO MARGEN */}
+                <div className="bg-teal-50 border-2 border-teal-300 rounded-2xl p-4 space-y-2">
+                  <div className="flex items-center justify-between text-teal-900 font-bold uppercase border-b border-teal-200 pb-1">
+                    <span className="flex items-center gap-1.5">
+                      <TrendingUp className="w-4 h-4 text-teal-600" />
+                      ⭐ Nichos de Alto Margen
+                    </span>
+                    <span className="text-[10px] font-normal">Bajo Volumen + Alto Margen</span>
+                  </div>
+                  <p className="text-[11px] text-teal-800">
+                    Excelente margen unitario pero poco volumen en el contenedor. Oportunidad para aumentar el embalaje de este calibre en futuras cosechas.
+                  </p>
+
+                  <div className="space-y-1 pt-1">
+                    {calibreAnalysis.filter(c => c.quadrant === 'NICHO').map((c, i) => (
+                      <div key={i} className="flex items-center justify-between bg-white/80 px-2 py-1 rounded border border-teal-200 font-mono text-[11px] text-teal-900 font-bold">
+                        <span>Calibre {c.calibre} ({c.envase})</span>
+                        <span>+{formatMoney(c.profitPerBox)} / caja ({c.cajas} cajas)</span>
+                      </div>
+                    ))}
+                    {calibreAnalysis.filter(c => c.quadrant === 'NICHO').length === 0 && (
+                      <p className="text-[11px] text-teal-600 italic">No hay calibres en esta categoría en este contenedor.</p>
+                    )}
+                  </div>
+                </div>
+
+                {/* CUADRANTE 3: VOLUMEN COMMODITY */}
+                <div className="bg-slate-50 border-2 border-slate-300 rounded-2xl p-4 space-y-2">
+                  <div className="flex items-center justify-between text-slate-900 font-bold uppercase border-b border-slate-200 pb-1">
+                    <span className="flex items-center gap-1.5">
+                      <Layers className="w-4 h-4 text-slate-600" />
+                      🟢 Volumen Commodity
+                    </span>
+                    <span className="text-[10px] font-normal">Alto Volumen + Margen Estándar</span>
+                  </div>
+                  <p className="text-[11px] text-slate-700">
+                    Mucha carga enviada con margen ajustado. Se recomienda renegociar comisiones y tarifas flete marítimo para mejorar su rentabilidad global.
+                  </p>
+
+                  <div className="space-y-1 pt-1">
+                    {calibreAnalysis.filter(c => c.quadrant === 'COMMODITY').map((c, i) => (
+                      <div key={i} className="flex items-center justify-between bg-white px-2 py-1 rounded border border-slate-200 font-mono text-[11px] text-slate-800">
+                        <span>Calibre {c.calibre} ({c.envase})</span>
+                        <span>+{formatMoney(c.profitPerBox)} / caja ({c.cajas} cajas)</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                {/* CUADRANTE 4: CALIBRES CRÍTICOS / PÉRDIDA */}
+                <div className="bg-red-50 border-2 border-red-300 rounded-2xl p-4 space-y-2">
+                  <div className="flex items-center justify-between text-red-900 font-bold uppercase border-b border-red-200 pb-1">
+                    <span className="flex items-center gap-1.5">
+                      <AlertTriangle className="w-4 h-4 text-red-600" />
+                      🔴 Calibres Críticos / Pérdida Neta
+                    </span>
+                    <span className="text-[10px] font-normal">Pérdida por Caja</span>
+                  </div>
+                  <p className="text-[11px] text-red-800">
+                    Restan valor a la exportación. Se sugiere renegociar precio mínimo en destino o desviar estas categorías a mercado interno / industria de jugo.
+                  </p>
+
+                  <div className="space-y-1 pt-1">
+                    {calibreAnalysis.filter(c => c.quadrant === 'DEFICITARIO').map((c, i) => (
+                      <div key={i} className="flex items-center justify-between bg-white px-2 py-1 rounded border border-red-200 font-mono text-[11px] text-red-900 font-bold">
+                        <span>Calibre {c.calibre} ({c.envase})</span>
+                        <span className="text-red-700">{formatMoney(c.profitPerBox)} / caja ({c.cajas} cajas)</span>
+                      </div>
+                    ))}
+                    {calibreAnalysis.filter(c => c.quadrant === 'DEFICITARIO').length === 0 && (
+                      <p className="text-[11px] text-emerald-700 font-semibold">¡Excelente! Ningún calibre registró pérdida neta en este contenedor.</p>
+                    )}
+                  </div>
+                </div>
+              </div>
             </div>
 
           </div>
