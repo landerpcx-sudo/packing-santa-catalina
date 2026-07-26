@@ -609,70 +609,105 @@ export async function construirInformeFinancieroPDF(
       .text('Incluye flete marítimo y transporte local a destino, además de comisión, handling, frío y surveyor.', L, doc.y, { width: W })
     doc.y += 10
 
-    // Barra visual de distribución porcentual de deducciones en destino
-    if (totalExpenses > 0) {
-      doc.rect(L, doc.y, W, 7).fill(COLOR.fondoCabecera)
-      let xSeg = L
-      const coloresGastos = [COLOR.rojo, COLOR.indigo, COLOR.ambar, COLOR.teal, COLOR.verde, COLOR.tinta, COLOR.suave]
-      gastos.forEach(([_, monto], i) => {
-        const anchoSeg = (monto / totalExpenses) * W
-        if (anchoSeg > 0.5) {
-          doc.rect(xSeg, doc.y, anchoSeg, 7).fill(coloresGastos[i % coloresGastos.length])
-          xSeg += anchoSeg
-        }
-      })
-      doc.y += 12
-    }
-
-    // ── III. RESUMEN FINANCIERO — CASCADA HASTA LA UTILIDAD FINAL ───────────
-    // Fila a fila, para que se vea con toda claridad la resta del flete +
-    // transporte (ya dentro de "Deducciones") y del costo FOB facturado,
-    // hasta llegar a la utilidad real que le queda a la exportadora.
+    // ── III. RESUMEN FINANCIERO — TABLA MAESTRA MULTI-MONEDA ─────────────────
     marcador('III. Resumen financiero')
-    tituloSeccion('III. Resumen financiero y utilidad del contenedor', COLOR.verde)
+    tituloSeccion('III. Resumen financiero y tabla maestra multi-moneda', COLOR.verde)
 
+    const esVentaUSD = currency === 'USD'
+    const anchosMulti = esVentaUSD ? [215, 150, 150] : [170, 115, 115, 115]
+    const cabeceraMulti = esVentaUSD 
+      ? ['Concepto Financiero', 'Dólares (USD $)', 'Pesos Chilenos (CLP $)']
+      : ['Concepto Financiero', `Venta Destino (${currency} ${simb})`, 'Dólares (USD $)', 'Pesos Chilenos (CLP $)']
 
-    const filaResumen = (
-      etiqueta: string, valor: string,
-      opciones: { color?: string; negrita?: boolean; nota?: string; tam?: number } = {}
+    const filaMulti = (
+      valores: string[],
+      opciones: { cabecera?: boolean; fondo?: string; negrita?: boolean; alto?: number; color?: string; destaca?: boolean } = {}
     ) => {
-      asegurar(20)
+      asegurar(opciones.alto || 17)
       const y = doc.y
-      doc.fillColor(opciones.color || COLOR.texto).font(opciones.negrita ? 'B' : 'R').fontSize(opciones.tam || 8.5)
-        .text(etiqueta, L, y, { width: 320 })
-      doc.fillColor(opciones.color || COLOR.texto).font('B').fontSize(opciones.tam || 8.5)
-        .text(valor, L + 320, y, { width: W - 320, align: 'right' })
-      doc.y = y + (opciones.tam || 8.5) + 5
-      if (opciones.nota) {
-        doc.fillColor(COLOR.tenue).font('R').fontSize(6.3).text(opciones.nota, L, doc.y, { width: W })
-        doc.y += 10
+      const alto = opciones.alto || 17
+      if (opciones.fondo) doc.rect(L, y, W, alto).fill(opciones.fondo)
+      if (opciones.destaca) {
+        doc.rect(L, y, W, alto).fill(COLOR.verdeFondo)
+        doc.rect(L, y, W, alto).lineWidth(1).strokeColor(COLOR.verde).stroke()
       }
+
+      let x = L
+      valores.forEach((v, i) => {
+        const alinear = i === 0 ? 'left' : 'right'
+        doc
+          .fillColor(opciones.color || (opciones.cabecera ? COLOR.tinta : COLOR.texto))
+          .font(opciones.cabecera || opciones.negrita ? 'B' : 'R')
+          .fontSize(opciones.cabecera ? 7 : (opciones.negrita ? 8 : 7.5))
+          .text(v, x + 6, y + (alto - 8) / 2, { width: anchosMulti[i] - 12, align: alinear as any, lineBreak: false })
+        x += anchosMulti[i]
+      })
+
+      if (!opciones.destaca) {
+        doc.moveTo(L, y + alto).lineTo(R, y + alto).lineWidth(0.4).strokeColor(COLOR.lineaSuave).stroke()
+      }
+      doc.y = y + alto
     }
 
-    const lineaSeparadora = () => {
-      doc.moveTo(L, doc.y).lineTo(R, doc.y).lineWidth(0.5).strokeColor(COLOR.lineaSuave).stroke()
-      doc.y += 6
-    }
+    filaMulti(cabeceraMulti, { cabecera: true, fondo: COLOR.fondoCabecera, alto: 18 })
 
-    filaResumen('Venta Bruta Total', dinero(grossSales))
-    filaResumen('(-) Deducciones en Destino (incl. flete y transporte)', `- ${dinero(totalExpenses)}`, { color: COLOR.rojo })
-    lineaSeparadora()
-    filaResumen('(=) Importe Neto a Favor', dinero(netAmount), { negrita: true, color: COLOR.verde, tam: 9.5 })
-    filaResumen(
-      '(-) Costo FOB Facturado (valor de la fruta ya pagado)',
-      `- ${dinero(advanceAmount, simbFob)}`,
-      {
-        color: COLOR.rojo,
-        nota: fobCurrency !== currency
-          ? `Equivalencia: 1 ${currency} = ${tasaCLPOtorgada.toLocaleString('es-CL')} ${fobCurrency}  ->  ${dinero(fobEnMonedaVenta)} en moneda de venta`
-          : undefined,
-      }
+    // Venta Bruta
+    const vB_Dest = dinero(grossSales)
+    const vB_USD = `${simbTarget} ${(grossSales * tasaSaleToTarget).toLocaleString('es-CL', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+    const vB_CLP = clp(grossSales * tasaCLPOtorgada)
+    filaMulti(esVentaUSD ? ['Venta Bruta Destino', vB_USD, vB_CLP] : ['Venta Bruta Destino', vB_Dest, vB_USD, vB_CLP])
+
+    // Deducciones
+    const ded_Dest = `-${dinero(totalExpenses)}`
+    const ded_USD = `-${simbTarget} ${(totalExpenses * tasaSaleToTarget).toLocaleString('es-CL', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+    const ded_CLP = `-${clp(totalExpenses * tasaCLPOtorgada)}`
+    filaMulti(esVentaUSD ? ['(-) Deducciones en Destino', ded_USD, ded_CLP] : ['(-) Deducciones en Destino', ded_Dest, ded_USD, ded_CLP], { color: COLOR.rojo })
+
+    // Importe Neto
+    const net_Dest = dinero(netAmount)
+    const net_USD = `${simbTarget} ${(netAmount * tasaSaleToTarget).toLocaleString('es-CL', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+    const net_CLP = clp(netAmount * tasaCLPOtorgada)
+    filaMulti(esVentaUSD ? ['(=) Importe Neto a Favor', net_USD, net_CLP] : ['(=) Importe Neto a Favor', net_Dest, net_USD, net_CLP], { negrita: true, color: COLOR.verde, fondo: COLOR.fondo })
+
+    // Ingreso Neto / Caja
+    const netCj_Dest = `${dinero(netAmount / safeCajas)} / cj`
+    const netCj_USD = `${simbTarget} ${(netAmount * tasaSaleToTarget / safeCajas).toLocaleString('es-CL', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} / cj`
+    const netCj_CLP = `${clp((netAmount * tasaCLPOtorgada) / safeCajas)} / cj`
+    filaMulti(esVentaUSD ? ['    Ingreso Neto / Caja', netCj_USD, netCj_CLP] : ['    Ingreso Neto / Caja', netCj_Dest, netCj_USD, netCj_CLP], { color: COLOR.teal, alto: 15 })
+
+    // Costo FOB Facturado
+    const fob_Dest = `-${dinero(fobEnMonedaVenta)}`
+    const fob_USD = `-${simbTarget} ${(fobEnMonedaVenta * tasaSaleToTarget).toLocaleString('es-CL', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+    const fob_CLP = `-${clp(advanceAmount)}`
+    filaMulti(esVentaUSD ? ['(-) Costo FOB Fruta Facturado', fob_USD, fob_CLP] : ['(-) Costo FOB Fruta Facturado', fob_Dest, fob_USD, fob_CLP], { color: COLOR.rojo })
+
+    // FOB / Caja (Campo)
+    const fobCj_Dest = `${dinero(fobEnMonedaVenta / safeCajas)} / cj`
+    const fobCj_USD = `${simbTarget} ${(fobEnMonedaVenta * tasaSaleToTarget / safeCajas).toLocaleString('es-CL', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} / cj`
+    const fobCj_CLP = `${clp(advanceAmount / safeCajas)} / cj`
+    filaMulti(esVentaUSD ? ['    FOB Fruta / Caja (Campo)', fobCj_USD, fobCj_CLP] : ['    FOB Fruta / Caja (Campo)', fobCj_Dest, fobCj_USD, fobCj_CLP], { color: COLOR.suave, alto: 15 })
+
+    // UTILIDAD FINAL NEGOCIO
+    const ut_Dest = dinero(finalBalance)
+    const ut_USD = `${simbTarget} ${finalBalanceTargetUSD.toLocaleString('es-CL', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+    const ut_CLP = clp(utilidadTotalCLPEst)
+    filaMulti(
+      esVentaUSD ? ['(=) UTILIDAD FINAL DEL NEGOCIO', ut_USD, ut_CLP] : ['(=) UTILIDAD FINAL DEL NEGOCIO', ut_Dest, ut_USD, ut_CLP],
+      { negrita: true, color: finalBalance >= 0 ? COLOR.verde : COLOR.rojo, destaca: true, alto: 20 }
     )
-    lineaSeparadora()
 
-    // Ojo con el orden: la primera llamada con `continued` mueve doc.y, así que
-    // la segunda columna hay que anclarla a la Y guardada de antes o queda
-    // descolgada una línea más abajo.
+    // Utilidad / Caja
+    const utCj_Dest = `${dinero(finalBalance / safeCajas)} / cj`
+    const utCj_USD = `${simbTarget} ${(finalBalanceTargetUSD / safeCajas).toLocaleString('es-CL', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} / cj`
+    const utCj_CLP = `${clp(utilidadTotalCLPEst / safeCajas)} / cj`
+    filaMulti(
+      esVentaUSD ? ['    Utilidad Promedio / Caja', utCj_USD, utCj_CLP] : ['    Utilidad Promedio / Caja', utCj_Dest, utCj_USD, utCj_CLP],
+      { negrita: true, color: finalBalance >= 0 ? COLOR.verde : COLOR.rojo, alto: 16 }
+    )
+
+    doc.y += 10
+
+    // Abonos y Saldo Factura
     asegurar(16)
     const yAbonos = doc.y
     doc.rect(L, yAbonos, W, 16).fill(COLOR.fondo)
@@ -682,7 +717,7 @@ export async function construirInformeFinancieroPDF(
     doc.fillColor(COLOR.suave).font('R').fontSize(7)
       .text(`Saldo pendiente de factura FOB: `, L + W / 2, yAbonos + 5, { continued: true })
       .fillColor(COLOR.ambar).font('B').text(dinero(Math.max(advanceAmount - abonosAmount, 0), simbFob))
-    doc.y = yAbonos + 22
+    doc.y = yAbonos + 20
 
     if (currency !== targetCurrency) {
       asegurar(14)

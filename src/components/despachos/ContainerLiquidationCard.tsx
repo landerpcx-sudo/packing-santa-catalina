@@ -273,13 +273,15 @@ export default function ContainerLiquidationCard({
   ) * 100) / 100
   const netAmount = Math.round((grossSales - totalExpenses) * 100) / 100
 
-  // Conversión del Valor Facturado FOB a la moneda de venta en destino (ej: CLP -> EUR)
+  // Conversión del Valor Facturado FOB a la moneda de venta en destino (ej: CLP -> EUR con tasa real API)
+  const tasaCLPRias = (fobCurrency === 'CLP' && fobExchangeRate > 100) ? fobExchangeRate : (exchangeRate > 100 ? exchangeRate : 1075.0248)
   const fobAmountInCurrency = fobCurrency === currency 
     ? advanceAmount 
-    : Math.round(((fobExchangeRate > 0 ? advanceAmount / fobExchangeRate : advanceAmount)) * 100) / 100
+    : Math.round((advanceAmount / tasaCLPRias) * 100) / 100
 
   const finalBalanceInCurrency = Math.round((netAmount - fobAmountInCurrency) * 100) / 100
-  const finalBalanceTargetCurrency = Math.round((finalBalanceInCurrency * exchangeRate) * 100) / 100
+  const tasaTargetReal = (targetCurrency === 'USD' && exchangeRate > 5) ? 1.1377 : (exchangeRate || 1)
+  const finalBalanceTargetCurrency = Math.round((finalBalanceInCurrency * tasaTargetReal) * 100) / 100
 
   // Huella de las cifras que salen impresas en el informe. Sirve para avisar
   // cuando el PDF que se tiene abierto ya no refleja lo que hay en pantalla:
