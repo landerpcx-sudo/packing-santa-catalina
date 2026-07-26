@@ -72,7 +72,8 @@ export default function ContainerLiquidationCard({
   const [otherExpenses, setOtherExpenses] = useState<number>(0)
 
   // Anticipos y Tipo de Cambio
-  const [advanceAmount, setAdvanceAmount] = useState<number>(0)
+  const [advanceAmount, setAdvanceAmount] = useState<number>(0) // Valor Facturado FOB
+  const [abonosAmount, setAbonosAmount] = useState<number>(0) // Abonos Recibidos de Factura
   const [exchangeRate, setExchangeRate] = useState<number>(1)
 
   // Obtener símbolo de moneda según código
@@ -101,6 +102,9 @@ export default function ContainerLiquidationCard({
             containerNumber: data.dispatch.container_number,
             dispatchDate: data.dispatch.dispatch_date
           })
+          if (data.dispatch.advance_amount) {
+            setAbonosAmount(Number(data.dispatch.advance_amount))
+          }
         }
 
         const existingLiq: DispatchLiquidation | null = data.liquidation
@@ -114,7 +118,7 @@ export default function ContainerLiquidationCard({
           setSurveyor(existingLiq.surveyor_amount ?? 0)
           setTransport(existingLiq.transport_amount ?? 0)
           setOtherExpenses(existingLiq.other_expenses ?? 0)
-          setAdvanceAmount(existingLiq.advance_amount ?? 0)
+          setAdvanceAmount(existingLiq.advance_amount || Number(data.dispatch?.invoice_amount || 0))
           setExchangeRate(existingLiq.exchange_rate ?? 1)
 
           if (existingLiq.items && existingLiq.items.length > 0) {
@@ -137,6 +141,9 @@ export default function ContainerLiquidationCard({
             })))
           }
         } else if (fetchedPacklist.length > 0) {
+          if (data.dispatch?.invoice_amount) {
+            setAdvanceAmount(Number(data.dispatch.invoice_amount))
+          }
           setRows(fetchedPacklist.map(pk => ({
             packlist_item_id: pk.id,
             envase: pk.envase,
@@ -745,6 +752,7 @@ export default function ContainerLiquidationCard({
           totalExpenses={totalExpenses}
           netAmount={netAmount}
           advanceAmount={advanceAmount}
+          abonosAmount={abonosAmount}
           finalBalanceInCurrency={finalBalanceInCurrency}
           finalBalanceTargetCurrency={finalBalanceTargetCurrency}
           liquidationStatus={liquidationStatus}

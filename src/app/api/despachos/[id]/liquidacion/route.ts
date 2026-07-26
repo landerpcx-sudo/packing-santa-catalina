@@ -30,7 +30,7 @@ export async function GET(
     // 3. Cargar metadatos del despacho
     const { data: dispatchData } = await supabaseAdmin
       .from('dispatches')
-      .select('id, dispatch_code, client, destination, container_number, dispatch_date')
+      .select('id, dispatch_code, client, destination, container_number, dispatch_date, invoice_amount, advance_amount')
       .eq('id', dispatchId)
       .maybeSingle()
 

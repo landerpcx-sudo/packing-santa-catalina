@@ -25,7 +25,8 @@ interface LiquidationReportModalProps {
   otherExpenses: number
   totalExpenses: number
   netAmount: number
-  advanceAmount: number // Costo FOB Facturado
+  advanceAmount: number // Costo FOB Facturado (Monto Factura)
+  abonosAmount?: number // Abonos recibidos contra la factura
   finalBalanceInCurrency: number
   finalBalanceTargetCurrency: number
   liquidationStatus: 'draft' | 'finalized'
@@ -62,6 +63,7 @@ export default function LiquidationReportModal({
   totalExpenses,
   netAmount,
   advanceAmount,
+  abonosAmount = 0,
   finalBalanceInCurrency,
   finalBalanceTargetCurrency,
   liquidationStatus,
@@ -313,8 +315,20 @@ export default function LiquidationReportModal({
                   <span className="font-mono font-bold text-emerald-700 text-sm">{formatMoney(netAmount)}</span>
                 </div>
                 <div>
-                  <span className="text-slate-400 text-[10px] block uppercase font-bold">(-) Costo FOB Facturado</span>
+                  <span className="text-slate-400 text-[10px] block uppercase font-bold">(-) Valor FOB Facturado</span>
                   <span className="font-mono font-bold text-slate-900 text-sm">{formatMoney(advanceAmount)}</span>
+                </div>
+              </div>
+
+              {/* Detalle de Abonos a Factura FOB */}
+              <div className="flex flex-wrap items-center justify-between text-xs bg-slate-50 p-2.5 rounded-xl border border-slate-200 text-slate-700 gap-2">
+                <div>
+                  <span className="text-slate-500 font-medium">Abonos Recibidos a Factura: </span>
+                  <strong className="font-mono font-bold text-emerald-700">{formatMoney(abonosAmount)}</strong>
+                </div>
+                <div>
+                  <span className="text-slate-500 font-medium">Saldo Pendiente de Factura FOB: </span>
+                  <strong className="font-mono font-bold text-amber-700">{formatMoney(Math.max(advanceAmount - abonosAmount, 0))}</strong>
                 </div>
               </div>
 
