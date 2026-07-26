@@ -1,7 +1,7 @@
 'use client'
 
 import React, { useState, useEffect } from 'react'
-import { Printer, X, FileText, CheckCircle2, ShieldCheck, DollarSign, TrendingUp, Award, AlertTriangle, BarChart3, HelpCircle, ArrowUpDown, Target, Layers, ChevronRight } from 'lucide-react'
+import { Printer, Download, X, FileText, CheckCircle2, ShieldCheck, DollarSign, TrendingUp, Award, AlertTriangle, BarChart3, HelpCircle, ArrowUpDown, Target, Layers, ChevronRight } from 'lucide-react'
 import { CURRENCIES } from './ContainerLiquidationCard'
 
 interface LiquidationReportModalProps {
@@ -224,6 +224,11 @@ export default function LiquidationReportModal({
             break-after: avoid !important;
             page-break-after: avoid !important;
           }
+
+          .page-break-before {
+            break-before: page !important;
+            page-break-before: always !important;
+          }
         </style>
       </head>
       <body>
@@ -245,6 +250,44 @@ export default function LiquidationReportModal({
     printWindow.document.close()
   }
 
+  const [downloadingPdf, setDownloadingPdf] = useState(false)
+
+  // Descarga directa del archivo PDF (.pdf) en 1 solo clic
+  const handleDownloadDirectPDF = async () => {
+    const reportEl = document.getElementById('commercial-report-print')
+    if (!reportEl) return
+
+    setDownloadingPdf(true)
+    try {
+      if (!(window as any).html2pdf) {
+        const script = document.createElement('script')
+        script.src = 'https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js'
+        document.head.appendChild(script)
+        await new Promise((resolve, reject) => {
+          script.onload = resolve
+          script.onerror = reject
+        })
+      }
+
+      const opt = {
+        margin: [8, 8, 8, 8],
+        filename: `Informe_Liquidacion_LIQ-${dispatchCode}.pdf`,
+        image: { type: 'jpeg', quality: 0.98 },
+        html2canvas: { scale: 2, useCORS: true, logging: false },
+        jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' },
+        pagebreak: { mode: ['css', 'legacy'] }
+      }
+
+      await (window as any).html2pdf().set(opt).from(reportEl).save()
+    } catch (err) {
+      console.error('Error generando PDF:', err)
+      // Fallback a ventana de impresión si falla html2pdf
+      handlePrintOrPDF()
+    } finally {
+      setDownloadingPdf(false)
+    }
+  }
+
   return (
     <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/85 backdrop-blur-md p-2 sm:p-6 overflow-y-auto print:p-0 print:bg-white print:static print:block">
       {/* Contenedor principal del modal (oculto el marco al imprimir) */}
@@ -258,11 +301,20 @@ export default function LiquidationReportModal({
           </div>
           <div className="flex items-center gap-3">
             <button
-              onClick={handlePrintOrPDF}
-              className="flex items-center gap-2 px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs rounded-xl shadow-lg transition-all"
+              onClick={handleDownloadDirectPDF}
+              disabled={downloadingPdf}
+              className="flex items-center gap-2 px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs rounded-xl shadow-lg transition-all disabled:opacity-50"
             >
-              <Printer className="w-4 h-4" />
-              Imprimir / Descargar PDF
+              <Download className={`w-4 h-4 ${downloadingPdf ? 'animate-bounce' : ''}`} />
+              {downloadingPdf ? 'Generando PDF...' : 'Descargar Archivo PDF (.pdf)'}
+            </button>
+            <button
+              onClick={handlePrintOrPDF}
+              className="flex items-center gap-2 px-3 py-2 bg-slate-800 hover:bg-slate-700 text-slate-200 font-bold text-xs rounded-xl border border-slate-700 transition-all"
+              title="Abrir diálogo de impresora"
+            >
+              <Printer className="w-4 h-4 text-indigo-400" />
+              Imprimir
             </button>
             <button
               onClick={onClose}
@@ -683,8 +735,8 @@ export default function LiquidationReportModal({
               </div>
             </div>
 
-            {/* SECCIÓN V: MATRIZ DE DECISIONES DE COSECHA & EXPORTACIÓN 2x2 */}
-            <div className="space-y-3 pt-2">
+            {/* SECCIÓN V: MATRIZ DE DECISIONES DE COSECHA & EXPORTACIÓN 2x2 (INICIA EN PÁGINA 2) */}
+            <div className="space-y-3 pt-6 border-t-2 border-slate-300 page-break-before" style={{ pageBreakBefore: 'always', breakBefore: 'page' }}>
               <h4 className="text-xs font-bold uppercase tracking-wider text-slate-900 flex items-center gap-2 border-b border-slate-200 pb-1">
                 <Target className="w-4 h-4 text-indigo-600" />
                 V. Matriz Gerencial 2x2 de Decisiones de Cosecha & Comercialización
