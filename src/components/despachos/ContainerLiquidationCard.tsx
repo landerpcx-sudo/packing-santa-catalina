@@ -680,6 +680,13 @@ export default function ContainerLiquidationCard({
                   ({formatMoney(finalBalanceInCurrency, currSymbol)})
                 </span>
               </div>
+
+              <div className="flex items-center justify-between pt-1.5 text-[11px] font-medium border-t border-slate-200/60 dark:border-gray-800">
+                <span className="text-slate-600 dark:text-gray-400">Utilidad Promedio por Caja ({totalCajas.toLocaleString()} cajas):</span>
+                <span className="font-mono font-bold text-indigo-700 dark:text-indigo-300">
+                  {formatMoney(totalCajas > 0 ? finalBalanceInCurrency / totalCajas : 0, currSymbol)} / caja
+                </span>
+              </div>
             </div>
           </div>
         </div>
