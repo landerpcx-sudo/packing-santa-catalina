@@ -730,16 +730,19 @@ export async function construirInformeFinancieroPDF(
       .fillColor(COLOR.ambar).font('B').text(dinero(Math.max(advanceAmount - abonosAmount, 0), simbFob))
     doc.y = yAbonos + 20
 
-    if (currency !== targetCurrency) {
-      asegurar(14)
-      doc.fillColor(COLOR.suave).font('R').fontSize(6.8)
-        .text(
-          `Tasa de cambio aplicada (${currency} -> ${targetCurrency}): 1 ${currency} = ${tasaSaleToTarget} ${targetCurrency}` +
-          (liq.rate_provider_info ? `  ·  ${liq.rate_provider_info}` : ''),
-          L, doc.y
-        )
-      doc.y += 14
-    }
+    // Tasa de cambio oficial Dólar (USD) -> Pesos Chilenos (CLP) y fecha
+    asegurar(22)
+    const fechaTasaStr = liq.rate_date ? fecha(liq.rate_date) : (dispatch.dispatch_date ? fecha(dispatch.dispatch_date) : fecha(new Date().toISOString()))
+    const tasaUSDCLP = tasaSaleToTarget > 0 ? (tasaCLPOtorgada / tasaSaleToTarget) : 910.29
+
+    doc.fillColor(COLOR.suave).font('R').fontSize(6.8)
+      .text(
+        `T/C Dólar Observado (USD -> CLP): 1 USD = $ ${tasaUSDCLP.toLocaleString('es-CL', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} CLP (Fecha T/C: ${fechaTasaStr})` +
+        `  ·  Tasa Venta (${currency} -> USD): 1 ${currency} = ${tasaSaleToTarget} USD` +
+        (liq.rate_provider_info ? `  ·  ${liq.rate_provider_info}` : ''),
+        L, doc.y, { width: W }
+      )
+    doc.y += 18
 
     // Cuadro destacado con el resultado final del negocio en Doble Moneda (USD & CLP) SANEADO Y LIMPIO
     asegurar(60)
@@ -764,7 +767,7 @@ export async function construirInformeFinancieroPDF(
       .text(`${clp(utilidadTotalCLPEst)}`, R - 210, yDetalle + 18, { width: 198, align: 'right', lineBreak: false })
 
     doc.fillColor(COLOR.suave).font('R').fontSize(6.5)
-      .text(`Equivalente Moneda Venta: ${dinero(finalBalance)}  ·  Tasa FOB: 1 ${currency} = $ ${tasaCLPOtorgada.toLocaleString('es-CL')} CLP`, L + 12, yDetalle + 38, { width: W - 24 })
+      .text(`Equivalente Moneda Venta: ${dinero(finalBalance)}  ·  T/C Dólar: 1 USD = $ ${tasaUSDCLP.toLocaleString('es-CL', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} CLP (${fechaTasaStr})  ·  Tasa FOB: 1 ${currency} = $ ${tasaCLPOtorgada.toLocaleString('es-CL')} CLP`, L + 12, yDetalle + 38, { width: W - 24 })
 
     doc.y = yDetalle + 60
 

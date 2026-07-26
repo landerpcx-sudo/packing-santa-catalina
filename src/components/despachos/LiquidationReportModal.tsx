@@ -406,16 +406,14 @@ export default function LiquidationReportModal({
               </div>
 
               {/* Tasa de Cambio */}
-              {currency !== targetCurrency && (
-                <div className="flex items-center justify-between text-xs bg-slate-50 p-2.5 rounded-xl border border-slate-200">
-                  <span className="text-slate-600 font-medium">
-                    Tasa de Cambio Oficial Aplicada ({currency} → {targetCurrency}):
-                  </span>
-                  <span className="font-mono font-bold text-indigo-700">
-                    1 {currency} = {exchangeRate} {targetCurrency} {rateProviderInfo ? `[${rateProviderInfo}]` : ''}
-                  </span>
-                </div>
-              )}
+              <div className="flex flex-wrap items-center justify-between text-xs bg-slate-50 p-2.5 rounded-xl border border-slate-200 gap-2">
+                <span className="text-slate-600 font-medium">
+                  Tasa de Cambio Oficial ({currency} → {targetCurrency}): <strong className="font-mono text-indigo-700">1 {currency} = {exchangeRate} {targetCurrency}</strong>
+                </span>
+                <span className="text-slate-600 font-medium">
+                  T/C Dólar Observado (USD → CLP): <strong className="font-mono text-emerald-700">1 USD = $ {(tasaCLPOtorgada / (exchangeRate || 1)).toLocaleString('es-CL', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} CLP</strong> {rateProviderInfo ? `[${rateProviderInfo}]` : ''}
+                </span>
+              </div>
 
               {/* CUADRO DESTACADO DE UTILIDAD DEL NEGOCIO */}
               <div className={`p-5 rounded-2xl border-2 space-y-1 ${
