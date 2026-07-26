@@ -20,11 +20,15 @@ import {
   Plus
 } from 'lucide-react'
 import DocumentHealthPanel from '@/components/admin/DocumentHealthPanel'
+import { useToast } from '@/components/layout/Toast'
+import { useConfirm } from '@/components/layout/ConfirmDialog'
 
 function ConfigurationContent() {
   const { user } = useAuth()
   const searchParams = useSearchParams()
   const router = useRouter()
+  const toast = useToast()
+  const confirmar = useConfirm()
   const [googleConnected, setGoogleConnected] = useState(false)
   const [loading, setLoading] = useState(true)
   const [disconnecting, setDisconnecting] = useState(false)
@@ -58,8 +62,9 @@ function ConfigurationContent() {
     if (connected === 'true') {
       setTimeout(() => fetchStatus(), 1000)
     } else if (error) {
-      alert(`Error al conectar con Google: ${decodeURIComponent(error)}`)
+      toast.error(`Error al conectar con Google: ${decodeURIComponent(error)}`)
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [searchParams])
 
   useEffect(() => {
@@ -96,13 +101,13 @@ function ConfigurationContent() {
       if (res.ok) {
         setNewChamberName('')
         fetchChambers()
-        alert('Cámara creada correctamente.')
+        toast.success('Cámara creada correctamente.')
       } else {
         const err = await res.json()
-        alert(`Error: ${err.error || 'No se pudo crear la cámara.'}`)
+        toast.error(`Error: ${err.error || 'No se pudo crear la cámara.'}`)
       }
     } catch {
-      alert('Error de conexión.')
+      toast.error('Error de conexión.')
     } finally {
       setSavingChamber(false)
     }
@@ -118,33 +123,36 @@ function ConfigurationContent() {
       if (res.ok) {
         fetchChambers()
       } else {
-        alert('Error al actualizar el estado de la cámara.')
+        toast.error('Error al actualizar el estado de la cámara.')
       }
     } catch {
-      alert('Error de conexión.')
+      toast.error('Error de conexión.')
     }
   }
 
   const handleReorganizeDrive = async () => {
-    if (!confirm('🚨 ATENCIÓN: Esta acción reorganizará todas las carpetas en Google Drive por cliente (creando subcarpetas Recepciones, Despachos y Financiero) y moverá los archivos existentes de forma 100% segura. Los enlaces y visualizadores en la app seguirán funcionando sin problemas. ¿Deseas iniciar la reorganización?')) {
-      return
-    }
+    const ok = await confirmar({
+      title: 'Reorganizar Google Drive',
+      message: 'Se crearán las subcarpetas Recepciones, Despachos y Financiero por cliente, y se moverán los archivos existentes de forma segura. Los enlaces de la app seguirán funcionando. ¿Iniciar la reorganización?',
+      confirmText: 'Reorganizar',
+    })
+    if (!ok) return
 
     setReorganizing(true)
     setReorganizeResult(null)
     try {
-      const res = await fetch('/api/admin/reorganize-drive', { 
-        method: 'POST' 
+      const res = await fetch('/api/admin/reorganize-drive', {
+        method: 'POST'
       })
       const json = await res.json()
       if (res.ok) {
         setReorganizeResult(json.report)
-        alert('🎉 ¡Reorganización de carpetas de Google Drive completada con éxito!')
+        toast.success('Reorganización de carpetas de Google Drive completada con éxito.')
       } else {
-        alert(`Error: ${json.error || 'Ocurrió un error inesperado.'}`)
+        toast.error(`Error: ${json.error || 'Ocurrió un error inesperado.'}`)
       }
     } catch {
-      alert('Error de conexión.')
+      toast.error('Error de conexión.')
     } finally {
       setReorganizing(false)
     }
@@ -243,17 +251,16 @@ function ConfigurationContent() {
 
       const tokenIssue = failureReasons.some(f => /token|reconect|invalid|expirad/i.test(f.reason))
 
-      alert(
-        `Sincronización finalizada con advertencias.\n\n` +
-        `✅ Éxito: ${successCount} archivos sincronizados.\n` +
-        `❌ Fallidos: ${failedCount} archivos no pudieron subirse.\n\n` +
-        `Motivo(s) del fallo:\n\n${detail}\n\n` +
+      toast.warning(
+        `Sincronización finalizada con advertencias.\n` +
+        `✅ Éxito: ${successCount} · ❌ Fallidos: ${failedCount}\n\n${detail}\n\n` +
         (tokenIssue
-          ? `➡️ Hay un problema de credenciales: desconecta y vuelve a conectar Google Drive, luego reintenta.`
-          : `➡️ Vuelve a pulsar "Sincronizar" — los errores temporales (límite de tasa de Google) suelen resolverse al reintentar.`)
+          ? `➡️ Desconecta y vuelve a conectar Google Drive, luego reintenta.`
+          : `➡️ Vuelve a pulsar "Sincronizar" en unos minutos.`),
+        12000
       )
     } else {
-      alert(`🎉 ¡Sincronización completada con éxito!\n\nSe subieron todos los ${successCount} archivos a Google Drive correctamente.`)
+      toast.success(`Sincronización completada: se subieron los ${successCount} archivos a Google Drive.`)
     }
   }
 
@@ -294,34 +301,38 @@ function ConfigurationContent() {
         body: JSON.stringify({ value: tempStartDate })
       })
       if (res.ok) {
-        alert('Configuración de temperatura actualizada correctamente.')
+        toast.success('Configuración de temperatura actualizada correctamente.')
       } else {
-        alert('Error al guardar la configuración.')
+        toast.error('Error al guardar la configuración.')
       }
     } catch (e) {
-      alert('Error de red al guardar.')
+      toast.error('Error de red al guardar.')
     } finally {
       setSavingTemp(false)
     }
   }
 
   const handleDisconnect = async () => {
-    if (!confirm('¿Estás seguro de que deseas desactivar la sincronización con Google Drive? Todos los archivos nuevos se guardarán solo en Supabase.')) {
-      return
-    }
+    const ok = await confirmar({
+      title: 'Desactivar sincronización con Drive',
+      message: 'Los archivos nuevos se guardarán solo en Supabase hasta que vuelvas a conectar Google Drive.',
+      confirmText: 'Desactivar',
+      danger: true,
+    })
+    if (!ok) return
 
     try {
       setDisconnecting(true)
       const res = await fetch('/api/settings/drive-disconnect', {
         method: 'DELETE'
       })
-      
+
       if (!res.ok) throw new Error(await res.text())
-      
+
       setGoogleConnected(false)
-      alert('Sincronización desactivada correctamente.')
+      toast.success('Sincronización desactivada correctamente.')
     } catch (e: any) {
-      alert('Error al desconectar: ' + e.message)
+      toast.error('Error al desconectar: ' + e.message)
     } finally {
       setDisconnecting(false)
     }

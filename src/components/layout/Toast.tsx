@@ -84,7 +84,7 @@ function ToastItem({ toast, onRemove }: { toast: Toast; onRemove: (id: string) =
     <div
       className={`
         relative flex items-start gap-3 px-4 py-3.5 rounded-2xl border backdrop-blur-xl shadow-2xl
-        w-full max-w-sm overflow-hidden cursor-pointer select-none
+        w-full overflow-hidden cursor-pointer select-none
         transition-all duration-300 ease-out
         ${cfg.bg}
         ${visible
@@ -99,8 +99,9 @@ function ToastItem({ toast, onRemove }: { toast: Toast; onRemove: (id: string) =
       {/* Ícono */}
       <Icon className={`w-5 h-5 flex-shrink-0 mt-0.5 ${cfg.icon_color}`} />
 
-      {/* Mensaje */}
-      <p className="text-white text-sm font-medium leading-snug flex-1 pr-4">
+      {/* Mensaje — whitespace-pre-line respeta los saltos de línea de
+          mensajes largos (p. ej. resúmenes de sincronización con Drive) */}
+      <p className="text-white text-sm font-medium leading-snug flex-1 pr-4 whitespace-pre-line">
         {toast.message}
       </p>
 
@@ -151,7 +152,7 @@ export function ToastProvider({ children }: { children: React.ReactNode }) {
       {mounted && createPortal(
         <div className="fixed bottom-6 right-4 z-[99999] flex flex-col gap-2.5 items-end pointer-events-none">
           {toasts.map(t => (
-            <div key={t.id} className="pointer-events-auto w-full max-w-sm">
+            <div key={t.id} className="pointer-events-auto w-full max-w-sm sm:max-w-md">
               <ToastItem toast={t} onRemove={remove} />
             </div>
           ))}

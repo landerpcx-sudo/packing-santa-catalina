@@ -6,6 +6,7 @@ import { usePathname } from 'next/navigation'
 import { useAuth } from '@/context/AuthContext'
 import { useTheme } from '@/context/ThemeContext'
 import { ROLE_DISPLAY_NAMES, Role } from '@/lib/constants'
+import GlobalSearch from './GlobalSearch'
 import {
   LayoutDashboard,
   Package,
@@ -112,6 +113,11 @@ export default function Sidebar() {
       </div>
 
       <div className="sidebar-divider" />
+
+      {/* Buscador global */}
+      <div className="px-3 pt-3">
+        <GlobalSearch />
+      </div>
 
       {/* Navegación */}
       <nav className="flex-1 px-3 py-3 space-y-0.5 overflow-y-auto">

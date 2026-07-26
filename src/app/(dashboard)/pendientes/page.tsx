@@ -27,6 +27,7 @@ import Link from 'next/link'
 import dynamic from 'next/dynamic'
 import ValidationModal from '@/components/lotes/ValidationModal'
 import { useToast } from '@/components/layout/Toast'
+import { useConfirm } from '@/components/layout/ConfirmDialog'
 
 const FilePreviewModal = dynamic(() => import('@/components/layout/FilePreviewModal'), { ssr: false })
 import { useAuth } from '@/context/AuthContext'
@@ -60,6 +61,7 @@ export default function PendientesPage() {
   const [searchTerm, setSearchTerm] = useState('')
   const [copied, setCopied] = useState(false)
   const toast = useToast()
+  const confirmar = useConfirm()
 
   // Selección múltiple
   const [selected, setSelected] = useState<Map<string, { id: string; table: string }>>(new Map())
@@ -274,7 +276,12 @@ export default function PendientesPage() {
   // ─── Validación masiva ────────────────────────────────
   const handleBulkValidate = async () => {
     if (selected.size === 0) return
-    if (!confirm(`¿Validar ${selected.size} documento(s) seleccionado(s)?`)) return
+    const ok = await confirmar({
+      title: 'Validar documentos',
+      message: `¿Validar ${selected.size} documento(s) seleccionado(s)?`,
+      confirmText: 'Validar',
+    })
+    if (!ok) return
     setBulkLoading(true)
     try {
       const docs = Array.from(selected.values())

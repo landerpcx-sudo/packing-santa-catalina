@@ -14,6 +14,9 @@ import PalletUploadZone from '@/components/despachos/PalletUploadZone'
 import UploadZone from '@/components/lotes/UploadZone'
 import DocumentList, { DocumentoUI } from '@/components/documentos/DocumentList'
 import ContainerLiquidationCard from '@/components/despachos/ContainerLiquidationCard'
+import { useToast } from '@/components/layout/Toast'
+import { useConfirm } from '@/components/layout/ConfirmDialog'
+import { puedeGestionarDespacho, esSoloLectura, esAdmin } from '@/lib/permissions'
 import { useRouter } from 'next/navigation'
 import dynamic from 'next/dynamic'
 
@@ -62,12 +65,12 @@ const STATUS_CONFIG: Record<string, { label: string; color: string; icon: React.
 
 type Pestana = 'documentos' | 'financiero' | 'informes'
 
-const ROLES_SOLO_LECTURA = ['gerencia', 'agronomo']
-
 export default function DispatchDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params)
   const { user } = useAuth()
   const router = useRouter()
+  const toast = useToast()
+  const confirmar = useConfirm()
 
   const [dispatch, setDispatch] = useState<Dispatch | null>(null)
   const [loading, setLoading] = useState(true)
@@ -120,15 +123,15 @@ export default function DispatchDetailPage({ params }: { params: Promise<{ id: s
   }, [menuAbierto])
 
   const cerrado = dispatch?.overall_status === 'closed'
-  const esAdmin = user?.role === 'admin'
-  const soloLectura = ROLES_SOLO_LECTURA.includes(user?.role || '')
+  const admin = esAdmin(user?.role)
+  const soloLectura = esSoloLectura(user?.role)
   const puedeSubir = !cerrado && !soloLectura
-  const puedeSubirFotos = puedeSubir && ['admin', 'jefe_frio', 'sag', 'despacho'].includes(user?.role || '')
-  const puedeVerDrive = esAdmin || Boolean(user?.canViewDrive)
+  const puedeSubirFotos = puedeSubir && puedeGestionarDespacho(user?.role)
+  const puedeVerDrive = admin || Boolean(user?.canViewDrive)
 
   const handleSaveAmounts = async () => {
     if (cerrado) {
-      alert('No se pueden modificar montos de un despacho cerrado.')
+      toast.warning('No se pueden modificar montos de un despacho cerrado.')
       return
     }
     setSavingAmounts(true)
@@ -146,12 +149,13 @@ export default function DispatchDetailPage({ params }: { params: Promise<{ id: s
       })
       if (res.ok) {
         await fetchDispatch(true)
+        toast.success('Montos guardados.')
       } else {
         const data = await res.json()
-        alert(data.error || 'Error al guardar los montos')
+        toast.error(data.error || 'Error al guardar los montos')
       }
     } catch (e) {
-      alert('Error de conexión al guardar los montos')
+      toast.error('Error de conexión al guardar los montos')
     } finally {
       setSavingAmounts(false)
     }
@@ -197,10 +201,15 @@ export default function DispatchDetailPage({ params }: { params: Promise<{ id: s
 
   const handleDeleteDocument = async (docId: string, tableName: string) => {
     if (cerrado) {
-      alert('No se pueden eliminar documentos de un despacho cerrado.')
+      toast.warning('No se pueden eliminar documentos de un despacho cerrado.')
       return
     }
-    if (!confirm('¿Enviar este documento a la papelera?\n\nEl archivo NO se borra: se guarda 30 días y puedes restaurarlo desde Configuración → Salud de los Documentos.')) return
+    const ok = await confirmar({
+      title: 'Enviar a la papelera',
+      message: 'El archivo NO se borra: se guarda 30 días y puedes restaurarlo desde Configuración → Salud de los Documentos.',
+      confirmText: 'Enviar a la papelera',
+    })
+    if (!ok) return
 
     try {
       const res = await fetch(`/api/documentos/${tableName}/${docId}`, {
@@ -209,19 +218,23 @@ export default function DispatchDetailPage({ params }: { params: Promise<{ id: s
       })
       if (res.ok) {
         fetchDispatch(true)
+        toast.success('Documento enviado a la papelera.')
       } else {
         const data = await res.json()
-        alert(data.error || 'Error al eliminar el documento')
+        toast.error(data.error || 'Error al eliminar el documento')
       }
     } catch (e) {
-      alert('Error de conexión al intentar eliminar')
+      toast.error('Error de conexión al intentar eliminar')
     }
   }
 
+  // Se mantiene la confirmación escrita ("ELIMINAR") en vez del modal
+  // estándar: es la única acción que destruye el despacho por completo y
+  // vale la pena que cueste más trabajo confirmarla por error.
   const handleDeleteDispatch = async () => {
     const confirmation = prompt('🛑 ¡ADVERTENCIA CRÍTICA!\n\n¿Estás seguro de que deseas ELIMINAR ESTE DESPACHO COMPLETAMENTE?\n\nEsta acción:\n1. Borrará el registro de la Base de Datos.\n2. Enviará la carpeta de Google Drive a la papelera.\n3. Es irreversible.\n\nEscribe "ELIMINAR" en mayúsculas para confirmar:')
     if (confirmation !== 'ELIMINAR') {
-      alert('Eliminación cancelada.')
+      if (confirmation !== null) toast.info('Eliminación cancelada.')
       return
     }
     try {
@@ -230,52 +243,67 @@ export default function DispatchDetailPage({ params }: { params: Promise<{ id: s
         headers: { 'x-user-id': user?.userId || '', 'x-user-role': user?.role || '' }
       })
       if (res.ok) {
-        alert('Despacho eliminado con éxito.')
+        toast.success('Despacho eliminado con éxito.')
         router.push('/despachos')
       } else {
         const data = await res.json()
-        alert(data.error || 'Error al eliminar el despacho.')
+        toast.error(data.error || 'Error al eliminar el despacho.')
       }
     } catch (e) {
-      alert('Error de conexión al intentar eliminar.')
+      toast.error('Error de conexión al intentar eliminar.')
     }
   }
 
   const handleCloseDispatch = async () => {
-    if (!confirm('¿Estás seguro de cerrar este despacho definitivamente? Ya no se podrán subir ni modificar documentos.')) return
+    const ok = await confirmar({
+      title: 'Cerrar despacho',
+      message: '¿Cerrar este despacho definitivamente? Ya no se podrán subir ni modificar documentos.',
+      confirmText: 'Cerrar despacho',
+      danger: true,
+    })
+    if (!ok) return
     try {
       const res = await fetch(`/api/despachos/${id}/cerrar`, {
         method: 'POST',
         headers: { 'x-user-id': user?.userId || '', 'x-user-role': user?.role || '' }
       })
-      if (res.ok) fetchDispatch(true)
-      else { const data = await res.json(); alert(data.error || 'Error al cerrar') }
-    } catch (e) { alert('Error de conexión') }
+      if (res.ok) { fetchDispatch(true); toast.success('Despacho cerrado.') }
+      else { const data = await res.json(); toast.error(data.error || 'Error al cerrar') }
+    } catch (e) { toast.error('Error de conexión') }
   }
 
   const handleOpenDispatch = async () => {
-    if (!confirm('¿Estás seguro de reabrir este despacho? Se podrán volver a subir y modificar documentos.')) return
+    const ok = await confirmar({
+      title: 'Reabrir despacho',
+      message: '¿Reabrir este despacho? Se podrán volver a subir y modificar documentos.',
+      confirmText: 'Reabrir',
+    })
+    if (!ok) return
     try {
       const res = await fetch(`/api/despachos/${id}/abrir`, {
         method: 'POST',
         headers: { 'x-user-id': user?.userId || '', 'x-user-role': user?.role || '' }
       })
-      if (res.ok) fetchDispatch(true)
-      else { const data = await res.json(); alert(data.error || 'Error al reabrir') }
-    } catch (e) { alert('Error de conexión') }
+      if (res.ok) { fetchDispatch(true); toast.success('Despacho reabierto.') }
+      else { const data = await res.json(); toast.error(data.error || 'Error al reabrir') }
+    } catch (e) { toast.error('Error de conexión') }
   }
 
   const handleTogglePaymentStatus = async () => {
     if (!dispatch) return
     if (cerrado) {
-      alert('No se puede modificar el estado de pago de un despacho cerrado.')
+      toast.warning('No se puede modificar el estado de pago de un despacho cerrado.')
       return
     }
     const newStatus = dispatch.payment_status === 'paid' ? 'pending' : 'paid'
-    const confirmMessage = newStatus === 'paid'
-      ? '¿Confirmas que este contenedor se encuentra PAGADO EN SU TOTALIDAD?'
-      : '¿Deseas cambiar el estado del contenedor a PENDIENTE de pago?'
-    if (!confirm(confirmMessage)) return
+    const ok = await confirmar({
+      title: newStatus === 'paid' ? 'Marcar como pagado' : 'Marcar como pendiente',
+      message: newStatus === 'paid'
+        ? '¿Confirmas que este contenedor se encuentra pagado en su totalidad?'
+        : '¿Cambiar el estado del contenedor a pendiente de pago?',
+      confirmText: 'Confirmar',
+    })
+    if (!ok) return
 
     try {
       const res = await fetch(`/api/despachos/${id}`, {
@@ -287,10 +315,10 @@ export default function DispatchDetailPage({ params }: { params: Promise<{ id: s
         },
         body: JSON.stringify({ payment_status: newStatus })
       })
-      if (res.ok) fetchDispatch(true)
-      else { const data = await res.json(); alert(data.error || 'Error al actualizar el estado de pago') }
+      if (res.ok) { fetchDispatch(true); toast.success('Estado de pago actualizado.') }
+      else { const data = await res.json(); toast.error(data.error || 'Error al actualizar el estado de pago') }
     } catch (e) {
-      alert('Error de conexión al actualizar estado de pago')
+      toast.error('Error de conexión al actualizar estado de pago')
     }
   }
 
@@ -322,8 +350,8 @@ export default function DispatchDetailPage({ params }: { params: Promise<{ id: s
       documentos={docsByType[tipo] || []}
       tableName="dispatch_documents"
       puedeSubir={puedeSubir}
-      puedeEliminar={esAdmin && !cerrado}
-      puedeValidar={esAdmin && !cerrado}
+      puedeEliminar={admin && !cerrado}
+      puedeValidar={admin && !cerrado}
       puedeVerDrive={puedeVerDrive}
       zonaSubida={zonaSubida(tipo, etiqueta, true)}
       onPreview={abrirPreview}
@@ -457,7 +485,7 @@ export default function DispatchDetailPage({ params }: { params: Promise<{ id: s
                     Informes y descargas
                   </button>
 
-                  {esAdmin && !cerrado && (
+                  {admin && !cerrado && (
                     <button
                       onClick={() => { setMenuAbierto(false); setShowEditModal(true) }}
                       className="w-full flex items-center gap-2.5 px-4 py-2.5 text-sm text-gray-300 hover:bg-white/5 hover:text-white transition-colors"
@@ -467,7 +495,7 @@ export default function DispatchDetailPage({ params }: { params: Promise<{ id: s
                     </button>
                   )}
 
-                  {(dispatch.overall_status === 'complete' || dispatch.overall_status === 'validated') && esAdmin && (
+                  {(dispatch.overall_status === 'complete' || dispatch.overall_status === 'validated') && admin && (
                     <button
                       onClick={() => { setMenuAbierto(false); handleCloseDispatch() }}
                       className="w-full flex items-center gap-2.5 px-4 py-2.5 text-sm text-gray-300 hover:bg-white/5 hover:text-white transition-colors"
@@ -477,7 +505,7 @@ export default function DispatchDetailPage({ params }: { params: Promise<{ id: s
                     </button>
                   )}
 
-                  {cerrado && esAdmin && (
+                  {cerrado && admin && (
                     <button
                       onClick={() => { setMenuAbierto(false); handleOpenDispatch() }}
                       className="w-full flex items-center gap-2.5 px-4 py-2.5 text-sm text-gray-300 hover:bg-white/5 hover:text-white transition-colors"
@@ -487,7 +515,7 @@ export default function DispatchDetailPage({ params }: { params: Promise<{ id: s
                     </button>
                   )}
 
-                  {esAdmin && (
+                  {admin && (
                     <>
                       <div className="h-px bg-white/10 my-1" />
                       <button
@@ -594,8 +622,8 @@ export default function DispatchDetailPage({ params }: { params: Promise<{ id: s
               requeridos={1}
               tableName="dispatch_documents"
               puedeSubir={puedeSubir}
-              puedeEliminar={esAdmin && !cerrado}
-              puedeValidar={esAdmin && !cerrado}
+              puedeEliminar={admin && !cerrado}
+              puedeValidar={admin && !cerrado}
               puedeVerDrive={puedeVerDrive}
               zonaSubida={zonaSubida('pack_list', 'Pack List')}
               onPreview={abrirPreview}
@@ -612,7 +640,7 @@ export default function DispatchDetailPage({ params }: { params: Promise<{ id: s
               variante="galeria"
               tableName="dispatch_documents"
               puedeSubir={puedeSubirFotos}
-              puedeEliminar={esAdmin && !cerrado}
+              puedeEliminar={admin && !cerrado}
               puedeVerDrive={puedeVerDrive}
               zonaSubida={<PalletUploadZone dispatchId={id} onUploadSuccess={() => fetchDispatch(true)} />}
               onPreview={abrirPreview}
@@ -631,7 +659,7 @@ export default function DispatchDetailPage({ params }: { params: Promise<{ id: s
               variante="galeria"
               tableName="dispatch_documents"
               puedeSubir={puedeSubirFotos}
-              puedeEliminar={esAdmin && !cerrado}
+              puedeEliminar={admin && !cerrado}
               puedeVerDrive={puedeVerDrive}
               zonaSubida={
                 <UploadZone
@@ -656,7 +684,7 @@ export default function DispatchDetailPage({ params }: { params: Promise<{ id: s
               documentos={docsByType['calidad_destino'] || []}
               tableName="dispatch_documents"
               puedeSubir={puedeSubirFotos}
-              puedeEliminar={esAdmin && !cerrado}
+              puedeEliminar={admin && !cerrado}
               puedeVerDrive={puedeVerDrive}
               zonaSubida={zonaSubida('calidad_destino', 'Calidad en Destino')}
               onPreview={abrirPreview}
@@ -671,7 +699,7 @@ export default function DispatchDetailPage({ params }: { params: Promise<{ id: s
               documentos={docsByType['backup'] || []}
               tableName="dispatch_documents"
               puedeSubir={puedeSubirFotos}
-              puedeEliminar={esAdmin && !cerrado}
+              puedeEliminar={admin && !cerrado}
               puedeVerDrive={puedeVerDrive}
               zonaSubida={zonaSubida('backup', 'Respaldo')}
               onPreview={abrirPreview}

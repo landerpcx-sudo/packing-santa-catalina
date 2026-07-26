@@ -21,6 +21,8 @@ import {
   Trash2
 } from 'lucide-react'
 import PageWrapper from '@/components/layout/PageWrapper'
+import { useToast } from '@/components/layout/Toast'
+import { useConfirm } from '@/components/layout/ConfirmDialog'
 
 interface Client {
   id: string
@@ -47,6 +49,8 @@ interface ClientDocument {
 export default function ClientesPage() {
   const { user, loading: authLoading } = useAuth()
   const router = useRouter()
+  const toast = useToast()
+  const confirmar = useConfirm()
 
   const [clients, setClients] = useState<Client[]>([])
   const [selectedClient, setSelectedClient] = useState<Client | null>(null)
@@ -102,7 +106,10 @@ export default function ClientesPage() {
 
   useEffect(() => {
     if (user && ['admin', 'gerencia', 'agronomo'].includes(user.role)) {
-      fetchClients()
+      // Si se llegó desde el buscador global con un cliente puntual, se
+      // preselecciona en vez de caer en el primero de la lista.
+      const clienteId = new URLSearchParams(window.location.search).get('cliente') || undefined
+      fetchClients(clienteId)
     }
   }, [user])
 
@@ -167,7 +174,12 @@ export default function ClientesPage() {
 
   // Eliminar un archivo
   const handleDeleteDoc = async (docId: string, fileName: string) => {
-    if (!confirm(`¿Enviar "${fileName}" a la papelera?\n\nEl archivo NO se borra: se guarda 30 días y puedes restaurarlo desde Configuración → Salud de los Documentos.`)) return
+    const ok = await confirmar({
+      title: 'Enviar a la papelera',
+      message: `El archivo "${fileName}" NO se borra: se guarda 30 días y puedes restaurarlo desde Configuración → Salud de los Documentos.`,
+      confirmText: 'Enviar a la papelera',
+    })
+    if (!ok) return
 
     try {
       const res = await fetch(`/api/documentos/client_documents/${docId}`, {
@@ -176,15 +188,15 @@ export default function ClientesPage() {
 
       if (!res.ok) {
         const data = await res.json()
-        alert(data.error || 'Error al eliminar el archivo')
+        toast.error(data.error || 'Error al eliminar el archivo')
       } else {
-        // Recargar documentos
+        toast.success('Archivo enviado a la papelera.')
         if (selectedClient) {
           fetchDocuments(selectedClient.id)
         }
       }
     } catch {
-      alert('Error de conexión al intentar eliminar el archivo')
+      toast.error('Error de conexión al intentar eliminar el archivo')
     }
   }
 

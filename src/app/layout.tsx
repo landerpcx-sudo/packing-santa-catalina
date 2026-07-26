@@ -5,6 +5,7 @@ import './globals.css'
 import { AuthProvider } from '@/context/AuthContext'
 import { ThemeProvider } from '@/context/ThemeContext'
 import { ToastProvider } from '@/components/layout/Toast'
+import { ConfirmProvider } from '@/components/layout/ConfirmDialog'
 import NavigationEvents from '@/components/layout/NavigationEvents'
 
 const inter = Inter({ subsets: ['latin'] })
@@ -68,10 +69,12 @@ export default function RootLayout({
         <AuthProvider>
           <ThemeProvider>
             <ToastProvider>
-              <Suspense fallback={null}>
-                <NavigationEvents />
-              </Suspense>
-              {children}
+              <ConfirmProvider>
+                <Suspense fallback={null}>
+                  <NavigationEvents />
+                </Suspense>
+                {children}
+              </ConfirmProvider>
             </ToastProvider>
           </ThemeProvider>
         </AuthProvider>

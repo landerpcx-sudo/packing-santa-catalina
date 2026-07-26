@@ -180,6 +180,71 @@ body {
 [data-theme="light"] .text-red-400        { color: #991b1b !important; }
 [data-theme="light"] .text-purple-400     { color: #581c87 !important; }
 
+/* — Excepción: texto blanco DENTRO de botones de color sólido — ─────────────
+   La regla .text-white de arriba asume que el texto blanco vive sobre una
+   tarjeta oscura que también se está reclareando. Pero un botón de acción
+   (bg-indigo-600, degradados from-emerald-600 to-teal-600, etc.) mantiene su
+   color vivo en cualquier tema — nunca se aclara — así que su texto blanco
+   debe seguir siendo blanco. Sin esto, en modo claro el texto de esos
+   botones se volvía azul marino casi ilegible sobre su propio fondo de color.
+   Selector compuesto (dos clases): solo aplica cuando ambas conviven en el
+   mismo elemento, así que no afecta ningún otro uso de esas clases. */
+[data-theme="light"] .bg-amber-400.text-white,
+[data-theme="light"] .bg-amber-500.text-white,
+[data-theme="light"] .bg-amber-600.text-white,
+[data-theme="light"] .bg-blue-400.text-white,
+[data-theme="light"] .bg-blue-500.text-white,
+[data-theme="light"] .bg-blue-600.text-white,
+[data-theme="light"] .bg-emerald-400.text-white,
+[data-theme="light"] .bg-emerald-500.text-white,
+[data-theme="light"] .bg-emerald-600.text-white,
+[data-theme="light"] .bg-green-400.text-white,
+[data-theme="light"] .bg-green-500.text-white,
+[data-theme="light"] .bg-green-600.text-white,
+[data-theme="light"] .bg-indigo-400.text-white,
+[data-theme="light"] .bg-indigo-500.text-white,
+[data-theme="light"] .bg-indigo-600.text-white,
+[data-theme="light"] .bg-orange-400.text-white,
+[data-theme="light"] .bg-orange-500.text-white,
+[data-theme="light"] .bg-purple-500.text-white,
+[data-theme="light"] .bg-red-400.text-white,
+[data-theme="light"] .bg-red-500.text-white,
+[data-theme="light"] .bg-red-600.text-white,
+[data-theme="light"] .bg-rose-500.text-white,
+[data-theme="light"] .bg-rose-600.text-white,
+[data-theme="light"] .bg-sky-400.text-white,
+[data-theme="light"] .bg-sky-500.text-white,
+[data-theme="light"] .bg-teal-500.text-white,
+[data-theme="light"] .bg-teal-600.text-white,
+[data-theme="light"] .bg-yellow-400.text-white,
+[data-theme="light"] .bg-yellow-500.text-white,
+[data-theme="light"] .from-amber-500.text-white,
+[data-theme="light"] .from-amber-600.text-white,
+[data-theme="light"] .from-blue-500.text-white,
+[data-theme="light"] .from-blue-600.text-white,
+[data-theme="light"] .from-emerald-500.text-white,
+[data-theme="light"] .from-emerald-600.text-white,
+[data-theme="light"] .from-green-500.text-white,
+[data-theme="light"] .from-green-600.text-white,
+[data-theme="light"] .from-indigo-500.text-white,
+[data-theme="light"] .from-indigo-600.text-white,
+[data-theme="light"] .to-blue-500.text-white,
+[data-theme="light"] .to-blue-600.text-white,
+[data-theme="light"] .to-emerald-500.text-white,
+[data-theme="light"] .to-emerald-600.text-white,
+[data-theme="light"] .to-indigo-500.text-white,
+[data-theme="light"] .to-indigo-600.text-white,
+[data-theme="light"] .to-orange-500.text-white,
+[data-theme="light"] .to-orange-600.text-white,
+[data-theme="light"] .to-purple-500.text-white,
+[data-theme="light"] .to-purple-600.text-white,
+[data-theme="light"] .to-teal-500.text-white,
+[data-theme="light"] .to-teal-600.text-white,
+[data-theme="light"] .to-violet-500.text-white,
+[data-theme="light"] .to-violet-600.text-white {
+  color: #ffffff !important;
+}
+
 /* — Fondos de tarjetas y secciones — */
 [data-theme="light"] .bg-white\/2         { background-color: #f8fafc !important; }
 [data-theme="light"] .bg-white\/3         { background-color: #f1f5f9 !important; }

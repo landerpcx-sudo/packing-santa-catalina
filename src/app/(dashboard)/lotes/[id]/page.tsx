@@ -12,6 +12,7 @@ import {
 import UploadZone from '@/components/lotes/UploadZone'
 import InlineValidation from '@/components/lotes/InlineValidation'
 import ValidationModal from '@/components/lotes/ValidationModal'
+import DocumentList from '@/components/documentos/DocumentList'
 import dynamic from 'next/dynamic'
 
 const NewLotModal = dynamic(() => import('@/components/lotes/NewLotModal'), { ssr: false })
@@ -93,11 +94,16 @@ const DocTypeConfig: Record<string, { label: string; color: string }> = {
 }
 
 import { useRouter } from 'next/navigation'
+import { useToast } from '@/components/layout/Toast'
+import { useConfirm } from '@/components/layout/ConfirmDialog'
+import { puedeGestionarLote, esSoloLectura } from '@/lib/permissions'
 
 export default function LoteDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params)
   const { user } = useAuth()
   const router = useRouter()
+  const toast = useToast()
+  const confirmar = useConfirm()
   const [lot, setLot] = useState<Lot | null>(null)
   const [loading, setLoading] = useState(true)
   const [refreshing, setRefreshing] = useState(false)
@@ -134,11 +140,16 @@ export default function LoteDetailPage({ params }: { params: Promise<{ id: strin
 
   const handleDeleteDocument = async (docId: string, tableName: string) => {
     if (lot?.overall_status === 'closed') {
-      alert('No se pueden eliminar documentos de un lote cerrado.')
+      toast.warning('No se pueden eliminar documentos de un lote cerrado.')
       return
     }
-    if (!confirm('¿Enviar este documento a la papelera?\n\nEl archivo NO se borra: se guarda 30 días y puedes restaurarlo desde Configuración → Salud de los Documentos.')) return
-    
+    const ok = await confirmar({
+      title: 'Enviar a la papelera',
+      message: 'El archivo NO se borra: se guarda 30 días y puedes restaurarlo desde Configuración → Salud de los Documentos.',
+      confirmText: 'Enviar a la papelera',
+    })
+    if (!ok) return
+
     try {
       const res = await fetch(`/api/documentos/${tableName}/${docId}`, {
         method: 'DELETE',
@@ -147,16 +158,18 @@ export default function LoteDetailPage({ params }: { params: Promise<{ id: strin
           'x-user-role': user?.role || ''
         }
       })
-      if (res.ok) fetchLot(true)
-      else alert('Error al eliminar')
-    } catch (e) { alert('Error de conexión') }
+      if (res.ok) { fetchLot(true); toast.success('Documento enviado a la papelera.') }
+      else toast.error('Error al eliminar')
+    } catch (e) { toast.error('Error de conexión') }
   }
 
+  // Se mantiene la confirmación escrita ("ELIMINAR") por ser la acción que
+  // destruye el lote por completo: vale la pena que cueste más confirmarla.
   const handleDeleteLot = async () => {
     const confirmation = prompt('🛑 ¡ADVERTENCIA CRÍTICA!\n\n¿Estás seguro de que deseas ELIMINAR ESTE LOTE COMPLETAMENTE?\n\nEsta acción:\n1. Borrará el registro de la Base de Datos.\n2. Enviará la carpeta de Google Drive a la papelera.\n3. Es irreversible.\n\nEscribe "ELIMINAR" en mayúsculas para confirmar:')
-    
+
     if (confirmation !== 'ELIMINAR') {
-      alert('Eliminación cancelada.')
+      if (confirmation !== null) toast.info('Eliminación cancelada.')
       return
     }
 
@@ -166,39 +179,50 @@ export default function LoteDetailPage({ params }: { params: Promise<{ id: strin
         headers: { 'x-user-id': user?.userId || '', 'x-user-role': user?.role || '' }
       })
       if (res.ok) {
-        alert('Lote eliminado con éxito.')
+        toast.success('Lote eliminado con éxito.')
         router.push('/lotes')
       } else {
         const data = await res.json()
-        alert(data.error || 'Error al eliminar el lote.')
+        toast.error(data.error || 'Error al eliminar el lote.')
       }
     } catch (e) {
-      alert('Error de conexión al intentar eliminar.')
+      toast.error('Error de conexión al intentar eliminar.')
     }
   }
 
   const handleCloseLot = async () => {
-    if (!confirm('¿Estás seguro de cerrar este lote definitivamente? Ya no se podrán subir ni modificar documentos.')) return
+    const ok = await confirmar({
+      title: 'Cerrar lote',
+      message: '¿Cerrar este lote definitivamente? Ya no se podrán subir ni modificar documentos.',
+      confirmText: 'Cerrar lote',
+      danger: true,
+    })
+    if (!ok) return
     try {
       const res = await fetch(`/api/lotes/${id}/cerrar`, {
         method: 'POST',
         headers: { 'x-user-id': user?.userId || '', 'x-user-role': user?.role || '' }
       })
-      if (res.ok) fetchLot(true)
-      else { const data = await res.json(); alert(data.error || 'Error al cerrar') }
-    } catch (e) { alert('Error de conexión') }
+      if (res.ok) { fetchLot(true); toast.success('Lote cerrado.') }
+      else { const data = await res.json(); toast.error(data.error || 'Error al cerrar') }
+    } catch (e) { toast.error('Error de conexión') }
   }
 
   const handleOpenLot = async () => {
-    if (!confirm('¿Estás seguro de reabrir este lote? Se podrán volver a subir y modificar documentos.')) return
+    const ok = await confirmar({
+      title: 'Reabrir lote',
+      message: '¿Reabrir este lote? Se podrán volver a subir y modificar documentos.',
+      confirmText: 'Reabrir',
+    })
+    if (!ok) return
     try {
       const res = await fetch(`/api/lotes/${id}/abrir`, {
         method: 'POST',
         headers: { 'x-user-id': user?.userId || '', 'x-user-role': user?.role || '' }
       })
-      if (res.ok) fetchLot(true)
-      else { const data = await res.json(); alert(data.error || 'Error al reabrir') }
-    } catch (e) { alert('Error de conexión') }
+      if (res.ok) { fetchLot(true); toast.success('Lote reabierto.') }
+      else { const data = await res.json(); toast.error(data.error || 'Error al reabrir') }
+    } catch (e) { toast.error('Error de conexión') }
   }
 
   if (loading) return <div className="flex items-center justify-center h-64 gap-3 text-gray-400"><RefreshCw className="w-5 h-5 animate-spin" /> Cargando...</div>
@@ -467,7 +491,7 @@ export default function LoteDetailPage({ params }: { params: Promise<{ id: strin
                 )}
 
                 {/* Zona de subida */}
-                {lot.overall_status !== 'closed' && ['admin', 'jefe_frio', 'calidad', 'cuadratura'].includes(user?.role || '') && (
+                {lot.overall_status !== 'closed' && puedeGestionarLote(user?.role) && (
                   <UploadZone
                     lotId={lot.id}
                     lotCode={lot.internal_code}
@@ -485,48 +509,15 @@ export default function LoteDetailPage({ params }: { params: Promise<{ id: strin
       </div>
 
       {/* Sección Otros / Respaldos - siempre visible */}
-      <div className="bg-white/3 border border-white/8 rounded-2xl p-5">
-        <h3 className="text-white font-medium text-sm mb-4 flex items-center gap-2">
-          <FolderOpen className="w-4 h-4 text-indigo-400" />
-          Otros / Respaldos
-        </h3>
-        <div className="space-y-3 mb-4">
-          {(docsByType['backup'] || []).sort((a,b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()).map(doc => (
-            <div key={doc.id} className="bg-white/5 border border-white/10 rounded-xl px-3 py-2 flex items-center justify-between group transition-all hover:bg-white/10">
-              <div className="flex flex-col truncate">
-                <div className="flex items-center gap-2">
-                  <FileText className="w-3.5 h-3.5 text-gray-400 flex-shrink-0" />
-                  <span className="text-gray-300 text-[11px] truncate">{doc.original_file_name}</span>
-                </div>
-                <span className="text-[9px] text-gray-500 ml-5">{doc.uploaded_by_user?.display_name || 'Sistema'} • {formatDate(doc.created_at)}</span>
-              </div>
-              <div className="flex items-center gap-1 md:opacity-0 md:group-hover:opacity-100 transition-opacity">
-                {doc.drive_file_url && (user?.role === 'admin' || user?.canViewDrive || !doc.storage_url) ? (
-                  <button
-                    onClick={() => setPreviewFile({ isOpen: true, url: doc.storage_url || doc.drive_file_url!, name: doc.original_file_name })}
-                    className="text-indigo-400 p-1 hover:bg-white/10 rounded"
-                    title="Ver archivo"
-                  >
-                    <Eye className="w-3.5 h-3.5" />
-                  </button>
-                ) : doc.storage_url ? (
-                  <button onClick={() => setPreviewFile({ isOpen: true, url: doc.storage_url!, name: doc.original_file_name })} className="text-gray-400 p-1 hover:bg-white/10 rounded" title="Ver archivo">
-                    <Eye className="w-3.5 h-3.5" />
-                  </button>
-                ) : null}
-                {user?.role === 'admin' && lot.overall_status !== 'closed' && (
-                  <button onClick={() => handleDeleteDocument(doc.id, 'lot_documents')} className="text-red-400 p-1 hover:bg-red-400/10 rounded" title="Eliminar">
-                    <Trash2 className="w-3.5 h-3.5" />
-                  </button>
-                )}
-              </div>
-            </div>
-          ))}
-          {(docsByType['backup'] || []).length === 0 && (
-            <p className="text-gray-600 text-xs italic">No hay archivos extra en esta sección.</p>
-          )}
-        </div>
-        {lot.overall_status !== 'closed' && !['gerencia', 'agronomo'].includes(user?.role || '') && (
+      <DocumentList
+        titulo="Otros / Respaldos"
+        icono={<FolderOpen className="w-4 h-4 text-indigo-400" />}
+        documentos={docsByType['backup'] || []}
+        tableName="lot_documents"
+        puedeSubir={lot.overall_status !== 'closed' && !esSoloLectura(user?.role)}
+        puedeEliminar={user?.role === 'admin' && lot.overall_status !== 'closed'}
+        puedeVerDrive={user?.role === 'admin' || Boolean(user?.canViewDrive)}
+        zonaSubida={
           <UploadZone
             lotId={lot.id}
             lotCode={lot.internal_code}
@@ -534,8 +525,11 @@ export default function LoteDetailPage({ params }: { params: Promise<{ id: strin
             documentLabel="Archivo Extra / Respaldo"
             onUploadSuccess={() => fetchLot(true)}
           />
-        )}
-      </div>
+        }
+        onPreview={(url, name) => setPreviewFile({ isOpen: true, url, name })}
+        onEliminar={(docId) => handleDeleteDocument(docId, 'lot_documents')}
+        onValidado={() => fetchLot(true)}
+      />
 
       {showEditModal && (
         <NewLotModal 

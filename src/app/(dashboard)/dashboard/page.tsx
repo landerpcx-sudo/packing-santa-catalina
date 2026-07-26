@@ -7,6 +7,8 @@ import { useEffect, useState, useRef, useCallback } from 'react'
 import Link from 'next/link'
 import useSWR from 'swr'
 import { useToast } from '@/components/layout/Toast'
+import MisPendientesWidget from '@/components/dashboard/MisPendientesWidget'
+import { useConfirm } from '@/components/layout/ConfirmDialog'
 import {
   Package,
   Thermometer,
@@ -199,6 +201,7 @@ const fetcher = (url: string) => fetch(url).then(r => r.json())
 export default function DashboardPage() {
   const { user } = useAuth()
   const toast = useToast()
+  const confirmar = useConfirm()
   const [googleConnected, setGoogleConnected] = useState(false)
   const [hoveredDashboardPoint, setHoveredDashboardPoint] = useState<any | null>(null)
 
@@ -314,14 +317,20 @@ export default function DashboardPage() {
                   </div>
                   <button
                     onClick={async () => {
-                      if (confirm('¿Estás seguro de que deseas desactivar la sincronización?')) {
-                        try {
-                          const res = await fetch('/api/settings/drive-disconnect', { method: 'DELETE' });
-                          if (!res.ok) throw new Error(await res.text());
-                          setGoogleConnected(false);
-                        } catch (e: any) {
-                          alert('Error: ' + e.message);
-                        }
+                      const ok = await confirmar({
+                        title: 'Desactivar sincronización',
+                        message: 'Los archivos nuevos se guardarán solo en Supabase hasta que reactives Google Drive.',
+                        confirmText: 'Desactivar',
+                        danger: true,
+                      })
+                      if (!ok) return
+                      try {
+                        const res = await fetch('/api/settings/drive-disconnect', { method: 'DELETE' });
+                        if (!res.ok) throw new Error(await res.text());
+                        setGoogleConnected(false);
+                        toast.success('Sincronización desactivada.');
+                      } catch (e: any) {
+                        toast.error('Error: ' + e.message);
                       }
                     }}
                     className="w-full text-center text-xs text-red-400/90 hover:text-red-300 font-bold transition-all px-4 py-2 rounded-xl bg-red-500/10 hover:bg-red-500/15 border border-red-500/20 cursor-pointer shadow-sm"
@@ -355,6 +364,9 @@ export default function DashboardPage() {
           </span>
         </p>
       </div>
+
+      {/* Mis pendientes: qué le toca subir a CADA persona, según su rol */}
+      <MisPendientesWidget />
 
       {/* ─── Lotes ─── */}
       <section>

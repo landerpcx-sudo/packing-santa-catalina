@@ -263,7 +263,7 @@ export default function ContainerLiquidationCard({
   // Guardar Liquidación
   const handleSaveLiquidation = async (statusToSave: 'draft' | 'finalized') => {
     if (isClosed) {
-      alert('No se puede modificar la liquidación de un despacho cerrado.')
+      setMessage({ type: 'error', text: 'No se puede modificar la liquidación de un despacho cerrado.' })
       return
     }
     setSaving(true)

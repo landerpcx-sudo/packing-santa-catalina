@@ -24,6 +24,8 @@ import {
   Check as CheckIcon
 } from 'lucide-react'
 import { ROLE_DISPLAY_NAMES } from '@/lib/constants'
+import { useToast } from '@/components/layout/Toast'
+import { useConfirm } from '@/components/layout/ConfirmDialog'
 
 interface UserApp {
   id: string
@@ -59,6 +61,8 @@ const getPermissionsByRole = (role: string) => {
 }
 
 export default function UsuariosPage() {
+  const toast = useToast()
+  const confirmar = useConfirm()
   const [users, setUsers] = useState<UserApp[]>([])
   const [loading, setLoading] = useState(true)
   const [searchTerm, setSearchTerm] = useState('')
@@ -179,17 +183,26 @@ export default function UsuariosPage() {
   }
 
   const toggleUserStatus = async (user: UserApp) => {
-    if (!confirm(`¿Estás seguro de que deseas ${user.active ? 'desactivar' : 'activar'} al usuario ${user.display_name}?`)) return
-    
+    const activar = !user.active
+    const ok = await confirmar({
+      title: activar ? 'Activar usuario' : 'Desactivar usuario',
+      message: `¿${activar ? 'Activar' : 'Desactivar'} a ${user.display_name}?`,
+      confirmText: activar ? 'Activar' : 'Desactivar',
+      danger: !activar,
+    })
+    if (!ok) return
+
     try {
       const res = await fetch(`/api/usuarios/${user.id}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ active: !user.active })
+        body: JSON.stringify({ active: activar })
       })
-      if (res.ok) fetchUsers()
+      if (res.ok) { fetchUsers(); toast.success(`Usuario ${activar ? 'activado' : 'desactivado'}.`) }
+      else toast.error('Error al actualizar el usuario.')
     } catch (err) {
       console.error('Error toggling user status:', err)
+      toast.error('Error de conexión.')
     }
   }
 

@@ -12,6 +12,8 @@ import {
   History, Info, Trash2
 } from 'lucide-react'
 import dynamic from 'next/dynamic'
+import { useToast } from '@/components/layout/Toast'
+import { useConfirm } from '@/components/layout/ConfirmDialog'
 
 const FilePreviewModal = dynamic(() => import('@/components/layout/FilePreviewModal'), { ssr: false })
 
@@ -139,6 +141,8 @@ export default function TemperatureDetailPage({ params }: { params: Promise<{ id
   const [deleting, setDeleting] = useState(false)
 
   const router = useRouter()
+  const toast = useToast()
+  const confirmar = useConfirm()
 
   const fetchReport = useCallback(async () => {
     setLoading(true)
@@ -189,9 +193,13 @@ export default function TemperatureDetailPage({ params }: { params: Promise<{ id
   }
 
   const handleDelete = async () => {
-    if (!confirm('¿Estás seguro de que deseas eliminar este registro de temperatura? Esta acción borrará también todos los archivos asociados en la base de datos y no se puede deshacer.')) {
-      return
-    }
+    const ok = await confirmar({
+      title: 'Eliminar registro de temperatura',
+      message: 'Esta acción borrará también todos los archivos asociados y no se puede deshacer.',
+      confirmText: 'Eliminar',
+      danger: true,
+    })
+    if (!ok) return
 
     setDeleting(true)
     try {
@@ -200,23 +208,26 @@ export default function TemperatureDetailPage({ params }: { params: Promise<{ id
       })
       const data = await res.json()
       if (res.ok) {
-        alert('Registro de temperatura eliminado exitosamente.')
+        toast.success('Registro de temperatura eliminado.')
         router.push('/temperaturas')
       } else {
-        alert(data.error || 'Error al eliminar el registro.')
+        toast.error(data.error || 'Error al eliminar el registro.')
       }
     } catch (err) {
       console.error(err)
-      alert('Error de conexión al eliminar.')
+      toast.error('Error de conexión al eliminar.')
     } finally {
       setDeleting(false)
     }
   }
 
   const handleDeleteDocument = async (docId: string) => {
-    if (!confirm('¿Enviar este archivo a la papelera?\n\nEl archivo NO se borra: se guarda 30 días y puedes restaurarlo desde Configuración → Salud de los Documentos.')) {
-      return
-    }
+    const ok = await confirmar({
+      title: 'Enviar a la papelera',
+      message: 'El archivo NO se borra: se guarda 30 días y puedes restaurarlo desde Configuración → Salud de los Documentos.',
+      confirmText: 'Enviar a la papelera',
+    })
+    if (!ok) return
     try {
       const res = await fetch(`/api/documentos/temperature_documents/${docId}`, {
         method: 'DELETE',
@@ -227,13 +238,14 @@ export default function TemperatureDetailPage({ params }: { params: Promise<{ id
       })
       if (res.ok) {
         await fetchReport()
+        toast.success('Archivo enviado a la papelera.')
       } else {
         const data = await res.json()
-        alert(data.error || 'Error al eliminar el archivo.')
+        toast.error(data.error || 'Error al eliminar el archivo.')
       }
     } catch (err) {
       console.error(err)
-      alert('Error de conexión al eliminar.')
+      toast.error('Error de conexión al eliminar.')
     }
   }
 
