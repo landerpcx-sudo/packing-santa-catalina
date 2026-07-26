@@ -86,16 +86,28 @@ export async function construirInformeFinancieroPDF(
   const abonosAmount = Number(liq.abonos_amount) || 0
   const exchangeRate = Number(liq.exchange_rate) || 1
   const fobExchangeRate = Number(liq.fob_exchange_rate) || 1
-  const finalBalance = Number(liq.final_balance) || 0
-  const finalBalanceTarget = finalBalance * exchangeRate
+
+  // ----------------------------------------------------
+  // RECÁLCULO DINÁMICO (Plan Solución PDF Multimoneda)
+  // ----------------------------------------------------
+  // 1. Tasa CLP real otorgada (descarta 1000 si hay tasa real disponible)
+  const tasaCLPOtorgada = (fobExchangeRate > 100 && Math.abs(fobExchangeRate - 1000) > 0.01) 
+    ? fobExchangeRate 
+    : (exchangeRate > 100 ? exchangeRate : 1075.0248)
+
+  // 2. Costo FOB real en la Moneda de Venta (Euros)
+  const fobEnMonedaVenta = fobCurrency === currency 
+    ? advanceAmount 
+    : (advanceAmount / tasaCLPOtorgada)
+
+  // 3. Utilidad Final Real del Negocio (Euros) - Anula final_balance estático de la BD
+  const finalBalance = netAmount - fobEnMonedaVenta
 
   const freight = Number(liq.freight_amount) || 0
   const transport = Number(liq.transport_amount) || 0
   const fleteYTransporte = freight + transport
 
   const expensePerBox = totalExpenses / safeCajas
-  const fobEnMonedaVenta =
-    fobCurrency === currency ? advanceAmount : fobExchangeRate > 0 ? advanceAmount / fobExchangeRate : advanceAmount
   const fobPerBox = fobEnMonedaVenta / safeCajas
   const utilidadMediaPorCaja = finalBalance / safeCajas
   const cajasMediaPorCalibre = safeCajas / (rows.length || 1)
@@ -108,7 +120,7 @@ export async function construirInformeFinancieroPDF(
     const altoMargen = utilidadPorCaja >= utilidadMediaPorCaja
 
     // Retorno estimado al productor por caja en CLP (Neto Destino x Tasa Cambio FOB)
-    const retornoProductorCLP = destNet * (fobExchangeRate || 1000)
+    const retornoProductorCLP = destNet * tasaCLPOtorgada
     const utilidadPorCajaTarget = utilidadPorCaja * exchangeRate
 
     let cuadrante: string
@@ -124,7 +136,7 @@ export async function construirInformeFinancieroPDF(
       utilidadPorCajaTarget,
       retornoProductorCLP,
       aporteTotal: utilidadPorCaja * r.cajas * exchangeRate,
-      aporteTotalCLP: utilidadPorCaja * r.cajas * exchangeRate * (fobExchangeRate || 1000),
+      aporteTotalCLP: utilidadPorCaja * r.cajas * exchangeRate * tasaCLPOtorgada,
       puntoEquilibrio: expensePerBox + fobPerBox,
       porcentajeVolumen: (r.cajas / safeCajas) * 100,
       cuadrante,
@@ -313,7 +325,6 @@ export async function construirInformeFinancieroPDF(
     // Saneamiento de Tasas de Cambio Inmutables (Evita bugs donde 1 EUR -> USD tomaba la tasa de CLP)
     const tasaSaleToTarget = (targetCurrency === 'USD' && exchangeRate > 5) ? 1.1377 : (exchangeRate || 1)
     const finalBalanceTargetUSD = currency === targetCurrency ? finalBalance : finalBalance * tasaSaleToTarget
-    const tasaCLPOtorgada = (fobExchangeRate > 100 && Math.abs(fobExchangeRate - 1000) > 0.01) ? fobExchangeRate : (exchangeRate > 100 ? exchangeRate : 1075.0248)
     const utilidadTotalCLPEst = finalBalance * tasaCLPOtorgada
     const ingresoNetoPromedioCLP = (netAmount * tasaCLPOtorgada) / safeCajas
 
