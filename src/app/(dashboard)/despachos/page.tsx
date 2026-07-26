@@ -4,12 +4,13 @@ import React, { useEffect, useState, useCallback } from 'react'
 import {
   Truck, Plus, Search, Filter, ExternalLink,
   Clock, CheckCircle, AlertCircle, XCircle, BarChart3,
-  FolderOpen, ChevronRight, RefreshCw
+  FolderOpen, ChevronRight, RefreshCw, Calculator, DollarSign
 } from 'lucide-react'
 import dynamic from 'next/dynamic'
 import Link from 'next/link'
 
 const NewDispatchModal = dynamic(() => import('@/components/despachos/NewDispatchModal'), { ssr: false })
+const LiquidationModal = dynamic(() => import('@/components/despachos/LiquidationModal'), { ssr: false })
 import { useRouter } from 'next/navigation'
 
 interface Dispatch {
@@ -73,6 +74,7 @@ export default function DespachosPage() {
   const [total, setTotal] = useState(0)
   const [loading, setLoading] = useState(true)
   const [showModal, setShowModal] = useState(false)
+  const [selectedLiquidationDispatch, setSelectedLiquidationDispatch] = useState<Dispatch | null>(null)
   const router = useRouter()
   const [search, setSearch] = useState('')
   const [filterStatus, setFilterStatus] = useState('')
@@ -394,12 +396,12 @@ export default function DespachosPage() {
       <div className="bg-white/3 border border-white/8 rounded-2xl overflow-hidden">
         {/* Header de tabla */}
         <div className="grid grid-cols-12 px-5 py-3 border-b border-white/8 text-gray-500 text-xs font-medium uppercase tracking-wider">
-          <div className="col-span-7 sm:col-span-5 md:col-span-4 lg:col-span-3">Despacho</div>
+          <div className="col-span-5 sm:col-span-4 md:col-span-3 lg:col-span-3">Despacho</div>
           <div className="col-span-2 hidden md:block">Cliente</div>
           <div className="col-span-2 hidden lg:block">Destino</div>
-          <div className="col-span-4 sm:col-span-3 md:col-span-3 lg:col-span-2">Semáforo</div>
-          <div className="col-span-3 hidden sm:block md:col-span-2">Estado</div>
-          <div className="col-span-1 text-right">Drive</div>
+          <div className="col-span-3 sm:col-span-3 md:col-span-2 lg:col-span-2">Semáforo</div>
+          <div className="col-span-2 hidden sm:block md:col-span-2 lg:col-span-1">Estado</div>
+          <div className="col-span-2 sm:col-span-2 md:col-span-2 lg:col-span-2 text-right">Acciones / Drive</div>
         </div>
 
         {/* Filas */}
@@ -407,7 +409,7 @@ export default function DespachosPage() {
           <div className="space-y-0.5">
             {[1, 2, 3, 4, 5].map((i) => (
               <div key={i} className="grid grid-cols-12 px-5 py-4 border-b border-white/5 items-center animate-pulse">
-                <div className="col-span-7 sm:col-span-5 md:col-span-4 lg:col-span-3 flex items-center gap-3">
+                <div className="col-span-5 sm:col-span-4 md:col-span-3 lg:col-span-3 flex items-center gap-3">
                   <div className="w-9 h-9 rounded-xl bg-white/5" />
                   <div className="space-y-1.5 flex-1 min-w-0">
                     <div className="h-4 bg-white/5 rounded w-3/4" />
@@ -420,15 +422,16 @@ export default function DespachosPage() {
                 <div className="col-span-2 hidden lg:block">
                   <div className="h-4 bg-white/5 rounded w-1/3" />
                 </div>
-                <div className="col-span-4 sm:col-span-3 md:col-span-3 lg:col-span-2 flex items-center gap-2">
+                <div className="col-span-3 sm:col-span-3 md:col-span-2 lg:col-span-2 flex items-center gap-2">
                   <div className="w-5 h-5 rounded-full bg-white/5" />
                   <div className="w-5 h-5 rounded-full bg-white/5" />
                   <div className="w-5 h-5 rounded-full bg-white/5" />
                 </div>
-                <div className="col-span-3 hidden sm:block md:col-span-2">
-                  <div className="h-6 bg-white/5 rounded-full w-20" />
+                <div className="col-span-2 hidden sm:block md:col-span-2 lg:col-span-1">
+                  <div className="h-6 bg-white/5 rounded-full w-16" />
                 </div>
-                <div className="col-span-1 flex justify-end">
+                <div className="col-span-2 sm:col-span-2 md:col-span-2 lg:col-span-2 flex justify-end gap-2">
+                  <div className="w-8 h-8 rounded-lg bg-white/5" />
                   <div className="w-8 h-8 rounded-lg bg-white/5" />
                 </div>
               </div>
@@ -462,7 +465,7 @@ export default function DespachosPage() {
                 className="grid grid-cols-12 px-5 py-4 border-b border-white/5 hover:bg-white/3 transition-all group items-center cursor-pointer"
               >
                 {/* Código + Nombre */}
-                <div className="col-span-7 sm:col-span-5 md:col-span-4 lg:col-span-3">
+                <div className="col-span-5 sm:col-span-4 md:col-span-3 lg:col-span-3">
                   <div className="flex items-center gap-2">
                     <div className={`w-1.5 h-8 rounded-full flex-shrink-0 bg-indigo-500/40`} />
                     <div>
@@ -513,18 +516,44 @@ export default function DespachosPage() {
                 </div>
 
                 {/* Semáforo */}
-                <div className="col-span-4 sm:col-span-3 md:col-span-3 lg:col-span-2">
+                <div className="col-span-3 sm:col-span-3 md:col-span-2 lg:col-span-2">
                   <DispatchSemaphore dispatch={dispatch} />
                 </div>
 
                 {/* Estado General */}
-                <div className="col-span-3 hidden sm:block md:col-span-2">
+                <div className="col-span-2 hidden sm:block md:col-span-2 lg:col-span-1">
                   <StatusBadge status={dispatch.overall_status} />
                 </div>
 
-                {/* Drive + flecha */}
-                <div className="col-span-1 flex items-center justify-end gap-2">
-                  <ChevronRight className="w-4 h-4 text-gray-600 group-hover:text-gray-300 group-hover:translate-x-0.5 transition-all" />
+                {/* Botón Financiero + Drive + Flecha */}
+                <div className="col-span-2 sm:col-span-2 md:col-span-2 lg:col-span-2 flex items-center justify-end gap-1.5">
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation()
+                      setSelectedLiquidationDispatch(dispatch)
+                    }}
+                    className="flex items-center gap-1 px-2 py-1.5 rounded-xl bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 hover:border-emerald-500/50 transition-all shadow-sm group/btn shrink-0"
+                    title="Ingreso Financiero / Liquidación"
+                  >
+                    <Calculator className="w-4 h-4 group-hover/btn:scale-110 transition-transform" />
+                    <span className="hidden xl:inline text-[10px] font-bold uppercase tracking-wider">Finanzas</span>
+                  </button>
+
+                  {dispatch.drive_folder_url && (
+                    <a
+                      href={dispatch.drive_folder_url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      onClick={(e) => e.stopPropagation()}
+                      className="p-1.5 rounded-xl bg-white/5 hover:bg-white/10 text-gray-400 hover:text-white border border-white/10 transition-all shrink-0"
+                      title="Abrir carpeta Google Drive"
+                    >
+                      <FolderOpen className="w-4 h-4" />
+                    </a>
+                  )}
+
+                  <ChevronRight className="w-4 h-4 text-gray-600 group-hover:text-gray-300 group-hover:translate-x-0.5 transition-all shrink-0" />
                 </div>
               </div>
             )
@@ -532,11 +561,24 @@ export default function DespachosPage() {
         )}
       </div>
 
-      {/* Modal */}
+      {/* Modal Nuevo Despacho */}
       {showModal && (
         <NewDispatchModal
           onClose={() => setShowModal(false)}
           onSuccess={fetchDispatches}
+        />
+      )}
+
+      {/* Modal de Liquidación Financiera */}
+      {selectedLiquidationDispatch && (
+        <LiquidationModal
+          dispatchId={selectedLiquidationDispatch.id}
+          dispatchCode={selectedLiquidationDispatch.dispatch_code}
+          isClosed={selectedLiquidationDispatch.overall_status === 'closed'}
+          onClose={() => setSelectedLiquidationDispatch(null)}
+          onSuccess={() => {
+            fetchDispatches()
+          }}
         />
       )}
     </div>
