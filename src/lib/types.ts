@@ -232,6 +232,8 @@ export interface AppSession {
   canSyncDrive: boolean
   canCreateLot: boolean
   canViewDrive: boolean
+  client_name?: string | null
+  clientName?: string | null
 }
 
 export interface DashboardStats {

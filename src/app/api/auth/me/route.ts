@@ -18,7 +18,7 @@ export async function GET(request: NextRequest) {
   // Consultar en la base de datos para obtener los permisos más actualizados en tiempo real
   const { data: user, error } = await supabaseAdmin
     .from('users_app')
-    .select('id, username, display_name, role, area, active, can_validate, can_view_all, can_download_all, can_manage_users, can_sync_drive, can_create_lot, can_view_drive')
+    .select('id, username, display_name, role, area, active, can_validate, can_view_all, can_download_all, can_manage_users, can_sync_drive, can_create_lot, can_view_drive, client_name')
     .eq('id', payload.userId)
     .single()
 
@@ -43,6 +43,8 @@ export async function GET(request: NextRequest) {
       canSyncDrive: user.can_sync_drive,
       canCreateLot: user.can_create_lot,
       canViewDrive: user.role === 'admin',
+      client_name: user.client_name || null,
+      clientName: user.client_name || null,
     },
   })
 }

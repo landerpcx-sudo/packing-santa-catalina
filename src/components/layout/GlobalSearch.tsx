@@ -84,7 +84,11 @@ function GlobalSearchModal({ onClose }: { onClose: () => void }) {
     setBuscando(true)
     try {
       const res = await fetch(`/api/buscar?q=${encodeURIComponent(q.trim())}`, {
-        headers: { 'x-user-role': user?.role || '' },
+        headers: {
+          'x-user-role': user?.role || '',
+          'x-user-id': user?.userId || '',
+          'x-user-client-name': user?.client_name || user?.clientName || '',
+        },
       })
       const json = await res.json()
       if (nro !== peticionRef.current) return
