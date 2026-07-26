@@ -548,11 +548,11 @@ export async function GET(
       }
     }
 
-    // 6. Enviar respuesta binaria con cabeceras de PDF
+    // 6. Enviar respuesta binaria con cabeceras de PDF (inline para previsualización en navegador)
     return new NextResponse(new Uint8Array(finalPdfBuffer), {
       headers: {
         'Content-Type': 'application/pdf',
-        'Content-Disposition': `attachment; filename="Reporte_Despacho_${dispatch.dispatch_code || dispatch.internal_code}.pdf"`,
+        'Content-Disposition': `inline; filename="Reporte_Despacho_${dispatch.dispatch_code || dispatch.internal_code}.pdf"`,
         'Content-Length': finalPdfBuffer.length.toString(),
         'Cache-Control': 'no-cache',
       }

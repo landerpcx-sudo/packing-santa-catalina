@@ -172,82 +172,9 @@ export default function LiquidationReportModal({
   const maxProfitBar = Math.max(...calibreAnalysis.map(c => Math.abs(c.profitPerBox)), 0.01)
   const maxVolumeBar = Math.max(...calibreAnalysis.map(c => c.cajas), 1)
 
-  // Manejador Inteligente de Impresión y Generación de PDF en Lienzo Aislado
+  // Manejador Directo de Impresión en la misma ventana (sin popups emergentes)
   const handlePrintOrPDF = () => {
-    const reportEl = document.getElementById('commercial-report-print')
-    if (!reportEl) {
-      window.print()
-      return
-    }
-
-    const reportHtml = reportEl.innerHTML
-    const printWindow = window.open('', '_blank', 'width=950,height=1100')
-    
-    if (!printWindow) {
-      window.print()
-      return
-    }
-
-    printWindow.document.write(`
-      <!DOCTYPE html>
-      <html lang="es">
-      <head>
-        <meta charset="UTF-8" />
-        <title>Informe Comercial de Liquidación - LIQ-${dispatchCode}</title>
-        <script src="https://cdn.tailwindcss.com"></script>
-        <style>
-          @page { size: A4 portrait; margin: 10mm; }
-          body { 
-            font-family: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; 
-            background-color: #ffffff !important; 
-            color: #0f172a !important; 
-            padding: 10px; 
-          }
-          * { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
-          .print\\:hidden { display: none !important; }
-
-          /* PREVENCION DE CORTE EN SALTOS DE PAGINA (PAGE-BREAK PROTECTION) */
-          tr, 
-          .grid > div, 
-          .print-avoid-break,
-          .bg-emerald-50,
-          .bg-teal-50,
-          .bg-slate-50,
-          .bg-red-50,
-          .border-2 {
-            break-inside: avoid !important;
-            page-break-inside: avoid !important;
-            -webkit-column-break-inside: avoid !important;
-          }
-
-          h1, h2, h3, h4, h5 {
-            break-after: avoid !important;
-            page-break-after: avoid !important;
-          }
-
-          .page-break-before {
-            break-before: page !important;
-            page-break-before: always !important;
-          }
-        </style>
-      </head>
-      <body>
-        <div class="max-w-4xl mx-auto bg-white p-4">
-          ${reportHtml}
-        </div>
-        <script>
-          window.onload = function() {
-            setTimeout(function() {
-              window.print();
-              window.close();
-            }, 400);
-          };
-        </script>
-      </body>
-      </html>
-    `)
-
-    printWindow.document.close()
+    window.print()
   }
 
   const [downloadingPdf, setDownloadingPdf] = useState(false)
