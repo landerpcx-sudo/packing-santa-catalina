@@ -263,20 +263,20 @@ export async function construirInformeFinancieroPDF(
     // Dibujar logo del cliente si existe
     if (clientLogoPath) {
       try {
-        doc.image(clientLogoPath, R - 130, 36, { height: 26 })
+        doc.image(clientLogoPath, R - 150, 28, { fit: [150, 48] })
       } catch (e) {
         console.error('Error al incrustar logo del cliente en PDF:', e)
       }
     }
 
     const finalizada = liq.status === 'finalized'
-    doc.rect(R - 190, 68, 190, 14).fill(COLOR.fondoCabecera)
+    doc.rect(R - 190, 72, 190, 14).fill(COLOR.fondoCabecera)
     doc.fillColor(COLOR.tinta).font('B').fontSize(6.5)
-      .text('INFORME FINANCIERO DEL CONTENEDOR', R - 190, 72, { width: 190, align: 'center' })
+      .text('INFORME FINANCIERO DEL CONTENEDOR', R - 190, 76, { width: 190, align: 'center' })
     doc.fillColor(COLOR.tinta).font('B').fontSize(8.5)
-      .text(`FOLIO: LIQ-${dispatch.dispatch_code}`, R - 190, 84, { width: 190, align: 'right' })
+      .text(`FOLIO: LIQ-${dispatch.dispatch_code}`, R - 190, 88, { width: 190, align: 'right' })
     doc.fillColor(COLOR.suave).font('R').fontSize(6.5)
-      .text(`Emitido: ${new Date().toLocaleDateString('es-CL')}`, R - 190, 94, { width: 190, align: 'right' })
+      .text(`Emitido: ${new Date().toLocaleDateString('es-CL')}`, R - 190, 98, { width: 190, align: 'right' })
 
     doc.rect(L, 102, 110, 13).fill(finalizada ? COLOR.verdeFondo : COLOR.ambarFondo)
     doc.fillColor(finalizada ? COLOR.verde : COLOR.ambar).font('B').fontSize(6.5)
@@ -313,7 +313,7 @@ export async function construirInformeFinancieroPDF(
     // Saneamiento de Tasas de Cambio Inmutables (Evita bugs donde 1 EUR -> USD tomaba la tasa de CLP)
     const tasaSaleToTarget = (targetCurrency === 'USD' && exchangeRate > 5) ? 1.1377 : (exchangeRate || 1)
     const finalBalanceTargetUSD = currency === targetCurrency ? finalBalance : finalBalance * tasaSaleToTarget
-    const tasaCLPOtorgada = (fobExchangeRate > 100) ? fobExchangeRate : (exchangeRate > 100 ? exchangeRate : 1075.0248)
+    const tasaCLPOtorgada = (fobExchangeRate > 100 && Math.abs(fobExchangeRate - 1000) > 0.01) ? fobExchangeRate : (exchangeRate > 100 ? exchangeRate : 1075.0248)
     const utilidadTotalCLPEst = finalBalance * tasaCLPOtorgada
     const ingresoNetoPromedioCLP = (netAmount * tasaCLPOtorgada) / safeCajas
 
@@ -345,10 +345,10 @@ export async function construirInformeFinancieroPDF(
       },
       {
         etiqueta: facturaPagada ? 'FACTURA FOB' : 'SALDO FACTURA FOB',
-        cifra: facturaPagada ? 'PAGADA' : dinero(saldoFob, simbFob),
+        cifra: facturaPagada ? 'PAGADA' : clp(saldoFob),
         pie: facturaPagada
-          ? `Cobrada: ${dinero(advanceAmount, simbFob)}`
-          : `Facturado: ${dinero(advanceAmount, simbFob)}`,
+          ? `Facturado: ${clp(advanceAmount)}`
+          : `Facturado: ${clp(advanceAmount)}`,
         color: facturaPagada ? COLOR.verde : COLOR.ambar,
         fondo: facturaPagada ? COLOR.verdeFondo : COLOR.ambarFondo,
       },
