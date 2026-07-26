@@ -28,30 +28,56 @@ export async function POST(
         .limit(1)
         .maybeSingle()
 
-      if (docErr || !doc || !doc.drive_file_id) {
+      if (docErr || !doc) {
         return NextResponse.json(
           { error: 'No se encontró ningún documento de Packlist para este despacho.' },
           { status: 404 }
         )
       }
 
-      // 3. Descargar el archivo PDF desde Google Drive
-      const fileStream = await getDriveFileStream(doc.drive_file_id)
-      const chunks: Uint8Array[] = []
-      for await (const chunk of fileStream) {
-        chunks.push(chunk)
+      // 3. Descargar el archivo PDF (priorizar Supabase Storage, luego Google Drive)
+      let pdfBuffer: Buffer | null = null
+
+      if (doc.storage_path) {
+        const { data: fileData, error: downloadErr } = await supabaseAdmin.storage
+          .from('documentos')
+          .download(doc.storage_path)
+        if (fileData) {
+          const arrayBuffer = await fileData.arrayBuffer()
+          pdfBuffer = Buffer.from(arrayBuffer)
+        } else if (downloadErr) {
+          console.warn('Error descargando desde Supabase Storage, intentando Drive:', downloadErr.message)
+        }
       }
-      const pdfBuffer = Buffer.concat(chunks)
+
+      if (!pdfBuffer && doc.drive_file_id) {
+        const fileStream = await getDriveFileStream(doc.drive_file_id)
+        const chunks: Uint8Array[] = []
+        for await (const chunk of fileStream) {
+          chunks.push(chunk)
+        }
+        pdfBuffer = Buffer.concat(chunks)
+      }
+
+      if (!pdfBuffer) {
+        return NextResponse.json(
+          { error: 'No se pudo descargar el archivo PDF del Packlist desde el almacenamiento.' },
+          { status: 500 }
+        )
+      }
 
       // 4. Parsear y agrupar automáticamente por embalaje y calibre
       const result = await parsePacklistPdf(pdfBuffer)
 
       if (!result.success || result.items.length === 0) {
-        return NextResponse.json({
-          warning: 'No se pudieron extraer automáticamente los ítems del Packlist PDF. Puede ingresarlos manualmente.',
-          rawText: result.rawText,
-          items: []
-        })
+        return NextResponse.json(
+          {
+            error: result.error || 'No se pudieron extraer automáticamente los ítems del Packlist PDF.',
+            rawText: result.rawText,
+            items: []
+          },
+          { status: 400 }
+        )
       }
 
       itemsToSave = result.items

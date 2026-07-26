@@ -168,6 +168,28 @@ export async function POST(
     if (document_type === 'pack_list') {
       packListStatus = 'uploaded'
       await supabaseAdmin.from('dispatches').update({ pack_list_status: 'uploaded' }).eq('id', id)
+
+      // Auto-parsear automáticamente el Packlist en la subida
+      try {
+        const { parsePacklistPdf } = await import('@/lib/packlist-parser')
+        const parseRes = await parsePacklistPdf(buffer)
+        if (parseRes.success && parseRes.items.length > 0) {
+          await supabaseAdmin.from('dispatch_packlist_items').delete().eq('dispatch_id', id)
+          const rowsToInsert = parseRes.items.map(item => ({
+            dispatch_id: id,
+            especie: item.especie,
+            variedad: item.variedad,
+            envase: item.envase,
+            calibre: item.calibre,
+            cajas: item.cajas,
+            peso_neto_unitario: item.peso_neto_unitario,
+            peso_neto_total: item.peso_neto_total
+          }))
+          await supabaseAdmin.from('dispatch_packlist_items').insert(rowsToInsert)
+        }
+      } catch (e: any) {
+        console.error('Error auto-parseando Packlist en subida:', e?.message)
+      }
     } else if (document_type === 'pata_pata_photo' || document_type === 'thermograph_photo') {
       const { data: cur } = await supabaseAdmin
         .from('dispatches')
