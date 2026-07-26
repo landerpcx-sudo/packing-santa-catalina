@@ -37,6 +37,9 @@ export default function ContainerLiquidationCard({
   const [fetchingRate, setFetchingRate] = useState(false)
   const [showReportModal, setShowReportModal] = useState(false)
   const [generatingPdf, setGeneratingPdf] = useState(false)
+  // Huella de las cifras con las que se generó el último PDF (null = todavía
+  // no se ha generado ninguno en esta sesión de pantalla).
+  const [huellaPdf, setHuellaPdf] = useState<string | null>(null)
   const [dispatchMeta, setDispatchMeta] = useState<{
     client?: string | null
     destination?: string | null
@@ -260,6 +263,18 @@ export default function ContainerLiquidationCard({
   const finalBalanceInCurrency = Math.round((netAmount - fobAmountInCurrency) * 100) / 100
   const finalBalanceTargetCurrency = Math.round((finalBalanceInCurrency * exchangeRate) * 100) / 100
 
+  // Huella de las cifras que salen impresas en el informe. Sirve para avisar
+  // cuando el PDF que se tiene abierto ya no refleja lo que hay en pantalla:
+  // un PDF es una foto fija y no se actualiza solo, y enviar a un cliente un
+  // informe con la utilidad anterior es un error caro.
+  const huellaCifras = JSON.stringify([
+    currency, targetCurrency, fobCurrency, exchangeRate, fobExchangeRate,
+    grossSales, commissionPct, freight, handling, coldStorage, surveyor,
+    transport, otherExpenses, advanceAmount, abonosAmount,
+    rows.map(r => [r.envase, r.calibre, r.cajas, r.price_per_box]),
+  ])
+  const pdfDesactualizado = huellaPdf !== null && huellaPdf !== huellaCifras
+
   // Guardar Liquidación
   const handleSaveLiquidation = async (statusToSave: 'draft' | 'finalized') => {
     if (isClosed) {
@@ -342,6 +357,8 @@ export default function ContainerLiquidationCard({
     const pestana = window.open('', '_blank')
     setGeneratingPdf(true)
     setMessage(null)
+    const huellaAlGenerar = huellaCifras
+    let liquidacionId: string | null = null
 
     try {
       if (!isClosed) {
@@ -377,15 +394,25 @@ export default function ContainerLiquidationCard({
           })
         })
 
+        const data = await res.json().catch(() => ({}))
         if (!res.ok) {
-          const data = await res.json().catch(() => ({}))
           throw new Error(data.error || 'No se pudo guardar la liquidación antes de generar el informe.')
         }
+        liquidacionId = data.liquidation?.id || null
       }
 
-      const url = `/api/despachos/${dispatchId}/liquidacion/reporte-pdf`
+      // Se le pasa al informe el id exacto de la liquidación que se acaba de
+      // guardar en vez de dejar que busque "la última de este despacho": así
+      // no hay margen para que imprima una versión anterior si la lectura
+      // llega antes de que la escritura se propague. El `v` con la hora obliga
+      // además a que sea una URL distinta en cada generación, para que ningún
+      // navegador reutilice un PDF ya descargado.
+      const qs = new URLSearchParams({ v: Date.now().toString() })
+      if (liquidacionId) qs.set('liq', liquidacionId)
+      const url = `/api/despachos/${dispatchId}/liquidacion/reporte-pdf?${qs.toString()}`
       if (pestana) pestana.location.href = url
       else window.location.href = url // si el navegador bloqueó la pestaña
+      setHuellaPdf(huellaAlGenerar)
     } catch (e: any) {
       pestana?.close()
       setMessage({ type: 'error', text: e.message || 'Error al generar el informe financiero.' })
@@ -833,16 +860,35 @@ export default function ContainerLiquidationCard({
         </div>
       </div>
 
+      {/* Aviso de PDF desactualizado: el informe abierto en otra pestaña es una
+          foto fija y no se actualiza solo al cambiar cifras aquí. */}
+      {pdfDesactualizado && (
+        <div className="flex items-start gap-2.5 px-4 py-3 rounded-xl border border-amber-400/40 bg-amber-50 dark:bg-amber-500/10 text-amber-800 dark:text-amber-300">
+          <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" />
+          <p className="text-xs font-medium leading-relaxed">
+            Cambiaste cifras después de generar el informe en PDF. El que tienes abierto en la otra
+            pestaña muestra los números <strong>anteriores</strong>: vuelve a pulsar
+            &laquo;Ver Informe Financiero (PDF)&raquo; antes de enviarlo o imprimirlo.
+          </p>
+        </div>
+      )}
+
       {/* BOTONES DE ACCIÓN */}
       <div className="flex flex-wrap items-center justify-end gap-3 pt-4 border-t border-slate-200 dark:border-gray-800">
         <button
           onClick={handleOpenFinancialPDF}
           disabled={generatingPdf}
           title="Abre el informe en PDF en una pestaña nueva: ahí puedes verlo, imprimirlo o descargarlo para enviarlo"
-          className="flex items-center gap-2 px-4 py-2 text-xs font-bold bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl transition shadow-lg shadow-indigo-900/20 disabled:opacity-50"
+          className={`flex items-center gap-2 px-4 py-2 text-xs font-bold text-white rounded-xl transition shadow-lg disabled:opacity-50 ${
+            pdfDesactualizado
+              ? 'bg-amber-600 hover:bg-amber-500 shadow-amber-900/20 ring-2 ring-amber-400/50'
+              : 'bg-indigo-600 hover:bg-indigo-500 shadow-indigo-900/20'
+          }`}
         >
           {generatingPdf ? <RefreshCw className="w-4 h-4 animate-spin" /> : <FileText className="w-4 h-4" />}
-          {generatingPdf ? 'Preparando informe...' : 'Ver Informe Financiero (PDF)'}
+          {generatingPdf
+            ? 'Preparando informe...'
+            : pdfDesactualizado ? 'Regenerar Informe (PDF)' : 'Ver Informe Financiero (PDF)'}
         </button>
 
         <button

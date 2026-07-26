@@ -50,11 +50,16 @@ const COLOR = {
 }
 
 export async function GET(
-  _request: Request,
+  request: Request,
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     const { id } = await params
+    // La pantalla puede indicar el id exacto de la liquidación que acaba de
+    // guardar. Se usa esa fila en vez de "la del despacho" para que el informe
+    // nunca imprima una versión anterior si la lectura llegara antes de que la
+    // escritura termine de propagarse.
+    const liquidationId = new URL(request.url).searchParams.get('liq')
 
     // 1. Datos guardados de la liquidación
     const { data: dispatch } = await supabaseAdmin
@@ -67,11 +72,16 @@ export async function GET(
       return NextResponse.json({ error: 'Despacho no encontrado' }, { status: 404 })
     }
 
-    const { data: liq } = await supabaseAdmin
+    const consultaLiq = supabaseAdmin
       .from('dispatch_liquidations')
       .select('*, items:dispatch_liquidation_items(*)')
       .eq('dispatch_id', id)
-      .maybeSingle()
+
+    // El filtro por dispatch_id se mantiene siempre: así un id de liquidación
+    // de otro despacho no devuelve nada en vez de filtrar cifras ajenas.
+    const { data: liq } = liquidationId
+      ? await consultaLiq.eq('id', liquidationId).maybeSingle()
+      : await consultaLiq.maybeSingle()
 
     if (!liq) {
       return NextResponse.json(

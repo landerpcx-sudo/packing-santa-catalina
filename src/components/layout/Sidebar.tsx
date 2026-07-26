@@ -6,7 +6,7 @@ import { usePathname } from 'next/navigation'
 import { useAuth } from '@/context/AuthContext'
 import { useTheme } from '@/context/ThemeContext'
 import { ROLE_DISPLAY_NAMES, Role } from '@/lib/constants'
-import GlobalSearch from './GlobalSearch'
+import GlobalSearchButton from './GlobalSearch'
 import {
   LayoutDashboard,
   Package,
@@ -62,7 +62,11 @@ export default function Sidebar() {
     user?.role && item.roles.includes(user.role)
   )
 
-  const SidebarContent = () => (
+  // Es un elemento JSX, no un componente definido dentro del render: si fuera
+  // `const SidebarContent = () => ...` React lo trataría como un tipo nuevo en
+  // cada render y desmontaría/remontaría toda la barra (perdiendo foco y estado
+  // de sus hijos) cada vez que cambia `mobileOpen` o `isOnline`.
+  const contenidoSidebar = (
     <div className="flex flex-col h-full relative scanline-effect" style={{ backgroundColor: 'var(--bg-sidebar)' }}>
       {/* Logo */}
       <div className="p-6">
@@ -116,7 +120,7 @@ export default function Sidebar() {
 
       {/* Buscador global */}
       <div className="px-3 pt-3">
-        <GlobalSearch />
+        <GlobalSearchButton />
       </div>
 
       {/* Navegación */}
@@ -222,7 +226,7 @@ export default function Sidebar() {
           borderRight: '1px solid var(--sidebar-border)',
         }}
       >
-        <SidebarContent />
+        {contenidoSidebar}
       </aside>
 
       {/* Botón hamburger móvil */}
@@ -258,7 +262,7 @@ export default function Sidebar() {
           borderRight: '1px solid var(--sidebar-border)',
         }}
       >
-        <SidebarContent />
+        {contenidoSidebar}
       </aside>
     </>
   )
