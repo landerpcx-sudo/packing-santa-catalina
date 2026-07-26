@@ -37,11 +37,16 @@ const COLOR = {
   fondoCabecera: '#f1f5f9',
   verde: '#047857',
   verdeFondo: '#ecfdf5',
+  verdeBorde: '#6ee7b7',
   rojo: '#b91c1c',
   rojoFondo: '#fef2f2',
+  rojoBorde: '#fca5a5',
   indigo: '#4338ca',
   ambar: '#b45309',
   ambarFondo: '#fffbeb',
+  teal: '#0f766e',
+  tealFondo: '#f0fdfa',
+  tealBorde: '#5eead4',
 }
 
 export async function GET(
@@ -103,6 +108,10 @@ export async function GET(
     const finalBalance = Number(liq.final_balance) || 0
     const finalBalanceTarget = finalBalance * exchangeRate
 
+    const freight = Number(liq.freight_amount) || 0
+    const transport = Number(liq.transport_amount) || 0
+    const fleteYTransporte = freight + transport
+
     const expensePerBox = totalExpenses / safeCajas
     const fobEnMonedaVenta =
       fobCurrency === currency ? advanceAmount : fobExchangeRate > 0 ? advanceAmount / fobExchangeRate : advanceAmount
@@ -137,6 +146,7 @@ export async function GET(
     const mejor = analisis[0]
     const peor = analisis[analisis.length - 1]
     const mayorVolumen = [...analisis].sort((a: any, b: any) => b.cajas - a.cajas)[0]
+    const maxUtilidadAbs = Math.max(...analisis.map((a: any) => Math.abs(a.utilidadPorCaja)), 0.01)
 
     // 4. Dibujar el PDF
     const pdf = await new Promise<Buffer>((resolve, reject) => {
@@ -154,9 +164,44 @@ export async function GET(
         console.error('[LIQUIDACION-PDF] No se pudieron registrar las fuentes:', e)
       }
 
+      // La versión de Roboto empaquetada pierde la 'i'/'l' cuando siguen a una
+      // 'f' minúscula ("financiero" -> "fnanciero", "flete" -> "fete"):
+      // PDFKit sustituye la ligadura tipográfica fi/fl y el subset de la
+      // fuente no la trae completa.
+      //
+      // Dos intentos previos no sirvieron: un espacio de ancho cero entre
+      // letras (esta fuente lo trata como espacio real: "frigorí ico") y
+      // desactivar la ligadura vía `features: ['-liga']` (esta versión de
+      // PDFKit lo ignora en silencio). Lo que sí funciona: partir el texto en
+      // el punto exacto entre la "f" y la "i"/"l" y dibujarlo como dos
+      // llamadas encadenadas con `continued: true` — el motor de fuentes
+      // nunca ve ambas letras juntas en la misma pasada, así que no arma la
+      // ligadura. Es el mismo patrón que ya se usa más abajo para las líneas
+      // "Abonos recibidos: <monto>".
+      const _text = doc.text.bind(doc)
+      ;(doc as any).text = function (t: any, ...args: any[]) {
+        if (typeof t !== 'string' || !/f[il]/.test(t)) return _text(t, ...args)
+
+        const partes = t.split(/(?<=f)(?=[il])/g)
+        const ultimo = args[args.length - 1]
+        const tieneOpciones = ultimo && typeof ultimo === 'object' && !Array.isArray(ultimo)
+        const opciones = tieneOpciones ? ultimo : {}
+        const posicion = tieneOpciones ? args.slice(0, -1) : args
+
+        let resultado: any
+        partes.forEach((parte, i) => {
+          const esUltimo = i === partes.length - 1
+          resultado = i === 0
+            ? _text(parte, ...posicion, { ...opciones, continued: !esUltimo })
+            : _text(parte, { continued: !esUltimo })
+        })
+        return resultado
+      }
+
       const L = 40                    // margen izquierdo
       const W = 515                   // ancho útil
       const R = L + W                 // borde derecho
+      const LIMITE_Y = 780            // debajo de esto, se considera "sin espacio"
 
       doc.addPage()
       doc.font('R')
@@ -170,13 +215,18 @@ export async function GET(
         return `${d}/${m}/${y}`
       }
 
-      // Deja espacio o salta de página si no cabe lo que viene.
-      const asegurar = (alto: number) => {
-        if (doc.y + alto > 780) {
+      // Deja espacio o salta de página si no cabe lo que viene. Devuelve si
+      // saltó, para poder repetir encabezados de tabla en la página nueva.
+      const asegurar = (alto: number): boolean => {
+        if (doc.y + alto > LIMITE_Y) {
           doc.addPage()
           doc.y = 50
+          return true
         }
+        return false
       }
+
+      const nuevaPagina = () => { doc.addPage(); doc.y = 50 }
 
       const tituloSeccion = (texto: string, color = COLOR.indigo) => {
         asegurar(40)
@@ -234,15 +284,29 @@ export async function GET(
       const colVenta = [150, 70, 75, 105, 115]
       const cabVenta = ['Envase / Embalaje', 'Calibre', 'Cajas', `Precio / caja (${simb})`, `Subtotal (${simb})`]
 
+      // Dibuja una fila de tabla. Puede pintar una barra de progreso detrás del
+      // texto de una columna (para el ranking por calibre): así el número va
+      // acompañado de su propio gráfico, sin gastar una sección aparte.
       const filaTabla = (
         valores: string[],
         anchos: number[],
-        opciones: { cabecera?: boolean; fondo?: string; negrita?: boolean; alto?: number; color?: string; tam?: number } = {}
-      ) => {
+        opciones: {
+          cabecera?: boolean; fondo?: string; negrita?: boolean; alto?: number; color?: string; tam?: number
+          barra?: { columna: number; pct: number; color: string }
+        } = {}
+      ): boolean => {
         const alto = opciones.alto || 16
-        asegurar(alto + 4)
+        const salto = asegurar(alto + 4)
         const y = doc.y
         if (opciones.fondo) doc.rect(L, y, W, alto).fill(opciones.fondo)
+
+        if (opciones.barra) {
+          let xBarra = L
+          for (let i = 0; i < opciones.barra.columna; i++) xBarra += anchos[i]
+          const anchoCelda = anchos[opciones.barra.columna]
+          const anchoBarra = Math.max(2, anchoCelda * Math.min(1, Math.max(0, opciones.barra.pct)))
+          doc.rect(xBarra + 2, y + alto - 3, anchoBarra - 4, 2).fill(opciones.barra.color)
+        }
 
         let x = L
         valores.forEach((v, i) => {
@@ -257,12 +321,15 @@ export async function GET(
 
         doc.moveTo(L, y + alto).lineTo(R, y + alto).lineWidth(0.4).strokeColor(COLOR.lineaSuave).stroke()
         doc.y = y + alto
+        return salto
       }
+
+      const truncarVenta = (s: string) => (s.length > 32 ? `${s.slice(0, 29)}...` : s)
 
       filaTabla(cabVenta, colVenta, { cabecera: true, fondo: COLOR.fondoCabecera })
       rows.forEach((r: any, i: number) => {
         filaTabla(
-          [r.envase, r.calibre, r.cajas.toLocaleString('es-CL'), dinero(r.precio), dinero(r.subtotal)],
+          [truncarVenta(r.envase), r.calibre, r.cajas.toLocaleString('es-CL'), dinero(r.precio), dinero(r.subtotal)],
           colVenta,
           { fondo: i % 2 === 1 ? COLOR.fondo : undefined }
         )
@@ -280,11 +347,11 @@ export async function GET(
 
       const gastos: [string, number][] = [
         [`Comisión de venta (${Number(liq.commission_percentage) || 0}%)`, Number(liq.commission_amount) || 0],
-        ['Flete marítimo', Number(liq.freight_amount) || 0],
+        ['Flete marítimo', freight],
         ['Handling / puerto', Number(liq.handling_amount) || 0],
         ['Almacén frigorífico', Number(liq.cold_storage_amount) || 0],
         ['Surveyor / inspección', Number(liq.surveyor_amount) || 0],
-        ['Transporte local', Number(liq.transport_amount) || 0],
+        ['Transporte local', transport],
         ['Otros gastos', Number(liq.other_expenses) || 0],
       ]
 
@@ -304,59 +371,88 @@ export async function GET(
       doc.fillColor(COLOR.rojo).font('B').fontSize(7.5).text('TOTAL DEDUCCIONES EN DESTINO', L + 8, yTotalGastos + 5)
       doc.fillColor(COLOR.rojo).font('B').fontSize(9)
         .text(`- ${dinero(totalExpenses)}`, R - 160, yTotalGastos + 4, { width: 152, align: 'right' })
-      doc.y = yTotalGastos + 32
+      doc.y = yTotalGastos + 24
+      doc.fillColor(COLOR.tenue).font('R').fontSize(6.3)
+        .text('Incluye flete marítimo y transporte local a destino, además de comisión, handling, frío y surveyor.', L, doc.y, { width: W })
+      doc.y += 12
 
-      // ── III. RESUMEN FINANCIERO ─────────────────────────────────────────────
+      // ── III. RESUMEN FINANCIERO — CASCADA HASTA LA UTILIDAD FINAL ───────────
+      // Fila a fila, para que se vea con toda claridad la resta del flete +
+      // transporte (ya dentro de "Deducciones") y del costo FOB facturado,
+      // hasta llegar a la utilidad real que le queda a la exportadora.
       tituloSeccion('III. Resumen financiero y utilidad del contenedor', COLOR.verde)
 
-      asegurar(120)
-      const yRes = doc.y
-      const resumen: [string, string, string][] = [
-        ['VENTA BRUTA TOTAL', dinero(grossSales), COLOR.tinta],
-        ['(-) DEDUCCIONES DESTINO', `- ${dinero(totalExpenses)}`, COLOR.rojo],
-        ['(=) IMPORTE NETO A FAVOR', dinero(netAmount), COLOR.verde],
-        ['(-) VALOR FOB FACTURADO', dinero(advanceAmount, simbFob), COLOR.tinta],
-      ]
-      resumen.forEach(([etiqueta, valor, color], i) => {
-        const x = L + i * (W / 4)
-        doc.fillColor(COLOR.tenue).font('B').fontSize(5.8).text(etiqueta, x, yRes, { width: W / 4 - 8 })
-        doc.fillColor(color).font('B').fontSize(9).text(valor, x, yRes + 10, { width: W / 4 - 8, lineBreak: false })
-      })
-
-      let yDetalle = yRes + 30
-      if (fobCurrency !== currency) {
-        doc.fillColor(COLOR.suave).font('R').fontSize(6.5)
-          .text(`Equivalencia factura FOB: 1 ${currency} = ${fobExchangeRate} ${fobCurrency}  ·  ${dinero(fobEnMonedaVenta)} en moneda de venta`, L, yDetalle)
-        yDetalle += 12
+      const filaResumen = (
+        etiqueta: string, valor: string,
+        opciones: { color?: string; negrita?: boolean; nota?: string; tam?: number } = {}
+      ) => {
+        asegurar(20)
+        const y = doc.y
+        doc.fillColor(opciones.color || COLOR.texto).font(opciones.negrita ? 'B' : 'R').fontSize(opciones.tam || 8.5)
+          .text(etiqueta, L, y, { width: 320 })
+        doc.fillColor(opciones.color || COLOR.texto).font('B').fontSize(opciones.tam || 8.5)
+          .text(valor, L + 320, y, { width: W - 320, align: 'right' })
+        doc.y = y + (opciones.tam || 8.5) + 5
+        if (opciones.nota) {
+          doc.fillColor(COLOR.tenue).font('R').fontSize(6.3).text(opciones.nota, L, doc.y, { width: W })
+          doc.y += 10
+        }
       }
 
-      doc.rect(L, yDetalle, W, 16).fill(COLOR.fondo)
+      const lineaSeparadora = () => {
+        doc.moveTo(L, doc.y).lineTo(R, doc.y).lineWidth(0.5).strokeColor(COLOR.lineaSuave).stroke()
+        doc.y += 6
+      }
+
+      filaResumen('Venta Bruta Total', dinero(grossSales))
+      filaResumen('(-) Deducciones en Destino (incl. flete y transporte)', `- ${dinero(totalExpenses)}`, { color: COLOR.rojo })
+      lineaSeparadora()
+      filaResumen('(=) Importe Neto a Favor', dinero(netAmount), { negrita: true, color: COLOR.verde, tam: 9.5 })
+      filaResumen(
+        '(-) Costo FOB Facturado (valor de la fruta ya pagado)',
+        `- ${dinero(advanceAmount, simbFob)}`,
+        {
+          color: COLOR.rojo,
+          nota: fobCurrency !== currency
+            ? `Equivalencia: 1 ${currency} = ${fobExchangeRate} ${fobCurrency}  ->  ${dinero(fobEnMonedaVenta)} en moneda de venta`
+            : undefined,
+        }
+      )
+      lineaSeparadora()
+
+      asegurar(16)
+      doc.rect(L, doc.y, W, 16).fill(COLOR.fondo)
       doc.fillColor(COLOR.suave).font('R').fontSize(7)
-        .text(`Abonos recibidos a factura: `, L + 8, yDetalle + 5, { continued: true })
+        .text(`Abonos recibidos a factura: `, L + 8, doc.y + 5, { continued: true })
         .fillColor(COLOR.verde).font('B').text(dinero(abonosAmount, simbFob))
       doc.fillColor(COLOR.suave).font('R').fontSize(7)
-        .text(`Saldo pendiente de factura FOB: `, L + W / 2, yDetalle + 5, { continued: true })
+        .text(`Saldo pendiente de factura FOB: `, L + W / 2, doc.y + 5, { continued: true })
         .fillColor(COLOR.ambar).font('B').text(dinero(Math.max(advanceAmount - abonosAmount, 0), simbFob))
-      yDetalle += 22
+      doc.y += 22
 
       if (currency !== targetCurrency) {
+        asegurar(14)
         doc.fillColor(COLOR.suave).font('R').fontSize(6.8)
           .text(
-            `Tasa de cambio aplicada (${currency} → ${targetCurrency}): 1 ${currency} = ${exchangeRate} ${targetCurrency}` +
+            `Tasa de cambio aplicada (${currency} -> ${targetCurrency}): 1 ${currency} = ${exchangeRate} ${targetCurrency}` +
             (liq.rate_provider_info ? `  ·  ${liq.rate_provider_info}` : ''),
-            L, yDetalle
+            L, doc.y
           )
-        yDetalle += 14
+        doc.y += 14
       }
 
-      // Cuadro destacado con el resultado del negocio
+      // Cuadro destacado con el resultado final del negocio
+      asegurar(50)
+      const yDetalle = doc.y
       const positivo = finalBalance >= 0
       doc.rect(L, yDetalle, W, 46).fill(positivo ? COLOR.verdeFondo : COLOR.ambarFondo)
       doc.rect(L, yDetalle, W, 46).lineWidth(1).strokeColor(positivo ? COLOR.verde : COLOR.ambar).stroke()
       doc.fillColor(positivo ? COLOR.verde : COLOR.ambar).font('B').fontSize(7.5)
         .text(
-          positivo ? 'UTILIDAD NETA TOTAL DEL CONTENEDOR (A FAVOR DEL EXPORTADOR)' : 'RESULTADO POR DEBAJO DEL COSTO FOB FACTURADO',
-          L + 12, yDetalle + 8
+          positivo
+            ? '(=) UTILIDAD FINAL DEL NEGOCIO PARA LA EXPORTADORA (VENTA - GASTOS - FOB)'
+            : 'RESULTADO POR DEBAJO DEL COSTO FOB FACTURADO',
+          L + 12, yDetalle + 8, { width: W - 24 }
         )
       doc.fillColor(positivo ? COLOR.verde : COLOR.ambar).font('B').fontSize(19)
         .text(`${simbTarget} ${finalBalanceTarget.toLocaleString('es-CL', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} ${targetCurrency}`, L + 12, yDetalle + 20)
@@ -365,21 +461,39 @@ export async function GET(
 
       doc.y = yDetalle + 62
 
-      // ── IV. RANKING POR CALIBRE ─────────────────────────────────────────────
+      // ── IV. RANKING POR CALIBRE — con barra de margen integrada ─────────────
+      // Página nueva siempre: antes la tabla arrancaba a dos filas del final
+      // de la página anterior y se veía cortada de forma arbitraria.
+      nuevaPagina()
       tituloSeccion('IV. Rentabilidad por calibre (de mayor a menor margen)')
+      doc.fillColor(COLOR.tenue).font('R').fontSize(6.5)
+        .text('La barra bajo "Utilidad/caja" representa su magnitud relativa frente al mejor y peor calibre del contenedor.', L, doc.y, { width: W })
+      doc.y += 10
 
-      const colRank = [26, 96, 52, 66, 62, 62, 68, 83]
-      filaTabla(
-        ['#', 'Embalaje', 'Calibre', 'Cajas (%)', 'Gastos/caja', 'FOB/caja', `Utilidad/caja`, `Aporte (${targetCurrency})`],
-        colRank,
-        { cabecera: true, fondo: COLOR.fondoCabecera, alto: 18 }
-      )
+      // Embalaje va ancho a propósito: nombres reales como "LEMONS BLANCA
+      // (LE16) 15 KG" no caben en una columna angosta. Antes, con 88pt,
+      // PDFKit envolvía el texto a una segunda línea que se montaba sobre la
+      // fila siguiente — se ve como filas superpuestas/corridas.
+      const colRank = [20, 149, 42, 56, 50, 48, 60, 90]
+      const cabRank = ['#', 'Embalaje', 'Calibre', 'Cajas (%)', 'Gastos/caja', 'FOB/caja', 'Utilidad/caja', `Aporte (${targetCurrency})`]
+
+      // Red de seguridad adicional: si aun así un nombre no entra en una
+      // línea, se recorta con puntos suspensivos en vez de desbordar la fila.
+      const truncar = (s: string, maxChars: number) => (s.length > maxChars ? `${s.slice(0, maxChars - 3)}...` : s)
+
+      filaTabla(cabRank, colRank, { cabecera: true, fondo: COLOR.fondoCabecera, alto: 18 })
 
       analisis.forEach((a: any, i: number) => {
+        // Si la fila no cabe, se rompe página ANTES de dibujarla y se repite
+        // el encabezado — así nunca queda una fila "huérfana" sin sus títulos.
+        if (doc.y + 20 > LIMITE_Y) {
+          nuevaPagina()
+          filaTabla(cabRank, colRank, { cabecera: true, fondo: COLOR.fondoCabecera, alto: 18 })
+        }
         filaTabla(
           [
             `${i + 1}`,
-            a.envase,
+            truncar(a.envase, 26),
             a.calibre,
             `${a.cajas.toLocaleString('es-CL')} (${a.porcentajeVolumen.toFixed(1)}%)`,
             `-${dinero(expensePerBox)}`,
@@ -388,43 +502,21 @@ export async function GET(
             dinero(a.aporteTotal, simbTarget),
           ],
           colRank,
-          { fondo: i % 2 === 1 ? COLOR.fondo : undefined, color: a.utilidadPorCaja < 0 ? COLOR.rojo : COLOR.texto }
+          {
+            fondo: i % 2 === 1 ? COLOR.fondo : undefined,
+            color: a.utilidadPorCaja < 0 ? COLOR.rojo : COLOR.texto,
+            barra: {
+              columna: 6,
+              pct: Math.abs(a.utilidadPorCaja) / maxUtilidadAbs,
+              color: a.utilidadPorCaja >= 0 ? COLOR.verdeBorde : COLOR.rojoBorde,
+            },
+          }
         )
       })
 
       doc.y += 14
 
-      // ── V. LECTURA GERENCIAL ────────────────────────────────────────────────
-      tituloSeccion('V. Lectura gerencial y decisiones de cosecha')
-
-      const grupos: [string, string, string[]][] = [
-        ['ESTRELLAS DE EXPORTACIÓN', 'Alto volumen y alto margen: el motor de ganancias del despacho.',
-          analisis.filter((a: any) => a.cuadrante === 'ESTRELLA').map((a: any) => `Calibre ${a.calibre} (${a.envase}) · ${dinero(a.utilidadPorCaja)}/caja · ${a.cajas} cajas`)],
-        ['NICHOS DE ALTO MARGEN', 'Excelente margen unitario pero poco volumen: conviene embalar más.',
-          analisis.filter((a: any) => a.cuadrante === 'NICHO').map((a: any) => `Calibre ${a.calibre} (${a.envase}) · ${dinero(a.utilidadPorCaja)}/caja · ${a.cajas} cajas`)],
-        ['VOLUMEN COMMODITY', 'Mucha carga con margen ajustado: renegociar comisión y flete.',
-          analisis.filter((a: any) => a.cuadrante === 'COMMODITY').map((a: any) => `Calibre ${a.calibre} (${a.envase}) · ${dinero(a.utilidadPorCaja)}/caja · ${a.cajas} cajas`)],
-        ['CALIBRES EN PÉRDIDA', 'Restan valor: renegociar precio mínimo o derivar a mercado interno.',
-          analisis.filter((a: any) => a.cuadrante === 'PERDIDA').map((a: any) => `Calibre ${a.calibre} (${a.envase}) · ${dinero(a.utilidadPorCaja)}/caja · ${a.cajas} cajas`)],
-      ]
-
-      grupos.forEach(([titulo, explicacion, lineas]) => {
-        asegurar(30 + lineas.length * 10)
-        const esPerdida = titulo.includes('PÉRDIDA')
-        doc.fillColor(esPerdida ? COLOR.rojo : COLOR.tinta).font('B').fontSize(7.5).text(titulo, L + 4, doc.y)
-        doc.fillColor(COLOR.suave).font('R').fontSize(6.8).text(explicacion, L + 4, doc.y + 1)
-        if (lineas.length === 0) {
-          doc.fillColor(COLOR.tenue).font('R').fontSize(7)
-            .text(esPerdida ? 'Ningún calibre registró pérdida en este contenedor.' : 'Sin calibres en esta categoría.', L + 12, doc.y + 2)
-        } else {
-          lineas.forEach(linea => {
-            doc.fillColor(COLOR.texto).font('R').fontSize(7).text(`•  ${linea}`, L + 12, doc.y + 1)
-          })
-        }
-        doc.y += 8
-      })
-
-      // Dictamen
+      // Dictamen ejecutivo — resumen narrativo de la tabla anterior
       asegurar(70)
       const yDic = doc.y
       doc.rect(L, yDic, W, 58).fill(COLOR.fondo)
@@ -441,9 +533,83 @@ export async function GET(
       )
       doc.y = yDic + 70
 
+      // ── V. MATRIZ GERENCIAL 2x2 — cuadrantes visuales de colores ────────────
+      // Antes eran listas de texto plano; se restituye la matriz visual que
+      // tenía la vista en pantalla, con un color por cuadrante.
+      nuevaPagina()
+      tituloSeccion('V. Matriz gerencial 2x2 de decisiones de cosecha')
+
+      const cuadrantes = [
+        {
+          titulo: 'ESTRELLAS DE EXPORTACIÓN', sub: 'Alto volumen + alto margen',
+          desc: 'Motor principal de ganancias: prioriza su venta.',
+          bg: COLOR.verdeFondo, borde: COLOR.verdeBorde, texto: COLOR.verde,
+          items: analisis.filter((a: any) => a.cuadrante === 'ESTRELLA'),
+        },
+        {
+          titulo: 'NICHOS DE ALTO MARGEN', sub: 'Bajo volumen + alto margen',
+          desc: 'Buen retorno unitario: conviene embalar más.',
+          bg: COLOR.tealFondo, borde: COLOR.tealBorde, texto: COLOR.teal,
+          items: analisis.filter((a: any) => a.cuadrante === 'NICHO'),
+        },
+        {
+          titulo: 'VOLUMEN COMMODITY', sub: 'Alto volumen + margen estándar',
+          desc: 'Mucha carga con margen ajustado: renegociar comisión y flete.',
+          bg: COLOR.fondo, borde: COLOR.linea, texto: COLOR.texto,
+          items: analisis.filter((a: any) => a.cuadrante === 'COMMODITY'),
+        },
+        {
+          titulo: 'CALIBRES EN PÉRDIDA', sub: 'Resultado negativo',
+          desc: 'Restan valor: renegociar precio o derivar a mercado interno.',
+          bg: COLOR.rojoFondo, borde: COLOR.rojoBorde, texto: COLOR.rojo,
+          items: analisis.filter((a: any) => a.cuadrante === 'PERDIDA'),
+        },
+      ]
+
+      const anchoCaja = (W - 14) / 2
+      const dibujarCuadrante = (x: number, y: number, w: number, h: number, c: typeof cuadrantes[number]) => {
+        doc.rect(x, y, w, h).fill(c.bg)
+        doc.rect(x, y, w, h).lineWidth(1).strokeColor(c.borde).stroke()
+        doc.fillColor(c.texto).font('B').fontSize(7.5).text(c.titulo, x + 10, y + 8, { width: w - 20 })
+        doc.fillColor(c.texto).font('R').fontSize(6).text(c.sub.toUpperCase(), x + 10, y + 19, { width: w - 20 })
+        doc.fillColor(COLOR.texto).font('R').fontSize(6.5).text(c.desc, x + 10, y + 29, { width: w - 20 })
+        let yItem = y + 42
+        if (c.items.length === 0) {
+          doc.fillColor(COLOR.tenue).font('R').fontSize(6.5)
+            .text('Sin calibres en esta categoría.', x + 10, yItem, { width: w - 20 })
+        } else {
+          c.items.forEach((it: any) => {
+            const envaseCorto = it.envase.length > 18 ? `${it.envase.slice(0, 15)}...` : it.envase
+            doc.fillColor(c.texto).font('B').fontSize(6.5)
+              .text(`Calibre ${it.calibre} (${envaseCorto})`, x + 10, yItem, { width: w - 90, lineBreak: false })
+            doc.fillColor(c.texto).font('B').fontSize(6.5)
+              .text(`${dinero(it.utilidadPorCaja)}/caja`, x + w - 82, yItem, { width: 72, align: 'right', lineBreak: false })
+            yItem += 10.5
+          })
+        }
+      }
+
+      // Alto dinámico por fila de cuadrantes, según cuántos calibres listar.
+      const altoFila = (a: typeof cuadrantes[number], b: typeof cuadrantes[number]) =>
+        Math.max(70, 46 + Math.max(a.items.length, b.items.length, 1) * 10.5)
+
+      const altoFila1 = altoFila(cuadrantes[0], cuadrantes[1])
+      asegurar(altoFila1)
+      let yFila = doc.y
+      dibujarCuadrante(L, yFila, anchoCaja, altoFila1, cuadrantes[0])
+      dibujarCuadrante(L + anchoCaja + 14, yFila, anchoCaja, altoFila1, cuadrantes[1])
+      doc.y = yFila + altoFila1 + 12
+
+      const altoFila2 = altoFila(cuadrantes[2], cuadrantes[3])
+      asegurar(altoFila2)
+      yFila = doc.y
+      dibujarCuadrante(L, yFila, anchoCaja, altoFila2, cuadrantes[2])
+      dibujarCuadrante(L + anchoCaja + 14, yFila, anchoCaja, altoFila2, cuadrantes[3])
+      doc.y = yFila + altoFila2 + 20
+
       // ── FIRMAS ──────────────────────────────────────────────────────────────
       asegurar(60)
-      const yFirma = Math.max(doc.y + 20, 700)
+      const yFirma = doc.y + 20
       doc.moveTo(L + 30, yFirma).lineTo(L + 210, yFirma).lineWidth(0.5).strokeColor(COLOR.tenue).stroke()
       doc.moveTo(R - 210, yFirma).lineTo(R - 30, yFirma).lineWidth(0.5).strokeColor(COLOR.tenue).stroke()
       doc.fillColor(COLOR.texto).font('B').fontSize(7)
