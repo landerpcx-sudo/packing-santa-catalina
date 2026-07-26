@@ -8,7 +8,7 @@ import {
   XCircle, FileText, RefreshCw, ExternalLink, FolderOpen,
   Calendar, User, MapPin, Building2, Package, Image as ImageIcon, Trash2, Edit2,
   Download, Lock, ShieldAlert, DollarSign, Save, MoreVertical, Thermometer,
-  ClipboardCheck, Archive, FileSpreadsheet, Wallet, BarChart3
+  ClipboardCheck, Archive, FileSpreadsheet, Wallet, BarChart3, Loader2
 } from 'lucide-react'
 import PalletUploadZone from '@/components/despachos/PalletUploadZone'
 import UploadZone from '@/components/lotes/UploadZone'
@@ -882,8 +882,8 @@ export default function DispatchDetailPage({ params }: { params: Promise<{ id: s
   )
 }
 
-// Tarjeta de la pestaña de informes: cada salida explica qué contiene, en vez
-// de ser un botón con un nombre que no distingue un PDF del otro.
+// Tarjeta de la pestaña de informes: muestra una barra de carga dinámica al generar
+// PDFs o compilar archivos ZIP para dar feedback en tiempo real al usuario.
 function TarjetaInforme({
   icono, color, titulo, descripcion, detalle, href, textoBoton, descarga = false,
 }: {
@@ -896,14 +896,91 @@ function TarjetaInforme({
   textoBoton: string
   descarga?: boolean
 }) {
+  const [generando, setGenerando] = useState(false)
+  const [progreso, setProgreso] = useState(0)
+  const [estadoTexto, setEstadoTexto] = useState('')
+  const [errorMsg, setErrorMsg] = useState<string | null>(null)
+  const timerRef = useRef<ReturnType<typeof setInterval> | null>(null)
+
   const colores = {
     indigo: 'bg-indigo-500/10 border-indigo-500/20 text-indigo-400',
     emerald: 'bg-emerald-500/10 border-emerald-500/20 text-emerald-400',
     blue: 'bg-blue-500/10 border-blue-500/20 text-blue-400',
   }[color]
 
+  const barColores = {
+    indigo: 'bg-indigo-500',
+    emerald: 'bg-emerald-500',
+    blue: 'bg-blue-500',
+  }[color]
+
+  const handleDescarga = async () => {
+    if (generando) return
+    setGenerando(true)
+    setErrorMsg(null)
+    setProgreso(10)
+    setEstadoTexto('Iniciando procesamiento...')
+
+    let p = 10
+    timerRef.current = setInterval(() => {
+      p += Math.floor(Math.random() * 8) + 4
+      if (p > 90) p = 90
+      setProgreso(p)
+      if (p > 30 && p <= 60) setEstadoTexto('Recopilando documentos y datos...')
+      else if (p > 60 && p <= 85) setEstadoTexto('Generando y formateando archivo...')
+      else if (p > 85) setEstadoTexto('Finalizando y empaquetando...')
+    }, 400)
+
+    try {
+      const res = await fetch(href)
+      if (timerRef.current) clearInterval(timerRef.current)
+
+      if (!res.ok) {
+        let text = 'Error al generar el archivo.'
+        try {
+          const errJson = await res.json()
+          if (errJson.error) text = errJson.error
+        } catch {}
+        throw new Error(text)
+      }
+
+      setProgreso(100)
+      setEstadoTexto('¡Completado! Abriendo...')
+
+      const blob = await res.blob()
+      const blobUrl = window.URL.createObjectURL(blob)
+
+      if (descarga) {
+        const contentDisp = res.headers.get('content-disposition')
+        let filename = 'archivo.zip'
+        if (contentDisp && contentDisp.includes('filename=')) {
+          filename = contentDisp.split('filename=')[1].replace(/"/g, '')
+        }
+        const a = document.createElement('a')
+        a.href = blobUrl
+        a.download = filename
+        document.body.appendChild(a)
+        a.click()
+        a.remove()
+      } else {
+        window.open(blobUrl, '_blank')
+      }
+
+      setTimeout(() => {
+        setGenerando(false)
+        setProgreso(0)
+        setEstadoTexto('')
+      }, 1200)
+    } catch (err: any) {
+      if (timerRef.current) clearInterval(timerRef.current)
+      setGenerando(false)
+      setProgreso(0)
+      setErrorMsg(err.message || 'Ocurrió un error inesperado')
+    }
+  }
+
   return (
-    <div className="bg-white/3 border border-white/8 rounded-2xl p-5 flex flex-col gap-3">
+    <div className="bg-white/3 border border-white/8 rounded-2xl p-5 flex flex-col gap-3 relative overflow-hidden transition-all hover:border-white/15">
       <div className={`w-12 h-12 rounded-2xl border flex items-center justify-center ${colores}`}>
         {icono}
       </div>
@@ -912,14 +989,54 @@ function TarjetaInforme({
         <p className="text-gray-400 text-xs mt-1.5 leading-relaxed">{descripcion}</p>
         <p className="text-gray-500 text-[11px] mt-2 font-mono">{detalle}</p>
       </div>
-      <a
-        href={href}
-        {...(descarga ? {} : { target: '_blank', rel: 'noopener noreferrer' })}
-        className={`flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl border text-xs font-bold transition-all hover:brightness-125 ${colores}`}
+
+      {generando && (
+        <div className="space-y-2 my-1">
+          <div className="flex items-center justify-between text-xs">
+            <span className="text-gray-300 font-medium flex items-center gap-1.5 truncate">
+              <Loader2 className="w-3.5 h-3.5 animate-spin text-indigo-400 shrink-0" />
+              <span className="truncate">{estadoTexto}</span>
+            </span>
+            <span className="text-gray-300 font-mono font-bold shrink-0 ml-2">{progreso}%</span>
+          </div>
+          <div className="h-2 w-full bg-white/10 rounded-full overflow-hidden p-0.5 border border-white/5">
+            <div
+              className={`h-full rounded-full transition-all duration-300 ${barColores}`}
+              style={{ width: `${progreso}%` }}
+            />
+          </div>
+        </div>
+      )}
+
+      {errorMsg && (
+        <div className="p-2.5 rounded-xl bg-red-500/10 border border-red-500/20 text-red-400 text-xs flex items-start gap-2">
+          <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" />
+          <span className="flex-1">{errorMsg}</span>
+        </div>
+      )}
+
+      <button
+        type="button"
+        onClick={handleDescarga}
+        disabled={generando}
+        className={`w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl border text-xs font-bold transition-all ${
+          generando
+            ? 'opacity-75 cursor-wait'
+            : 'hover:brightness-125 cursor-pointer'
+        } ${colores}`}
       >
-        {descarga ? <Download className="w-4 h-4" /> : <ExternalLink className="w-4 h-4" />}
-        {textoBoton}
-      </a>
+        {generando ? (
+          <>
+            <Loader2 className="w-4 h-4 animate-spin" />
+            Generando ({progreso}%)...
+          </>
+        ) : (
+          <>
+            {descarga ? <Download className="w-4 h-4" /> : <ExternalLink className="w-4 h-4" />}
+            {textoBoton}
+          </>
+        )}
+      </button>
     </div>
   )
 }
