@@ -188,15 +188,33 @@ export default function ContainerLiquidationCard({
     setMessage(null)
     setRateProviderInfo('')
     try {
+      // 1. Tasa Moneda de Venta -> Moneda Objetivo Transferencia (ej: EUR -> USD / EUR -> CLP)
       const res = await fetch(`/api/tipo-cambio?from=${currency}&to=${targetCurrency}&date=${rateDate}`)
       const data = await res.json()
+      
+      let mensajeTexto = ''
       if (res.ok && data.rate) {
         setExchangeRate(data.rate)
         setRateProviderInfo(`Fuente: ${data.provider} (${data.date})`)
-        setMessage({ type: 'success', text: `Tasa obtenida: 1 ${currency} = ${data.rate} ${targetCurrency} [${data.provider}]` })
+        mensajeTexto = `Tasa obtenida (${currency} → ${targetCurrency}): ${data.rate} [${data.provider}]`
       } else {
         setMessage({ type: 'error', text: data.error || 'No se pudo consultar el tipo de cambio oficial.' })
+        return
       }
+
+      // 2. Si la moneda FOB es distinta (ej: CLP) y la venta es en EUR/USD, obtener también la tasa oficial para FOB
+      if (fobCurrency !== currency) {
+        const fobRes = await fetch(`/api/tipo-cambio?from=${currency}&to=${fobCurrency}&date=${rateDate}`)
+        const fobData = await fobRes.json()
+        if (fobRes.ok && fobData.rate) {
+          setFobExchangeRate(fobData.rate)
+          mensajeTexto += ` · Tasa Factura FOB (${currency} → ${fobCurrency}): ${fobData.rate}`
+        }
+      } else {
+        setFobExchangeRate(1)
+      }
+
+      setMessage({ type: 'success', text: mensajeTexto })
     } catch (e) {
       setMessage({ type: 'error', text: 'Error al consultar el servicio de cambio.' })
     } finally {

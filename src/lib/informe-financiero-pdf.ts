@@ -315,8 +315,11 @@ export async function construirInformeFinancieroPDF(
     const facturaPagada = saldoFob <= 0 && advanceAmount > 0
     const rentable = finalBalance >= 0
     const margenPct = grossSales > 0 ? (finalBalance / grossSales) * 100 : 0
-    const retornoPromedioProductorCLP = (fobEnMonedaVenta * (fobExchangeRate || 1000)) / safeCajas
-    const utilidadTotalCLPEst = finalBalanceTarget * (fobExchangeRate || 1000)
+    
+    // Tasa real oficial para CLP (de la API o fobExchangeRate)
+    const tasaCLPReal = fobExchangeRate > 1 ? fobExchangeRate : (exchangeRate > 500 ? exchangeRate : 1075.0248)
+    const ingresoNetoPromedioCLP = (netAmount * tasaCLPReal) / safeCajas
+    const utilidadTotalCLPEst = targetCurrency === 'CLP' ? finalBalanceTarget : finalBalance * tasaCLPReal
 
     const tarjetas: Array<{ etiqueta: string; cifra: string; pie: string; color: string; fondo: string }> = [
       {
@@ -333,8 +336,8 @@ export async function construirInformeFinancieroPDF(
         fondo: rentable ? COLOR.verdeFondo : COLOR.rojoFondo,
       },
       {
-        etiqueta: 'RETORNO PROMEDIO PROD.',
-        cifra: clp(retornoPromedioProductorCLP),
+        etiqueta: 'ING. NETO PROMEDIO DESTINO',
+        cifra: clp(ingresoNetoPromedioCLP),
         pie: `FOB Fruta: ${dinero(advanceAmount, simbFob)}`,
         color: COLOR.teal,
         fondo: COLOR.tealFondo,
@@ -748,7 +751,7 @@ export async function construirInformeFinancieroPDF(
     // "Cajas (%)" necesita 62pt: con 56 el calibre más numeroso ("1.120 (26.3%)")
     // se partía en dos líneas y se montaba sobre la fila siguiente.
     const colRank = [22, 116, 36, 56, 52, 75, 68, 90]
-    const cabRank = ['#', 'Embalaje', 'Calibre', 'Cajas (%)', 'Gastos/caja', 'Retorno Prod. (CLP)', `Utilidad (${targetCurrency})`, `Aporte (${targetCurrency})`]
+    const cabRank = ['#', 'Embalaje', 'Calibre', 'Cajas (%)', 'Gastos/caja', 'Ingreso Neto (CLP)', `Utilidad (${targetCurrency})`, `Aporte (${targetCurrency})`]
 
     // Red de seguridad adicional: si aun así un nombre no entra en una
     // línea, se recorta con puntos suspensivos en vez de desbordar la fila.
@@ -789,14 +792,14 @@ export async function construirInformeFinancieroPDF(
 
     doc.y += 10
 
-    // ── NICO GRÁFICO 1 & 2: INTELIGENCIA GRÁFICA DE CALIBRES EN PÁGINA 3 ───────
+    // ── INTELIGENCIA GRÁFICA DE CALIBRES EN PÁGINA 3 ────────────
     asegurar(160)
     const yGraficosP3 = doc.y
 
     // Título de la subsección gráfica
     doc.rect(L, yGraficosP3, W, 16).fill(COLOR.fondoCabecera)
     doc.fillColor(COLOR.tinta).font('B').fontSize(7.5)
-      .text('INTELIGENCIA GRÁFICA: CURVA DE CAJAS & RETORNO EN PESOS CHILENOS (CLP / CAJA)', L + 8, yGraficosP3 + 4)
+      .text('INTELIGENCIA GRÁFICA: CURVA DE CAJAS & INGRESO NETO EN PESOS CHILENOS (CLP / CAJA)', L + 8, yGraficosP3 + 4)
 
     let yFilaGraf = yGraficosP3 + 22
     const anchoMitad = (W - 14) / 2
@@ -821,12 +824,12 @@ export async function construirInformeFinancieroPDF(
       yBarraCajas += 17
     })
 
-    // Gráfico Derecho: Retorno Neto al Productor en CLP
+    // Gráfico Derecho: Ingreso Neto Venta Destino en CLP
     const xGrafDerecha = L + anchoMitad + 14
     doc.rect(xGrafDerecha, yFilaGraf, anchoMitad, 130).fill(COLOR.fondo)
     doc.rect(xGrafDerecha, yFilaGraf, anchoMitad, 130).lineWidth(0.5).strokeColor(COLOR.lineaSuave).stroke()
     doc.fillColor(COLOR.teal).font('B').fontSize(7)
-      .text('RETORNO ESTIMADO PRODUCTOR ($ CLP / CAJA)', xGrafDerecha + 8, yFilaGraf + 6)
+      .text('INGRESO NETO VENTA DESTINO ($ CLP / CAJA)', xGrafDerecha + 8, yFilaGraf + 6)
 
     const maxRetornoCLP = Math.max(...analisis.map((a: any) => Math.abs(a.retornoProductorCLP)), 1)
     let yBarraCLP = yFilaGraf + 18
