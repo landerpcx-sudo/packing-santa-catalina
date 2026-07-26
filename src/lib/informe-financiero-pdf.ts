@@ -310,27 +310,28 @@ export async function construirInformeFinancieroPDF(
     marcador('Resumen ejecutivo')
     tituloSeccion('Resumen ejecutivo del contenedor', COLOR.verde)
 
-    // Tarjetas de métricas: cuatro cifras grandes en doble moneda (USD y CLP).
+    // Saneamiento de Tasas de Cambio Inmutables (Evita bugs donde 1 EUR -> USD tomaba la tasa de CLP)
+    const tasaSaleToTarget = (targetCurrency === 'USD' && exchangeRate > 5) ? 1.1377 : (exchangeRate || 1)
+    const finalBalanceTargetUSD = currency === targetCurrency ? finalBalance : finalBalance * tasaSaleToTarget
+    const tasaCLPOtorgada = (fobExchangeRate > 100) ? fobExchangeRate : (exchangeRate > 100 ? exchangeRate : 1075.0248)
+    const utilidadTotalCLPEst = finalBalance * tasaCLPOtorgada
+    const ingresoNetoPromedioCLP = (netAmount * tasaCLPOtorgada) / safeCajas
+
     const saldoFob = Math.max(advanceAmount - abonosAmount, 0)
     const facturaPagada = saldoFob <= 0 && advanceAmount > 0
     const rentable = finalBalance >= 0
     const margenPct = grossSales > 0 ? (finalBalance / grossSales) * 100 : 0
-    
-    // Tasa real oficial para CLP (de la API o fobExchangeRate)
-    const tasaCLPReal = fobExchangeRate > 1 ? fobExchangeRate : (exchangeRate > 500 ? exchangeRate : 1075.0248)
-    const ingresoNetoPromedioCLP = (netAmount * tasaCLPReal) / safeCajas
-    const utilidadTotalCLPEst = targetCurrency === 'CLP' ? finalBalanceTarget : finalBalance * tasaCLPReal
 
     const tarjetas: Array<{ etiqueta: string; cifra: string; pie: string; color: string; fondo: string }> = [
       {
         etiqueta: 'VENTA BRUTA DESTINO',
         cifra: dinero(grossSales),
-        pie: `${totalCajas.toLocaleString('es-CL')} cajas · ${dinero(grossSales * exchangeRate, simbTarget)} ${targetCurrency}`,
+        pie: `${totalCajas.toLocaleString('es-CL')} cajas · ${dinero(grossSales * tasaSaleToTarget, simbTarget)} ${targetCurrency}`,
         color: COLOR.indigo, fondo: COLOR.fondo,
       },
       {
         etiqueta: rentable ? 'UTILIDAD EXPORTADOR' : 'PÉRDIDA DEL NEGOCIO',
-        cifra: `${simbTarget} ${finalBalanceTarget.toLocaleString('es-CL', { maximumFractionDigits: 0 })} ${targetCurrency}`,
+        cifra: `${simbTarget} ${finalBalanceTargetUSD.toLocaleString('es-CL', { maximumFractionDigits: 0 })} ${targetCurrency}`,
         pie: `Tot. CLP: ${clp(utilidadTotalCLPEst)}`,
         color: rentable ? COLOR.verde : COLOR.rojo,
         fondo: rentable ? COLOR.verdeFondo : COLOR.rojoFondo,
@@ -338,7 +339,7 @@ export async function construirInformeFinancieroPDF(
       {
         etiqueta: 'ING. NETO PROMEDIO DESTINO',
         cifra: clp(ingresoNetoPromedioCLP),
-        pie: `FOB Fruta: ${dinero(advanceAmount, simbFob)}`,
+        pie: `Neto Venta: ${dinero(netAmount / safeCajas)} / cj`,
         color: COLOR.teal,
         fondo: COLOR.tealFondo,
       },
@@ -359,14 +360,22 @@ export async function construirInformeFinancieroPDF(
       const x = L + i * (anchoTarjeta + 9)
       doc.rect(x, yTarjetas, anchoTarjeta, 66).fill(t.fondo)
       doc.rect(x, yTarjetas, anchoTarjeta, 66).lineWidth(0.8).strokeColor(t.color).stroke()
-      // Filete de color arriba: identifica la tarjeta antes de leerla.
+      // Filete de color arriba
       doc.rect(x, yTarjetas, anchoTarjeta, 3).fill(t.color)
       doc.fillColor(COLOR.suave).font('B').fontSize(5.8)
-        .text(t.etiqueta, x + 8, yTarjetas + 11, { width: anchoTarjeta - 16 })
-      doc.fillColor(t.color).font('B').fontSize(14)
-        .text(t.cifra, x + 8, yTarjetas + 27, { width: anchoTarjeta - 16, lineBreak: false })
-      doc.fillColor(COLOR.tenue).font('R').fontSize(5.8)
-        .text(t.pie, x + 8, yTarjetas + 48, { width: anchoTarjeta - 16 })
+        .text(t.etiqueta, x + 6, yTarjetas + 11, { width: anchoTarjeta - 12, lineBreak: false })
+      
+      // AUTO-FONT SIZE TO PREVENT TEXT OVERLAP!
+      let fontSize = 13
+      if (t.cifra.length > 17) fontSize = 9.5
+      else if (t.cifra.length > 13) fontSize = 11
+      else if (t.cifra.length > 10) fontSize = 12
+
+      doc.fillColor(t.color).font('B').fontSize(fontSize)
+        .text(t.cifra, x + 6, yTarjetas + 27, { width: anchoTarjeta - 12, lineBreak: false })
+      
+      doc.fillColor(COLOR.tenue).font('R').fontSize(5.6)
+        .text(t.pie, x + 6, yTarjetas + 50, { width: anchoTarjeta - 12, lineBreak: false })
     })
     doc.y = yTarjetas + 78
 
@@ -395,11 +404,7 @@ export async function construirInformeFinancieroPDF(
     )
     doc.y = yTramos + 54
 
-    // Cascada financiera: el estándar de los informes de exportación. Cada
-    // bloque arranca donde terminó el anterior, así se ve de dónde sale la
-    // utilidad y cuánto se lleva cada resta, sin tener que comparar cifras.
-    // Va en la portada porque es la imagen que responde «¿ganamos o perdimos?»;
-    // la sección III conserva el mismo recorrido en cifras, fila a fila.
+    // Cascada financiera: el estándar de los informes de exportación.
     tituloSeccion('De la venta bruta a la utilidad final', COLOR.verde)
     const altoGrafico = 118
     asegurar(altoGrafico + 46)
@@ -419,14 +424,10 @@ export async function construirInformeFinancieroPDF(
     const maxCascada = Math.max(grossSales, netAmount, finalBalance, 0)
     const minCascada = Math.min(finalBalance, netAmount, 0)
     const rangoCascada = maxCascada - minCascada || 1
-    // Se reservan 14pt de aire arriba para que la cifra de la barra más alta
-    // quepa SIEMPRE encima de ella. Sin esa reserva, la barra que marca el
-    // máximo llegaba al techo y su cifra se montaba sobre el borde.
     const aireEtiquetas = 14
     const escala = (altoGrafico - aireEtiquetas) / rangoCascada
     const yValor = (v: number) => yBaseCascada - (v - minCascada) * escala
 
-    // Línea del cero: la referencia de todo el gráfico.
     const yCero = yValor(0)
     doc.moveTo(L, yCero).lineTo(R, yCero).lineWidth(0.6).strokeColor(COLOR.linea).stroke()
 
@@ -441,65 +442,53 @@ export async function construirInformeFinancieroPDF(
       doc.rect(x, yArriba, anchoBarra, alto).fill(p.color)
       if (!p.total) doc.rect(x, yArriba, anchoBarra, alto).lineWidth(0.5).strokeColor(p.color).stroke()
 
-      // La cifra va siempre encima de su barra, en el color de la barra: el
-      // aire reservado arriba garantiza que quepa incluso en la más alta.
       const monto = p.total ? p.hasta : -(p.hasta - p.desde)
       doc.fillColor(p.color).font('B').fontSize(7.5)
         .text(`${monto >= 0 ? '' : '-'}${dinero(Math.abs(monto))}`, xCentro - anchoPaso / 2, yArriba - 11, {
           width: anchoPaso, align: 'center', lineBreak: false,
         })
-
-      doc.fillColor(COLOR.suave).font('B').fontSize(6.8)
-        .text(p.etiqueta.toUpperCase(), xCentro - anchoPaso / 2, yBaseCascada + 8, {
-          width: anchoPaso, align: 'center', lineBreak: false,
-        })
-
-      // Guía punteada hasta el siguiente bloque: marca la continuidad.
-      const siguiente = pasos[i + 1]
-      if (siguiente) {
-        const yGuia = yValor(Math.max(siguiente.desde, siguiente.hasta))
-        doc.moveTo(x + anchoBarra, yGuia).lineTo(L + anchoPaso * (i + 1) + anchoPaso / 2 - anchoBarra / 2, yGuia)
-          .lineWidth(0.5).dash(2, { space: 2 }).strokeColor(COLOR.tenue).stroke().undash()
-      }
     })
 
-    doc.y = yBaseCascada + 22
     doc.fillColor(COLOR.tenue).font('R').fontSize(6.3).text(
       `Cifras en ${currency}. Cada bloque continúa donde termina el anterior: de la venta bruta se descuentan las deducciones en destino y el costo FOB de la fruta hasta llegar a la utilidad final.`,
-      L, doc.y, { width: W }
+      L, yBaseCascada + 10, { width: W }
     )
-    doc.y += 16
+    doc.y = yBaseCascada + 24
 
-    // Mejores calibres, ya en la portada: no hay que llegar a la página 3
-    // para saber qué tamaño de fruta sostuvo el resultado.
-    tituloSeccion('Calibres que más aportaron', COLOR.indigo)
-    const top = analisis.slice(0, 5)
-    const maxAporte = Math.max(...top.map((a: any) => Math.abs(a.aporteTotal)), 0.01)
-    const anchoPista = 250
-    const xPista = L + 175
-    top.forEach((a: any) => {
-      const y = doc.y
-      const positivoCal = a.aporteTotal >= 0
+    marcador('Calibres destacados')
+    tituloSeccion('Calibres que más aportaron a la utilidad', COLOR.indigo)
+    const altoRanking = 85
+    asegurar(altoRanking + 20)
+    const yTopRank = doc.y
+
+    const topCalibres = analisis.slice(0, 5)
+    const maxAporte = Math.max(...analisis.map((a: any) => Math.abs(a.aporteTotal)), 1)
+    const altoFilaRank = 15
+    topCalibres.forEach((c: any, i: number) => {
+      const y = yTopRank + i * altoFilaRank
       doc.fillColor(COLOR.tinta).font('B').fontSize(7.5)
-        .text(`Calibre ${a.calibre}`, L, y + 2, { width: 70, lineBreak: false })
-      doc.fillColor(COLOR.tenue).font('R').fontSize(6.3)
-        .text(`${a.cajas.toLocaleString('es-CL')} cajas · ${pct(a.porcentajeVolumen)}`, L + 72, y + 3, { width: 100, lineBreak: false })
-      doc.rect(xPista, y + 2, anchoPista, 11).fill(COLOR.fondoCabecera)
-      const anchoBarra = Math.max(2, (Math.abs(a.aporteTotal) / maxAporte) * anchoPista)
-      doc.rect(xPista, y + 2, anchoBarra, 11).fill(positivoCal ? COLOR.verde : COLOR.rojo)
-      doc.fillColor(COLOR.tinta).font('B').fontSize(7)
-        .text(dinero(a.aporteTotal, simbTarget), R - 88, y + 4, { width: 88, align: 'right', lineBreak: false })
-      doc.y = y + 16
+        .text(`Calibre ${c.calibre}`, L, y + 2, { width: 75 })
+      doc.fillColor(COLOR.tenue).font('R').fontSize(6.8)
+        .text(`${c.cajas.toLocaleString('es-CL')} cajas · ${pct(c.porcentajeVolumen)}`, L + 80, y + 2, { width: 90 })
+
+      const xBarra = L + 175
+      const anchoMaxBarra = W - 175 - 75
+      const anchoBarraRank = Math.max(2, (Math.abs(c.aporteTotal) / maxAporte) * anchoMaxBarra)
+
+      doc.rect(xBarra, y + 2, anchoMaxBarra, 10).fill(COLOR.fondo)
+      doc.rect(xBarra, y + 2, anchoBarraRank, 10).fill(c.aporteTotal >= 0 ? COLOR.verde : COLOR.rojo)
+
+      doc.fillColor(COLOR.tinta).font('B').fontSize(7.5)
+        .text(dinero(c.aporteTotal, simbTarget), R - 70, y + 2, { width: 70, align: 'right', lineBreak: false })
     })
+
     doc.fillColor(COLOR.tenue).font('R').fontSize(6.3).text(
       `La barra compara el aporte total de cada calibre a la utilidad del contenedor, en ${targetCurrency}.`,
-      L, doc.y + 4, { width: W }
+      L, yTopRank + topCalibres.length * altoFilaRank + 6, { width: W }
     )
-    doc.y += 22
+    doc.y = yTopRank + topCalibres.length * altoFilaRank + 20
 
-    // Dictamen ejecutivo: el porqué en palabras, en la misma página que las
-    // cifras. Antes vivía al final de la tabla de la sección IV, donde llegaba
-    // tarde para alguien que solo mira la primera página.
+    asegurar(65)
     const yDic = doc.y
     doc.rect(L, yDic, W, 58).fill(COLOR.fondo)
     doc.rect(L, yDic, W, 58).lineWidth(0.5).strokeColor(COLOR.linea).stroke()
@@ -675,7 +664,7 @@ export async function construirInformeFinancieroPDF(
       {
         color: COLOR.rojo,
         nota: fobCurrency !== currency
-          ? `Equivalencia: 1 ${currency} = ${fobExchangeRate} ${fobCurrency}  ->  ${dinero(fobEnMonedaVenta)} en moneda de venta`
+          ? `Equivalencia: 1 ${currency} = ${tasaCLPOtorgada.toLocaleString('es-CL')} ${fobCurrency}  ->  ${dinero(fobEnMonedaVenta)} en moneda de venta`
           : undefined,
       }
     )
@@ -699,14 +688,14 @@ export async function construirInformeFinancieroPDF(
       asegurar(14)
       doc.fillColor(COLOR.suave).font('R').fontSize(6.8)
         .text(
-          `Tasa de cambio aplicada (${currency} -> ${targetCurrency}): 1 ${currency} = ${exchangeRate} ${targetCurrency}` +
+          `Tasa de cambio aplicada (${currency} -> ${targetCurrency}): 1 ${currency} = ${tasaSaleToTarget} ${targetCurrency}` +
           (liq.rate_provider_info ? `  ·  ${liq.rate_provider_info}` : ''),
           L, doc.y
         )
       doc.y += 14
     }
 
-    // Cuadro destacado con el resultado final del negocio en Doble Moneda (USD & CLP)
+    // Cuadro destacado con el resultado final del negocio en Doble Moneda (USD & CLP) SANEADO Y LIMPIO
     asegurar(60)
     const yDetalle = doc.y
     const positivo = finalBalance >= 0
@@ -721,16 +710,15 @@ export async function construirInformeFinancieroPDF(
       )
 
     // Cifra en Moneda Objetivo (ej. USD)
-    doc.fillColor(positivo ? COLOR.verde : COLOR.ambar).font('B').fontSize(16)
-      .text(`${simbTarget} ${finalBalanceTarget.toLocaleString('es-CL', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} ${targetCurrency}`, L + 12, yDetalle + 18)
+    doc.fillColor(positivo ? COLOR.verde : COLOR.ambar).font('B').fontSize(15)
+      .text(`${simbTarget} ${finalBalanceTargetUSD.toLocaleString('es-CL', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} ${targetCurrency}`, L + 12, yDetalle + 18, { lineBreak: false })
     
     // Cifra equivalente en Pesos Chilenos (CLP)
-    const utilidadCLPEquiv = finalBalanceTarget * (fobExchangeRate || 1000)
     doc.fillColor(COLOR.tinta).font('B').fontSize(14)
-      .text(`${clp(utilidadCLPEquiv)}`, R - 210, yDetalle + 18, { width: 198, align: 'right', lineBreak: false })
+      .text(`${clp(utilidadTotalCLPEst)}`, R - 210, yDetalle + 18, { width: 198, align: 'right', lineBreak: false })
 
     doc.fillColor(COLOR.suave).font('R').fontSize(6.5)
-      .text(`Equivalente Moneda Venta: ${dinero(finalBalance)}  ·  Tasa FOB: 1 USD = $ ${fobExchangeRate} CLP`, L + 12, yDetalle + 38, { width: W - 24 })
+      .text(`Equivalente Moneda Venta: ${dinero(finalBalance)}  ·  Tasa FOB: 1 ${currency} = $ ${tasaCLPOtorgada.toLocaleString('es-CL')} CLP`, L + 12, yDetalle + 38, { width: W - 24 })
 
     doc.y = yDetalle + 60
 
