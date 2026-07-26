@@ -201,10 +201,29 @@ export default function LiquidationReportModal({
             font-family: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; 
             background-color: #ffffff !important; 
             color: #0f172a !important; 
-            padding: 15px; 
+            padding: 10px; 
           }
           * { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
           .print\\:hidden { display: none !important; }
+
+          /* PREVENCION DE CORTE EN SALTOS DE PAGINA (PAGE-BREAK PROTECTION) */
+          tr, 
+          .grid > div, 
+          .print-avoid-break,
+          .bg-emerald-50,
+          .bg-teal-50,
+          .bg-slate-50,
+          .bg-red-50,
+          .border-2 {
+            break-inside: avoid !important;
+            page-break-inside: avoid !important;
+            -webkit-column-break-inside: avoid !important;
+          }
+
+          h1, h2, h3, h4, h5 {
+            break-after: avoid !important;
+            page-break-after: avoid !important;
+          }
         </style>
       </head>
       <body>
@@ -673,7 +692,7 @@ export default function LiquidationReportModal({
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-xs">
                 {/* CUADRANTE 1: ESTRELLAS DE EXPORTACIÓN */}
-                <div className="bg-emerald-50 border-2 border-emerald-300 rounded-2xl p-4 space-y-2">
+                <div className="bg-emerald-50 border-2 border-emerald-300 rounded-2xl p-4 space-y-2 print-avoid-break" style={{ breakInside: 'avoid', pageBreakInside: 'avoid' }}>
                   <div className="flex items-center justify-between text-emerald-900 font-bold uppercase border-b border-emerald-200 pb-1">
                     <span className="flex items-center gap-1.5">
                       <Award className="w-4 h-4 text-emerald-600" />
@@ -699,7 +718,7 @@ export default function LiquidationReportModal({
                 </div>
 
                 {/* CUADRANTE 2: NICHOS DE ALTO MARGEN */}
-                <div className="bg-teal-50 border-2 border-teal-300 rounded-2xl p-4 space-y-2">
+                <div className="bg-teal-50 border-2 border-teal-300 rounded-2xl p-4 space-y-2 print-avoid-break" style={{ breakInside: 'avoid', pageBreakInside: 'avoid' }}>
                   <div className="flex items-center justify-between text-teal-900 font-bold uppercase border-b border-teal-200 pb-1">
                     <span className="flex items-center gap-1.5">
                       <TrendingUp className="w-4 h-4 text-teal-600" />
@@ -725,7 +744,7 @@ export default function LiquidationReportModal({
                 </div>
 
                 {/* CUADRANTE 3: VOLUMEN COMMODITY */}
-                <div className="bg-slate-50 border-2 border-slate-300 rounded-2xl p-4 space-y-2">
+                <div className="bg-slate-50 border-2 border-slate-300 rounded-2xl p-4 space-y-2 print-avoid-break" style={{ breakInside: 'avoid', pageBreakInside: 'avoid' }}>
                   <div className="flex items-center justify-between text-slate-900 font-bold uppercase border-b border-slate-200 pb-1">
                     <span className="flex items-center gap-1.5">
                       <Layers className="w-4 h-4 text-slate-600" />
@@ -748,7 +767,7 @@ export default function LiquidationReportModal({
                 </div>
 
                 {/* CUADRANTE 4: CALIBRES CRÍTICOS / PÉRDIDA */}
-                <div className="bg-red-50 border-2 border-red-300 rounded-2xl p-4 space-y-2">
+                <div className="bg-red-50 border-2 border-red-300 rounded-2xl p-4 space-y-2 print-avoid-break" style={{ breakInside: 'avoid', pageBreakInside: 'avoid' }}>
                   <div className="flex items-center justify-between text-red-900 font-bold uppercase border-b border-red-200 pb-1">
                     <span className="flex items-center gap-1.5">
                       <AlertTriangle className="w-4 h-4 text-red-600" />
