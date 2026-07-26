@@ -41,6 +41,8 @@ interface LiquidationReportModalProps {
     subtotal: number
   }>
   onClose: () => void
+  // Abre el informe financiero en PDF real (generado en el servidor).
+  onOpenPdf?: () => void
 }
 
 export default function LiquidationReportModal({
@@ -73,7 +75,8 @@ export default function LiquidationReportModal({
   liquidationStatus,
   totalCajas,
   rows,
-  onClose
+  onClose,
+  onOpenPdf
 }: LiquidationReportModalProps) {
   // Estado interactivo de ordenamiento
   const [sortBy, setSortBy] = useState<'profitPerBox' | 'boxes' | 'totalContribution'>('profitPerBox')
@@ -172,47 +175,19 @@ export default function LiquidationReportModal({
   const maxProfitBar = Math.max(...calibreAnalysis.map(c => Math.abs(c.profitPerBox)), 0.01)
   const maxVolumeBar = Math.max(...calibreAnalysis.map(c => c.cajas), 1)
 
-  // Manejador Directo de Impresión en la misma ventana (sin popups emergentes)
+  // Impresión aislada: marca el <body> mientras dura el diálogo para que el
+  // CSS de impresión oculte la página del despacho que está detrás del modal.
+  // Antes salía impreso el despacho completo y el informe quedaba al final.
   const handlePrintOrPDF = () => {
-    window.print()
-  }
-
-  const [downloadingPdf, setDownloadingPdf] = useState(false)
-
-  // Descarga directa del archivo PDF (.pdf) en 1 solo clic
-  const handleDownloadDirectPDF = async () => {
-    const reportEl = document.getElementById('commercial-report-print')
-    if (!reportEl) return
-
-    setDownloadingPdf(true)
-    try {
-      if (!(window as any).html2pdf) {
-        const script = document.createElement('script')
-        script.src = 'https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js'
-        document.head.appendChild(script)
-        await new Promise((resolve, reject) => {
-          script.onload = resolve
-          script.onerror = reject
-        })
-      }
-
-      const opt = {
-        margin: [8, 8, 8, 8],
-        filename: `Informe_Liquidacion_LIQ-${dispatchCode}.pdf`,
-        image: { type: 'jpeg', quality: 0.98 },
-        html2canvas: { scale: 2, useCORS: true, logging: false },
-        jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' },
-        pagebreak: { mode: ['css', 'legacy'] }
-      }
-
-      await (window as any).html2pdf().set(opt).from(reportEl).save()
-    } catch (err) {
-      console.error('Error generando PDF:', err)
-      // Fallback a ventana de impresión si falla html2pdf
-      handlePrintOrPDF()
-    } finally {
-      setDownloadingPdf(false)
+    document.body.classList.add('imprimiendo-informe')
+    const limpiar = () => {
+      document.body.classList.remove('imprimiendo-informe')
+      window.removeEventListener('afterprint', limpiar)
     }
+    window.addEventListener('afterprint', limpiar)
+    window.print()
+    // Respaldo por si el navegador no dispara afterprint (Safari antiguo).
+    setTimeout(limpiar, 3000)
   }
 
   return (
@@ -233,21 +208,23 @@ export default function LiquidationReportModal({
             <h3 className="font-bold text-sm sm:text-base">Sistema Gerencial de Decisiones & Inteligencia de Mercados</h3>
           </div>
           <div className="flex items-center gap-3">
-            <button
-              onClick={handleDownloadDirectPDF}
-              disabled={downloadingPdf}
-              className="flex items-center gap-2 px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs rounded-xl shadow-lg transition-all disabled:opacity-50"
-            >
-              <Download className={`w-4 h-4 ${downloadingPdf ? 'animate-bounce' : ''}`} />
-              {downloadingPdf ? 'Generando PDF...' : 'Descargar Archivo PDF (.pdf)'}
-            </button>
+            {onOpenPdf && (
+              <button
+                onClick={onOpenPdf}
+                className="flex items-center gap-2 px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs rounded-xl shadow-lg transition-all"
+                title="Abre el PDF en una pestaña nueva para imprimirlo o descargarlo"
+              >
+                <Download className="w-4 h-4" />
+                Abrir PDF para imprimir o enviar
+              </button>
+            )}
             <button
               onClick={handlePrintOrPDF}
               className="flex items-center gap-2 px-3 py-2 bg-slate-800 hover:bg-slate-700 text-slate-200 font-bold text-xs rounded-xl border border-slate-700 transition-all"
-              title="Abrir diálogo de impresora"
+              title="Imprimir esta vista tal como se ve"
             >
               <Printer className="w-4 h-4 text-indigo-400" />
-              Imprimir
+              Imprimir vista
             </button>
             <button
               onClick={onClose}
@@ -437,7 +414,7 @@ export default function LiquidationReportModal({
               {currency !== targetCurrency && (
                 <div className="flex items-center justify-between text-xs bg-slate-50 p-2.5 rounded-xl border border-slate-200">
                   <span className="text-slate-600 font-medium">
-                    Tasa de Cambio Oficial Aplicada ({currency} $\rightarrow$ {targetCurrency}):
+                    Tasa de Cambio Oficial Aplicada ({currency} → {targetCurrency}):
                   </span>
                   <span className="font-mono font-bold text-indigo-700">
                     1 {currency} = {exchangeRate} {targetCurrency} {rateProviderInfo ? `[${rateProviderInfo}]` : ''}

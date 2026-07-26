@@ -55,6 +55,7 @@ export async function POST(request: Request) {
           validated_at: now,
         })
         .in('id', lotDocIds)
+        .is('deleted_at', null)
 
       if (error) {
         lotDocIds.forEach(id => results.push({ id, ok: false, error: error.message }))
@@ -86,6 +87,7 @@ export async function POST(request: Request) {
           validated_at: now,
         })
         .in('id', dispatchDocIds)
+        .is('deleted_at', null)
 
       if (error) {
         dispatchDocIds.forEach(id => results.push({ id, ok: false, error: error.message }))

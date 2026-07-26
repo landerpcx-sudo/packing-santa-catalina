@@ -9,16 +9,19 @@ export async function GET() {
       .from('lot_documents')
       .select('id, original_file_name, lot_id, document_type, created_at')
       .is('drive_file_id', null)
+      .is('deleted_at', null)
 
     const { data: dispatchDocs, error: err2 } = await supabaseAdmin
       .from('dispatch_documents')
       .select('id, original_file_name, dispatch_id, document_type, created_at')
       .is('drive_file_id', null)
+      .is('deleted_at', null)
 
     const { data: tempDocs, error: err3 } = await supabaseAdmin
       .from('temperature_documents')
       .select('id, original_file_name, temperature_report_id, document_type, created_at')
       .is('drive_file_id', null)
+      .is('deleted_at', null)
 
     if (err1 || err2 || err3) throw new Error('Error al consultar documentos pendientes.')
 

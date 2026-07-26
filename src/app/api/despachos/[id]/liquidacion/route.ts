@@ -75,7 +75,15 @@ export async function POST(
       final_balance = 0,
       status = 'draft',
       items = [],
-      user_id = null
+      user_id = null,
+      // Datos que la pantalla manejaba pero no se guardaban: sin ellos, al
+      // recargar se perdían y el informe del servidor no podía reproducirlos.
+      target_currency = 'USD',
+      fob_currency = 'CLP',
+      fob_exchange_rate = 1000,
+      abonos_amount = 0,
+      rate_provider_info = null,
+      rate_date = null
     } = body
 
     // 1. Crear o actualizar el encabezado de la liquidación
@@ -97,6 +105,12 @@ export async function POST(
       exchange_rate,
       final_balance,
       status,
+      target_currency,
+      fob_currency,
+      fob_exchange_rate,
+      abonos_amount,
+      rate_provider_info,
+      rate_date: rate_date || null,
       created_by: user_id,
       updated_at: new Date().toISOString()
     }
@@ -156,8 +170,11 @@ export async function POST(
         .eq('id', dispatchId)
     }
 
-    // 4. Auditoría
-    await supabaseAdmin.from('audit_logs').insert({
+    // 4. Auditoría — la tabla es 'audit_log' (singular). Estaba escrita como
+    // 'audit_logs' y, al no comprobarse el error, ninguna liquidación quedaba
+    // registrada en el historial.
+    await supabaseAdmin.from('audit_log').insert({
+      user_id: user_id || null,
       action: status === 'finalized' ? 'FINALIZE_LIQUIDATION' : 'SAVE_LIQUIDATION',
       entity_type: 'dispatch',
       entity_id: dispatchId,

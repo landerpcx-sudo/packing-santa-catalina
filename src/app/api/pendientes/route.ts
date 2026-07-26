@@ -23,7 +23,7 @@ export async function GET() {
         process_status,
         overall_status,
         created_at,
-        lot_documents(id, document_type, status, validation_status, original_file_name, storage_url, drive_file_url)
+        lot_documents(id, document_type, status, validation_status, original_file_name, storage_url, drive_file_url, deleted_at)
       `)
       .neq('overall_status', 'complete')
       .neq('overall_status', 'closed')
@@ -46,7 +46,7 @@ export async function GET() {
         expected_pallets,
         pata_pata_photos_count,
         thermograph_photos_count,
-        dispatch_documents(id, document_type, status, validation_status, original_file_name, storage_url, drive_file_url)
+        dispatch_documents(id, document_type, status, validation_status, original_file_name, storage_url, drive_file_url, deleted_at)
       `)
       .neq('overall_status', 'complete')
       .neq('overall_status', 'closed')
@@ -91,10 +91,20 @@ export async function GET() {
       .select('display_name, role')
       .eq('active', true)
 
+    // Los documentos en la papelera no cuentan como pendientes.
+    const lotsVivos = (lots || []).map(l => ({
+      ...l,
+      lot_documents: (l.lot_documents || []).filter((d: any) => !d.deleted_at),
+    }))
+    const dispatchesVivos = (dispatches || []).map(d => ({
+      ...d,
+      dispatch_documents: (d.dispatch_documents || []).filter((doc: any) => !doc.deleted_at),
+    }))
+
     return NextResponse.json({
       data: {
-        lots: lots || [],
-        dispatches: dispatches || [],
+        lots: lotsVivos,
+        dispatches: dispatchesVivos,
         missing_temperatures: missingDays,
         users: dbUsers || [],
         total: (lots?.length || 0) + (dispatches?.length || 0) + (missingDays.length > 0 ? 1 : 0)

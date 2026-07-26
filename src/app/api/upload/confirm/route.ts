@@ -3,6 +3,7 @@ import { headers } from 'next/headers'
 import { supabaseAdmin } from '@/lib/supabase-admin'
 import { syncDocsToDrive } from '@/lib/drive-sync'
 import { recalculateLotStatus } from '@/lib/status-helper'
+import { recalcularDespacho } from '@/lib/papelera'
 
 export const maxDuration = 60
 
@@ -59,42 +60,10 @@ export async function POST(request: Request) {
       }
       docRecord = inserted
 
-      // Actualizar conteos del despacho
-      let packListStatus = dispatchRecord.pack_list_status
-      let pataCount = dispatchRecord.pata_pata_photos_count
-      let thermoCount = dispatchRecord.thermograph_photos_count
-
-      if (documentType === 'pack_list') {
-        packListStatus = 'uploaded'
-        await supabaseAdmin.from('dispatches').update({ pack_list_status: 'uploaded' }).eq('id', entityId)
-      } else if (documentType === 'pata_pata_photo' || documentType === 'thermograph_photo') {
-        const { data: cur } = await supabaseAdmin
-          .from('dispatches')
-          .select('pata_pata_photos_count, thermograph_photos_count')
-          .eq('id', entityId)
-          .single()
-        if (cur) {
-          if (documentType === 'pata_pata_photo') {
-            pataCount = (cur.pata_pata_photos_count as number) + 1
-            await supabaseAdmin.from('dispatches').update({ pata_pata_photos_count: pataCount }).eq('id', entityId)
-          } else {
-            thermoCount = (cur.thermograph_photos_count as number) + 1
-            await supabaseAdmin.from('dispatches').update({ thermograph_photos_count: thermoCount }).eq('id', entityId)
-          }
-        }
-      }
-
-      // Recalcular estado general
-      const minPata = Math.ceil((dispatchRecord.expected_pallets || 0) / 2)
-      const isComplete = packListStatus === 'validated' && pataCount >= minPata && thermoCount >= 2
-
-      await supabaseAdmin
-        .from('dispatches')
-        .update({
-          overall_status: isComplete ? 'complete' : 'uploaded',
-          updated_at: new Date().toISOString()
-        })
-        .eq('id', entityId)
+      // Contadores y estado general: se recuentan los documentos vivos en vez de
+      // sumar a ciegas sobre el contador guardado, que se desincronizaba en
+      // cuanto una subida o un borrado fallaban a mitad de camino.
+      await recalcularDespacho(entityId)
 
       after(async () => {
         try {

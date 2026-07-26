@@ -22,7 +22,13 @@ export async function GET(
     if (error) return NextResponse.json({ error: error.message }, { status: 404 })
     if (!dispatch) return NextResponse.json({ error: 'Despacho no encontrado' }, { status: 404 })
 
-    return NextResponse.json({ data: dispatch })
+    // Los documentos en la papelera no se muestran (el archivo sigue guardado).
+    const data = {
+      ...dispatch,
+      dispatch_documents: (dispatch.dispatch_documents || []).filter((d: any) => !d.deleted_at),
+    }
+
+    return NextResponse.json({ data })
   } catch (err: any) {
     console.error('GET /api/despachos/[id] error:', err)
     return NextResponse.json({ error: err.message || 'Error interno' }, { status: 500 })

@@ -214,7 +214,7 @@ export default function TemperatureDetailPage({ params }: { params: Promise<{ id
   }
 
   const handleDeleteDocument = async (docId: string) => {
-    if (!confirm('¿Estás seguro de que deseas eliminar este archivo del reporte de temperatura? Esta acción no se puede deshacer.')) {
+    if (!confirm('¿Enviar este archivo a la papelera?\n\nEl archivo NO se borra: se guarda 30 días y puedes restaurarlo desde Configuración → Salud de los Documentos.')) {
       return
     }
     try {

@@ -163,6 +163,28 @@ export async function moveFolderOrFile(fileId: string, newParentId: string) {
   }
 }
 
+// Comprueba que un archivo existe realmente en Drive y NO está en la papelera.
+// Es el candado previo a liberar la copia de Supabase: si esto devuelve false,
+// esa copia es la única que queda y no se toca.
+// Lanza si no se puede consultar (token caído, red): quien llama debe tratar la
+// duda como "no borrar".
+export async function driveFileExists(fileId: string): Promise<boolean> {
+  const drive = await getDriveClient()
+  try {
+    const res = await drive.files.get({
+      fileId,
+      fields: 'id, trashed',
+      supportsAllDrives: true,
+    })
+    return Boolean(res.data.id) && res.data.trashed !== true
+  } catch (err: any) {
+    const status = err?.code ?? err?.response?.status
+    // 404 / 410: el archivo ya no está en Drive. Es una respuesta válida, no un fallo.
+    if (status === 404 || status === 410) return false
+    throw err
+  }
+}
+
 export async function getDriveFileStream(fileId: string) {
   const drive = await getDriveClient()
   const res = await drive.files.get(

@@ -77,6 +77,7 @@ export async function POST(
           .from('dispatch_documents')
           .select('status')
           .eq('dispatch_id', doc.dispatch_id)
+          .is('deleted_at', null)
 
         const minPata = Math.ceil((dispatch.expected_pallets || 0) / 2)
 

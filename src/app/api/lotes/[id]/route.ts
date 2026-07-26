@@ -30,7 +30,13 @@ export async function GET(
     .single()
 
   if (error) return NextResponse.json({ error: error.message }, { status: 404 })
-  return NextResponse.json({ data: lot })
+
+  // Los documentos en la papelera no se muestran (el archivo sigue guardado).
+  const data = lot
+    ? { ...lot, lot_documents: (lot.lot_documents || []).filter((d: any) => !d.deleted_at) }
+    : lot
+
+  return NextResponse.json({ data })
 }
 
 // POST - Subir un documento a un lote (usando Supabase Storage)

@@ -23,7 +23,8 @@ export async function GET(
         lot_documents (
           storage_path,
           original_file_name,
-          document_type
+          document_type,
+          deleted_at
         )
       `)
       .eq('id', id)
@@ -33,7 +34,7 @@ export async function GET(
       return NextResponse.json({ error: 'Lote no encontrado' }, { status: 404 })
     }
 
-    const documents = lot.lot_documents || []
+    const documents = (lot.lot_documents || []).filter((d: any) => !d.deleted_at)
     if (documents.length === 0) {
       return NextResponse.json({ error: 'El lote no tiene documentos' }, { status: 400 })
     }

@@ -137,7 +137,7 @@ export default function LoteDetailPage({ params }: { params: Promise<{ id: strin
       alert('No se pueden eliminar documentos de un lote cerrado.')
       return
     }
-    if (!confirm('¿Estás seguro de que deseas eliminar este documento? Esta acción no se puede deshacer.')) return
+    if (!confirm('¿Enviar este documento a la papelera?\n\nEl archivo NO se borra: se guarda 30 días y puedes restaurarlo desde Configuración → Salud de los Documentos.')) return
     
     try {
       const res = await fetch(`/api/documentos/${tableName}/${docId}`, {

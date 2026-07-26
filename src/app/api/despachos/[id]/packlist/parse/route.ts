@@ -24,6 +24,7 @@ export async function POST(
         .select('*')
         .eq('dispatch_id', dispatchId)
         .eq('document_type', 'pack_list')
+        .is('deleted_at', null)
         .order('version_number', { ascending: false })
         .limit(1)
         .maybeSingle()

@@ -1,17 +1,18 @@
 'use client'
 
-import { useEffect, useState, useCallback, use } from 'react'
+import { useEffect, useState, useCallback, use, useMemo, useRef } from 'react'
 import Link from 'next/link'
 import { useAuth } from '@/context/AuthContext'
 import {
-  ArrowLeft, Truck, CheckCircle, Clock, AlertCircle, Check,
+  ArrowLeft, Truck, CheckCircle, Clock, AlertCircle,
   XCircle, FileText, RefreshCw, ExternalLink, FolderOpen,
-  Calendar, User, MapPin, Building2, Package, Image as ImageIcon, Trash2, Edit2, Download, Eye, Lock, ShieldAlert, DollarSign, Save
+  Calendar, User, MapPin, Building2, Package, Image as ImageIcon, Trash2, Edit2,
+  Download, Lock, ShieldAlert, DollarSign, Save, MoreVertical, Thermometer,
+  ClipboardCheck, Archive, FileSpreadsheet, Wallet, BarChart3
 } from 'lucide-react'
-import ValidationModal from '@/components/lotes/ValidationModal'
 import PalletUploadZone from '@/components/despachos/PalletUploadZone'
-import UploadZone from '@/components/lotes/UploadZone' // General UploadZone
-import InlineValidation from '@/components/lotes/InlineValidation'
+import UploadZone from '@/components/lotes/UploadZone'
+import DocumentList, { DocumentoUI } from '@/components/documentos/DocumentList'
 import ContainerLiquidationCard from '@/components/despachos/ContainerLiquidationCard'
 import { useRouter } from 'next/navigation'
 import dynamic from 'next/dynamic'
@@ -19,17 +20,8 @@ import dynamic from 'next/dynamic'
 const NewDispatchModal = dynamic(() => import('@/components/despachos/NewDispatchModal'), { ssr: false })
 const FilePreviewModal = dynamic(() => import('@/components/layout/FilePreviewModal'), { ssr: false })
 
-interface DispatchDocument {
-  id: string
-  document_type: string
-  original_file_name: string
-  version_number: number
-  drive_file_url: string | null
-  status: string
+interface DispatchDocument extends DocumentoUI {
   validation_status: string
-  observation: string | null
-  created_at: string
-  storage_url: string | null
   uploaded_by_user?: { display_name: string } | null
   validated_by_user?: { display_name: string } | null
 }
@@ -68,20 +60,36 @@ const STATUS_CONFIG: Record<string, { label: string; color: string; icon: React.
   closed:    { label: 'Cerrado',    color: 'text-gray-400 bg-white/5 border-white/10',             icon: <Lock className="w-4 h-4" /> },
 }
 
+type Pestana = 'documentos' | 'financiero' | 'informes'
+
+const ROLES_SOLO_LECTURA = ['gerencia', 'agronomo']
+
 export default function DispatchDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params)
   const { user } = useAuth()
   const router = useRouter()
+
   const [dispatch, setDispatch] = useState<Dispatch | null>(null)
   const [loading, setLoading] = useState(true)
   const [refreshing, setRefreshing] = useState(false)
-  const [valModal, setValModal] = useState<{ isOpen: boolean; docId: string; docName: string; tableName: string } | null>(null)
-  const [validatingDocId, setValidatingDocId] = useState<string | null>(null)
   const [showEditModal, setShowEditModal] = useState(false)
   const [previewFile, setPreviewFile] = useState<{ isOpen: boolean; url: string; name: string } | null>(null)
   const [editingInvoiceAmount, setEditingInvoiceAmount] = useState<string>('')
   const [editingAdvanceAmount, setEditingAdvanceAmount] = useState<string>('')
   const [savingAmounts, setSavingAmounts] = useState(false)
+  const [menuAbierto, setMenuAbierto] = useState(false)
+  const menuRef = useRef<HTMLDivElement>(null)
+
+  const [pestana, setPestana] = useState<Pestana>('documentos')
+
+  // La pestaña puede venir en la URL (?tab=financiero) para que el botón
+  // "Finanzas" del listado entre directo al módulo financiero.
+  useEffect(() => {
+    const tab = new URLSearchParams(window.location.search).get('tab')
+    if (tab === 'financiero' || tab === 'informes' || tab === 'documentos') {
+      setPestana(tab)
+    }
+  }, [])
 
   const fetchDispatch = useCallback(async (silent = false) => {
     if (!silent) setLoading(true)
@@ -101,8 +109,25 @@ export default function DispatchDetailPage({ params }: { params: Promise<{ id: s
     fetchDispatch(false)
   }, [fetchDispatch])
 
+  // Cerrar el menú de acciones al hacer clic fuera
+  useEffect(() => {
+    if (!menuAbierto) return
+    const alClicar = (e: MouseEvent) => {
+      if (menuRef.current && !menuRef.current.contains(e.target as Node)) setMenuAbierto(false)
+    }
+    document.addEventListener('mousedown', alClicar)
+    return () => document.removeEventListener('mousedown', alClicar)
+  }, [menuAbierto])
+
+  const cerrado = dispatch?.overall_status === 'closed'
+  const esAdmin = user?.role === 'admin'
+  const soloLectura = ROLES_SOLO_LECTURA.includes(user?.role || '')
+  const puedeSubir = !cerrado && !soloLectura
+  const puedeSubirFotos = puedeSubir && ['admin', 'jefe_frio', 'sag', 'despacho'].includes(user?.role || '')
+  const puedeVerDrive = esAdmin || Boolean(user?.canViewDrive)
+
   const handleSaveAmounts = async () => {
-    if (dispatch?.overall_status === 'closed') {
+    if (cerrado) {
       alert('No se pueden modificar montos de un despacho cerrado.')
       return
     }
@@ -117,10 +142,7 @@ export default function DispatchDetailPage({ params }: { params: Promise<{ id: s
           'x-user-id': user?.userId || '',
           'x-user-role': user?.role || ''
         },
-        body: JSON.stringify({
-          invoice_amount: inv,
-          advance_amount: adv
-        })
+        body: JSON.stringify({ invoice_amount: inv, advance_amount: adv })
       })
       if (res.ok) {
         await fetchDispatch(true)
@@ -140,49 +162,51 @@ export default function DispatchDetailPage({ params }: { params: Promise<{ id: s
     return new Intl.NumberFormat('es-CL', { style: 'currency', currency: 'CLP', maximumFractionDigits: 0 }).format(val)
   }
 
-  if (loading) {
-    return (
-      <div className="flex items-center justify-center h-64 gap-3 text-gray-400">
-        <RefreshCw className="w-5 h-5 animate-spin" />
-        Cargando despacho...
-      </div>
-    )
-  }
-
-  if (!dispatch) {
-    return (
-      <div className="text-center py-16">
-        <p className="text-gray-400">Despacho no encontrado.</p>
-        <Link href="/despachos" className="text-indigo-400 text-sm mt-2 inline-block hover:underline">
-          Volver a Despachos
-        </Link>
-      </div>
-    )
-  }
-
-  const cfg = STATUS_CONFIG[dispatch.overall_status] || STATUS_CONFIG.pending
   const formatDate = (dateStr: string | null) => {
     if (!dateStr) return '—'
     const [y, m, d] = dateStr.split('T')[0].split('-')
     return `${d}/${m}/${y}`
   }
 
+  const docsByType = useMemo(() => {
+    return (dispatch?.dispatch_documents || []).reduce((acc, doc) => {
+      if (!acc[doc.document_type]) acc[doc.document_type] = []
+      acc[doc.document_type].push(doc)
+      return acc
+    }, {} as Record<string, DispatchDocument[]>)
+  }, [dispatch])
+
+  // Progreso del despacho: qué falta para darlo por completo.
+  const progreso = useMemo(() => {
+    if (!dispatch) return { hechos: 0, total: 0, pendientes: [] as string[] }
+    const minFotos = Math.ceil((dispatch.expected_pallets || 0) / 2)
+    const requisitos = [
+      { nombre: 'Pack List', ok: (docsByType['pack_list'] || []).length > 0 },
+      { nombre: 'Pack List validado', ok: dispatch.pack_list_status === 'validated' },
+      { nombre: `Fotos pata a pata (mín. ${minFotos})`, ok: (docsByType['pata_pata_photo'] || []).length >= minFotos },
+      { nombre: 'Fotos de termógrafos (2)', ok: (docsByType['thermograph_photo'] || []).length >= 2 },
+      { nombre: 'Factura', ok: (docsByType['factura'] || []).length > 0 },
+      { nombre: 'Contenedor pagado', ok: dispatch.payment_status === 'paid' },
+    ]
+    return {
+      hechos: requisitos.filter(r => r.ok).length,
+      total: requisitos.length,
+      pendientes: requisitos.filter(r => !r.ok).map(r => r.nombre),
+    }
+  }, [dispatch, docsByType])
+
   const handleDeleteDocument = async (docId: string, tableName: string) => {
-    if (dispatch?.overall_status === 'closed') {
+    if (cerrado) {
       alert('No se pueden eliminar documentos de un despacho cerrado.')
       return
     }
-    if (!confirm('¿Estás seguro de que deseas eliminar este documento? Esta acción no se puede deshacer.')) return
-    
+    if (!confirm('¿Enviar este documento a la papelera?\n\nEl archivo NO se borra: se guarda 30 días y puedes restaurarlo desde Configuración → Salud de los Documentos.')) return
+
     try {
       const res = await fetch(`/api/documentos/${tableName}/${docId}`, {
         method: 'DELETE',
-        headers: {
-          'x-user-id': user?.userId || '',
-          'x-user-role': user?.role || ''
-        }
+        headers: { 'x-user-id': user?.userId || '', 'x-user-role': user?.role || '' }
       })
-      
       if (res.ok) {
         fetchDispatch(true)
       } else {
@@ -196,12 +220,10 @@ export default function DispatchDetailPage({ params }: { params: Promise<{ id: s
 
   const handleDeleteDispatch = async () => {
     const confirmation = prompt('🛑 ¡ADVERTENCIA CRÍTICA!\n\n¿Estás seguro de que deseas ELIMINAR ESTE DESPACHO COMPLETAMENTE?\n\nEsta acción:\n1. Borrará el registro de la Base de Datos.\n2. Enviará la carpeta de Google Drive a la papelera.\n3. Es irreversible.\n\nEscribe "ELIMINAR" en mayúsculas para confirmar:')
-    
     if (confirmation !== 'ELIMINAR') {
       alert('Eliminación cancelada.')
       return
     }
-
     try {
       const res = await fetch(`/api/despachos/${id}`, {
         method: 'DELETE',
@@ -244,7 +266,8 @@ export default function DispatchDetailPage({ params }: { params: Promise<{ id: s
   }
 
   const handleTogglePaymentStatus = async () => {
-    if (dispatch?.overall_status === 'closed') {
+    if (!dispatch) return
+    if (cerrado) {
       alert('No se puede modificar el estado de pago de un despacho cerrado.')
       return
     }
@@ -252,9 +275,8 @@ export default function DispatchDetailPage({ params }: { params: Promise<{ id: s
     const confirmMessage = newStatus === 'paid'
       ? '¿Confirmas que este contenedor se encuentra PAGADO EN SU TOTALIDAD?'
       : '¿Deseas cambiar el estado del contenedor a PENDIENTE de pago?'
-      
     if (!confirm(confirmMessage)) return
-    
+
     try {
       const res = await fetch(`/api/despachos/${id}`, {
         method: 'PATCH',
@@ -265,240 +287,101 @@ export default function DispatchDetailPage({ params }: { params: Promise<{ id: s
         },
         body: JSON.stringify({ payment_status: newStatus })
       })
-      
-      if (res.ok) {
-        fetchDispatch(true)
-      } else {
-        const data = await res.json()
-        alert(data.error || 'Error al actualizar el estado de pago')
-      }
+      if (res.ok) fetchDispatch(true)
+      else { const data = await res.json(); alert(data.error || 'Error al actualizar el estado de pago') }
     } catch (e) {
       alert('Error de conexión al actualizar estado de pago')
     }
   }
 
-  const renderDocumentCard = (docType: string, docLabel: string, icon: React.ReactNode, acceptExcel = false) => {
-    const docs = docsByType[docType] || []
+  const abrirPreview = (url: string, name: string) => setPreviewFile({ isOpen: true, url, name })
+
+  // Zona de subida estándar para un tipo de documento.
+  const zonaSubida = (tipo: string, etiqueta: string, aceptaExcel = false) => (
+    <UploadZone
+      lotId={id}
+      lotCode={dispatch?.dispatch_code || ''}
+      documentType={tipo}
+      documentLabel={etiqueta}
+      accept={aceptaExcel ? {
+        'application/pdf': ['.pdf'],
+        'image/*': ['.png', '.jpg', '.jpeg', '.webp', '.heic'],
+        'application/vnd.ms-excel': ['.xls'],
+        'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet': ['.xlsx']
+      } : undefined}
+      onUploadSuccess={() => fetchDispatch(true)}
+      uploadUrl={`/api/despachos/${id}/upload`}
+    />
+  )
+
+  const tarjetaFinanciera = (tipo: string, etiqueta: string) => (
+    <DocumentList
+      key={tipo}
+      titulo={etiqueta}
+      icono={<FileText className="w-4 h-4 text-emerald-400" />}
+      documentos={docsByType[tipo] || []}
+      tableName="dispatch_documents"
+      puedeSubir={puedeSubir}
+      puedeEliminar={esAdmin && !cerrado}
+      puedeValidar={esAdmin && !cerrado}
+      puedeVerDrive={puedeVerDrive}
+      zonaSubida={zonaSubida(tipo, etiqueta, true)}
+      onPreview={abrirPreview}
+      onEliminar={handleDeleteDocument}
+      onValidado={() => fetchDispatch(true)}
+    />
+  )
+
+  if (loading) {
     return (
-      <div className="bg-white/3 border border-white/8 rounded-2xl p-5">
-        <div className="flex items-center justify-between mb-4">
-          <h3 className="text-white font-medium text-sm flex items-center gap-2">
-            {icon}
-            {docLabel}
-          </h3>
-          <span className={`text-xs px-2 py-1 rounded-full border ${docs.length >= 1 ? 'text-green-400 border-green-500/30 bg-green-500/10' : 'text-gray-400 border-gray-500/30 bg-gray-500/10'}`}>
-            {docs.length}
-          </span>
-        </div>
-        
-        {docType === 'factura' && (
-          <div className="mb-4 p-3 bg-white/5 border border-white/10 rounded-xl space-y-2">
-            <label className="block text-xs font-semibold text-emerald-400 flex items-center justify-between">
-              <span>Monto Total de Factura ($ CLP)</span>
-              {dispatch?.invoice_amount !== null && dispatch?.invoice_amount !== undefined && (
-                <span className="text-gray-400 font-normal">{formatCLP(dispatch.invoice_amount)}</span>
-              )}
-            </label>
-            <div className="flex gap-2">
-              <div className="relative flex-1">
-                <DollarSign className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
-                <input
-                  type="number"
-                  min="0"
-                  step="1"
-                  placeholder="Ej: 10000000"
-                  value={editingInvoiceAmount}
-                  onChange={(e) => setEditingInvoiceAmount(e.target.value)}
-                  disabled={dispatch?.overall_status === 'closed' || savingAmounts}
-                  className="w-full bg-white/5 border border-white/10 rounded-lg pl-9 pr-3 py-1.5 text-sm text-white placeholder-gray-500 focus:outline-none focus:border-emerald-400/50"
-                />
-              </div>
-              <button
-                onClick={handleSaveAmounts}
-                disabled={dispatch?.overall_status === 'closed' || savingAmounts}
-                className="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg text-xs font-medium transition-colors flex items-center gap-1.5 disabled:opacity-50"
-              >
-                <Save className="w-3.5 h-3.5" />
-                Guardar
-              </button>
-            </div>
-          </div>
-        )}
-
-        {docType === 'abonos_adelantos' && (
-          <div className="mb-4 p-3 bg-white/5 border border-white/10 rounded-xl space-y-2">
-            <label className="block text-xs font-semibold text-indigo-400 flex items-center justify-between">
-              <span>Monto Abonos / Adelantos ($ CLP)</span>
-              {dispatch?.advance_amount !== null && dispatch?.advance_amount !== undefined && (
-                <span className="text-gray-400 font-normal">{formatCLP(dispatch.advance_amount)}</span>
-              )}
-            </label>
-            <div className="flex gap-2">
-              <div className="relative flex-1">
-                <DollarSign className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
-                <input
-                  type="number"
-                  min="0"
-                  step="1"
-                  placeholder="Ej: 5000000"
-                  value={editingAdvanceAmount}
-                  onChange={(e) => setEditingAdvanceAmount(e.target.value)}
-                  disabled={dispatch?.overall_status === 'closed' || savingAmounts}
-                  className="w-full bg-white/5 border border-white/10 rounded-lg pl-9 pr-3 py-1.5 text-sm text-white placeholder-gray-500 focus:outline-none focus:border-indigo-400/50"
-                />
-              </div>
-              <button
-                onClick={handleSaveAmounts}
-                disabled={dispatch?.overall_status === 'closed' || savingAmounts}
-                className="px-3 py-1.5 bg-indigo-600 hover:bg-indigo-500 text-white rounded-lg text-xs font-medium transition-colors flex items-center gap-1.5 disabled:opacity-50"
-              >
-                <Save className="w-3.5 h-3.5" />
-                Guardar
-              </button>
-            </div>
-          </div>
-        )}
-
-        <div className="space-y-3 mb-4">
-          {docs.sort((a,b) => b.version_number - a.version_number).map((doc, index) => {
-            const isLatest = index === 0 && docs.length > 1
-            return (
-              <div key={doc.id} className={`border rounded-xl p-3 transition-all ${isLatest ? 'bg-indigo-500/10 border-indigo-500/30 ring-1 ring-indigo-500/20' : 'bg-white/5 border-white/10'}`}>
-                <div className="flex items-center gap-3 mb-1">
-                  <FileText className={`w-4 h-4 flex-shrink-0 ${isLatest ? 'text-indigo-400' : 'text-gray-400'}`} />
-                  <span className={`text-sm flex-1 truncate ${isLatest ? 'text-indigo-100 font-medium' : 'text-gray-300'}`}>{doc.original_file_name}</span>
-                  <div className="flex items-center gap-2">
-                    {doc.drive_file_url && (user?.role === 'admin' || user?.canViewDrive || !doc.storage_url) ? (
-                      <button 
-                        onClick={() => {
-                          const isImage = /\.(jpg|jpeg|png|gif|webp|bmp)$/i.test(doc.original_file_name)
-                          setPreviewFile({ 
-                            isOpen: true, 
-                            url: (isImage && doc.storage_url) ? doc.storage_url : doc.drive_file_url!, 
-                            name: doc.original_file_name 
-                          })
-                        }} 
-                        className={`${!doc.storage_url ? 'text-amber-400' : 'text-indigo-400'} p-1 hover:bg-white/5 rounded flex items-center gap-1`} 
-                        title={!doc.storage_url ? "Archivo Archivado en Drive" : "Ver en Google Drive"}
-                      >
-                        <Eye className="w-4 h-4" />
-                        {!doc.storage_url && <span className="text-[10px] font-bold">DRIVE</span>}
-                      </button>
-                    ) : doc.storage_url ? (
-                      <button onClick={() => setPreviewFile({ isOpen: true, url: doc.storage_url!, name: doc.original_file_name })} className="text-gray-400 p-1 hover:bg-white/5 rounded" title="Ver en Supabase">
-                        <Eye className="w-4 h-4" />
-                      </button>
-                    ) : (
-                      <span className="text-gray-600 p-1"><XCircle className="w-4 h-4" /></span>
-                    )}
-                    {user?.role === 'admin' && dispatch.overall_status !== 'closed' && (
-                      <button onClick={() => handleDeleteDocument(doc.id, 'dispatch_documents')} className="text-red-400 p-1 hover:bg-red-400/10 rounded" title="Eliminar">
-                        <Trash2 className="w-4 h-4" />
-                      </button>
-                    )}
-                  </div>
-                </div>
-                <div className="flex items-center justify-between mt-2">
-                  <div className="flex items-center gap-2">
-                    <p className={`text-[10px] ${isLatest ? 'text-indigo-300' : 'text-gray-500'}`}>
-                      v{doc.version_number} • {formatDateTime(doc.created_at)}
-                    </p>
-                    {isLatest && <span className="text-[9px] bg-indigo-500/20 text-indigo-300 px-1.5 py-0.5 rounded-full font-bold uppercase tracking-wider">Actual</span>}
-                  </div>
-                  {doc.status === 'validated' && (
-                    <p className="text-[10px] text-green-400 flex items-center gap-1 font-medium">
-                      <CheckCircle className="w-3 h-3" /> Validado
-                    </p>
-                  )}
-                  {doc.status === 'observed' && (
-                    <p className="text-[10px] text-yellow-400 flex items-center gap-1 font-medium">
-                      <AlertCircle className="w-3 h-3" /> Observado
-                    </p>
-                  )}
-                </div>
-                {doc.status !== 'validated' && user?.role === 'admin' && dispatch.overall_status !== 'closed' && (
-                  <div className="mt-2">
-                    {validatingDocId === doc.id ? (
-                      <InlineValidation 
-                        docId={doc.id}
-                        tableName="dispatch_documents"
-                        onValidated={() => fetchDispatch(true)}
-                        onCancel={() => setValidatingDocId(null)}
-                      />
-                    ) : (
-                      <button
-                        onClick={() => setValidatingDocId(doc.id)}
-                        className="w-full py-1.5 bg-blue-500/10 text-blue-400 hover:bg-blue-500/20 rounded-lg text-xs font-medium transition-colors border border-blue-500/20"
-                      >
-                        Validar / Observar
-                      </button>
-                    )}
-                  </div>
-                )}
-              </div>
-            )
-          })}
-        </div>
-        {dispatch.overall_status !== 'closed' && !['gerencia', 'agronomo'].includes(user?.role || '') && (
-          <UploadZone
-            lotId={id}
-            lotCode={dispatch.dispatch_code}
-            documentType={docType}
-            documentLabel={docLabel}
-            accept={acceptExcel ? {
-              'application/pdf': ['.pdf'],
-              'image/*': ['.png', '.jpg', '.jpeg', '.webp', '.heic'],
-              'application/vnd.ms-excel': ['.xls'],
-              'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet': ['.xlsx']
-            } : undefined}
-            onUploadSuccess={() => fetchDispatch(true)}
-            uploadUrl={`/api/despachos/${id}/upload`}
-          />
-        )}
+      <div className="flex items-center justify-center h-64 gap-3 text-gray-400">
+        <RefreshCw className="w-5 h-5 animate-spin" />
+        Cargando despacho...
       </div>
     )
   }
 
-  const docsByType = (dispatch.dispatch_documents || []).reduce((acc, doc) => {
-    if (!acc[doc.document_type]) acc[doc.document_type] = []
-    acc[doc.document_type].push(doc)
-    return acc
-  }, {} as Record<string, DispatchDocument[]>)
-
-  const formatDateTime = (dateStr: string) => {
-    const d = new Date(dateStr)
-    return d.toLocaleString('es-CL', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })
+  if (!dispatch) {
+    return (
+      <div className="text-center py-16">
+        <p className="text-gray-400">Despacho no encontrado.</p>
+        <Link href="/despachos" className="text-indigo-400 text-sm mt-2 inline-block hover:underline">
+          Volver a Despachos
+        </Link>
+      </div>
+    )
   }
 
+  const cfg = STATUS_CONFIG[dispatch.overall_status] || STATUS_CONFIG.pending
+  const minFotos = Math.ceil((dispatch.expected_pallets || 0) / 2)
+  const saldo = Number(dispatch.invoice_amount || 0) - Number(dispatch.advance_amount || 0)
+
+  const PESTANAS: { id: Pestana; etiqueta: string; icono: React.ReactNode }[] = [
+    { id: 'documentos', etiqueta: 'Documentos y fotos', icono: <FileText className="w-4 h-4" /> },
+    { id: 'financiero', etiqueta: 'Financiero', icono: <Wallet className="w-4 h-4" /> },
+    { id: 'informes', etiqueta: 'Informes y descargas', icono: <Download className="w-4 h-4" /> },
+  ]
+
   return (
-    <div className="space-y-6 max-w-4xl pb-10">
-      {/* Barra de progreso sutil durante refresco silencioso */}
+    <div className="space-y-6 max-w-5xl pb-10">
       <div className={`fixed top-0 left-0 right-0 z-50 h-0.5 overflow-hidden transition-opacity duration-500 ${refreshing ? 'opacity-100' : 'opacity-0'}`}>
         <div className="h-full bg-gradient-to-r from-indigo-500 via-purple-500 to-indigo-500 animate-[shimmer_1.5s_ease-in-out_infinite] bg-[length:200%_100%]" />
       </div>
-      <ValidationModal
-        isOpen={valModal?.isOpen || false}
-        onClose={() => setValModal(null)}
-        docId={valModal?.docId || ''}
-        docName={valModal?.docName || ''}
-        tableName={valModal?.tableName || ''}
-      onValidated={() => fetchDispatch(true)}   
-      />
 
-      {/* Breadcrumb */}
+      {/* ── CABECERA ─────────────────────────────────────────────────────── */}
       <div>
         <Link href="/despachos" className="inline-flex items-center gap-1.5 text-gray-400 hover:text-white text-sm transition-colors mb-4">
           <ArrowLeft className="w-4 h-4" />
           Volver a Despachos
         </Link>
 
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-          <div className="flex items-center gap-4">
-            <div className="w-12 h-12 bg-indigo-500/10 border border-indigo-500/20 rounded-2xl flex items-center justify-center">
+        <div className="flex flex-col lg:flex-row lg:items-start justify-between gap-4">
+          <div className="flex items-center gap-4 min-w-0">
+            <div className="w-12 h-12 bg-indigo-500/10 border border-indigo-500/20 rounded-2xl flex items-center justify-center shrink-0">
               <Truck className="w-6 h-6 text-indigo-400" />
             </div>
-            <div>
-              <h1 className="text-2xl font-bold text-white">Despacho {dispatch.dispatch_code}</h1>
+            <div className="min-w-0">
+              <h1 className="text-2xl font-bold text-white truncate">Despacho {dispatch.dispatch_code}</h1>
               <div className="flex flex-wrap items-center gap-x-3 gap-y-1 mt-1 text-xs text-gray-400">
                 <span className="text-indigo-400 font-semibold flex items-center gap-1">
                   <Calendar className="w-3 h-3" />
@@ -507,7 +390,7 @@ export default function DispatchDetailPage({ params }: { params: Promise<{ id: s
                 <span className="text-gray-600">|</span>
                 <span><strong>Cliente:</strong> {dispatch.client || '—'}</span>
                 <span className="text-gray-600">|</span>
-                <span><strong>Mercado / Destino:</strong> {dispatch.destination || '—'}</span>
+                <span><strong>Destino:</strong> {dispatch.destination || '—'}</span>
                 {dispatch.container_number && (
                   <>
                     <span className="text-gray-600">|</span>
@@ -517,7 +400,9 @@ export default function DispatchDetailPage({ params }: { params: Promise<{ id: s
               </div>
             </div>
           </div>
-          <div className="flex items-center gap-2">
+
+          {/* Estados + menú único de acciones (antes: 9 botones en fila) */}
+          <div className="flex flex-wrap items-center gap-2 shrink-0">
             <span className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full border text-sm font-medium ${cfg.color}`}>
               {cfg.icon}
               {cfg.label}
@@ -527,95 +412,135 @@ export default function DispatchDetailPage({ params }: { params: Promise<{ id: s
                 ? 'text-emerald-400 bg-emerald-500/10 border-emerald-500/30'
                 : 'text-amber-400 bg-amber-500/10 border-amber-500/30'
             }`}>
-              {dispatch.payment_status === 'paid' ? <CheckCircle className="w-4 h-4 text-emerald-400" /> : <Clock className="w-4 h-4 text-amber-400" />}
+              {dispatch.payment_status === 'paid' ? <CheckCircle className="w-4 h-4" /> : <Clock className="w-4 h-4" />}
               {dispatch.payment_status === 'paid' ? 'Pagado' : 'Pago Pendiente'}
             </span>
-            {dispatch.drive_folder_url && (user?.role === 'admin' || user?.canViewDrive) && (
-              <a
-                href={dispatch.drive_folder_url}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="flex items-center gap-1.5 px-3 py-1.5 bg-white/5 border border-white/10 rounded-xl text-gray-300 hover:text-white text-sm transition-all"
-              >
-                <FolderOpen className="w-4 h-4 text-indigo-400" />
-                Carpeta en Drive
-                <ExternalLink className="w-3 h-3" />
-              </a>
-            )}
-            <a
-              href={`/api/despachos/${dispatch.id}/reporte-pdf`}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="flex items-center gap-2 px-3 py-1.5 bg-indigo-500/10 border border-indigo-500/20 rounded-xl text-indigo-400 hover:text-indigo-300 hover:bg-indigo-500/20 transition-all text-sm font-medium"
+
+            <button
+              onClick={() => fetchDispatch(true)}
+              className="p-2 rounded-xl border border-white/10 text-gray-400 hover:text-white hover:bg-white/5 transition-all"
+              title="Actualizar"
             >
-              <FileText className="w-4 h-4" />
-              Reporte PDF
-            </a>
-            <a
-              href={`/api/despachos/${dispatch.id}/download-all`}
-              className="flex items-center gap-2 px-3 py-1.5 bg-blue-500/10 border border-blue-500/20 rounded-xl text-blue-400 hover:text-blue-300 hover:bg-blue-500/20 transition-all text-sm"
-            >
-              <Download className="w-4 h-4" />
-              Descargar Todo (.zip)
-            </a>
-            {(dispatch.overall_status === 'complete' || dispatch.overall_status === 'validated') && user?.role === 'admin' && (
-              <button
-                onClick={handleCloseDispatch}
-                className="flex items-center gap-1.5 px-3 py-1.5 bg-red-500/10 border border-red-500/30 rounded-xl text-red-400 hover:bg-red-500/20 transition-all text-sm font-medium"
-                title="Cerrar Despacho Definitivamente"
-              >
-                <Lock className="w-4 h-4" />
-                Cerrar Despacho
-              </button>
-            )}
-            {dispatch.overall_status === 'closed' && user?.role === 'admin' && (
-              <button
-                onClick={handleOpenDispatch}
-                className="flex items-center gap-1.5 px-3 py-1.5 bg-green-500/10 border border-green-500/30 rounded-xl text-green-400 hover:bg-green-500/20 transition-all text-sm font-medium"
-                title="Abrir Despacho"
-              >
-                <FolderOpen className="w-4 h-4" />
-                Abrir Despacho
-              </button>
-            )}
-            {user?.role === 'admin' && dispatch.overall_status !== 'closed' && (
-              <button
-                onClick={() => setShowEditModal(true)}
-                className="p-2 rounded-xl border border-white/10 text-gray-400 hover:text-indigo-400 hover:bg-indigo-400/10 transition-all"
-                title="Editar Información"
-              >
-                <Edit2 className="w-4 h-4" />
-              </button>
-            )}
-            {user?.role === 'admin' && (
-              <button
-                onClick={handleDeleteDispatch}
-                className="p-2 rounded-xl border border-red-500/20 text-red-400 hover:bg-red-500/10 hover:border-red-500/40 transition-all"
-                title="Eliminar Despacho Permanentemente"
-              >
-                <Trash2 className="w-4 h-4" />
-              </button>
-            )}
-            <button onClick={() => fetchDispatch(true)} className="p-2 rounded-xl border border-white/10 text-gray-400 hover:text-white hover:bg-white/5 transition-all">
               <RefreshCw className={`w-4 h-4 ${refreshing ? 'animate-spin text-indigo-400' : ''}`} />
             </button>
+
+            <div className="relative" ref={menuRef}>
+              <button
+                onClick={() => setMenuAbierto(v => !v)}
+                className="flex items-center gap-1.5 px-3 py-1.5 bg-white/5 border border-white/10 rounded-xl text-gray-300 hover:text-white hover:bg-white/10 transition-all text-sm font-medium"
+              >
+                <MoreVertical className="w-4 h-4" />
+                Acciones
+              </button>
+
+              {menuAbierto && (
+                <div className="absolute right-0 mt-2 w-64 bg-[#0f172a] border border-white/10 rounded-2xl shadow-2xl z-30 overflow-hidden py-1">
+                  {dispatch.drive_folder_url && puedeVerDrive && (
+                    <a
+                      href={dispatch.drive_folder_url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      onClick={() => setMenuAbierto(false)}
+                      className="flex items-center gap-2.5 px-4 py-2.5 text-sm text-gray-300 hover:bg-white/5 hover:text-white transition-colors"
+                    >
+                      <FolderOpen className="w-4 h-4 text-indigo-400" />
+                      Abrir carpeta en Drive
+                      <ExternalLink className="w-3 h-3 ml-auto opacity-50" />
+                    </a>
+                  )}
+
+                  <button
+                    onClick={() => { setMenuAbierto(false); setPestana('informes') }}
+                    className="w-full flex items-center gap-2.5 px-4 py-2.5 text-sm text-gray-300 hover:bg-white/5 hover:text-white transition-colors"
+                  >
+                    <Download className="w-4 h-4 text-blue-400" />
+                    Informes y descargas
+                  </button>
+
+                  {esAdmin && !cerrado && (
+                    <button
+                      onClick={() => { setMenuAbierto(false); setShowEditModal(true) }}
+                      className="w-full flex items-center gap-2.5 px-4 py-2.5 text-sm text-gray-300 hover:bg-white/5 hover:text-white transition-colors"
+                    >
+                      <Edit2 className="w-4 h-4 text-gray-400" />
+                      Editar información
+                    </button>
+                  )}
+
+                  {(dispatch.overall_status === 'complete' || dispatch.overall_status === 'validated') && esAdmin && (
+                    <button
+                      onClick={() => { setMenuAbierto(false); handleCloseDispatch() }}
+                      className="w-full flex items-center gap-2.5 px-4 py-2.5 text-sm text-gray-300 hover:bg-white/5 hover:text-white transition-colors"
+                    >
+                      <Lock className="w-4 h-4 text-amber-400" />
+                      Cerrar despacho
+                    </button>
+                  )}
+
+                  {cerrado && esAdmin && (
+                    <button
+                      onClick={() => { setMenuAbierto(false); handleOpenDispatch() }}
+                      className="w-full flex items-center gap-2.5 px-4 py-2.5 text-sm text-gray-300 hover:bg-white/5 hover:text-white transition-colors"
+                    >
+                      <FolderOpen className="w-4 h-4 text-green-400" />
+                      Reabrir despacho
+                    </button>
+                  )}
+
+                  {esAdmin && (
+                    <>
+                      <div className="h-px bg-white/10 my-1" />
+                      <button
+                        onClick={() => { setMenuAbierto(false); handleDeleteDispatch() }}
+                        className="w-full flex items-center gap-2.5 px-4 py-2.5 text-sm text-red-400 hover:bg-red-500/10 transition-colors"
+                      >
+                        <Trash2 className="w-4 h-4" />
+                        Eliminar despacho
+                      </button>
+                    </>
+                  )}
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+
+        {/* Barra de progreso: qué falta, de un vistazo */}
+        <div className="mt-5 bg-white/3 border border-white/8 rounded-2xl px-4 py-3">
+          <div className="flex flex-wrap items-center justify-between gap-2 mb-2">
+            <span className="text-xs font-semibold text-gray-300">
+              {progreso.hechos} de {progreso.total} requisitos completos
+            </span>
+            {progreso.pendientes.length > 0 ? (
+              <span className="text-[11px] text-amber-400 truncate max-w-full">
+                Falta: {progreso.pendientes.join(' · ')}
+              </span>
+            ) : (
+              <span className="text-[11px] text-emerald-400 font-semibold">Todo listo ✓</span>
+            )}
+          </div>
+          <div className="h-1.5 w-full bg-white/5 rounded-full overflow-hidden">
+            <div
+              className={`h-full rounded-full transition-all duration-500 ${
+                progreso.hechos === progreso.total ? 'bg-emerald-500' : 'bg-indigo-500'
+              }`}
+              style={{ width: `${(progreso.hechos / progreso.total) * 100}%` }}
+            />
           </div>
         </div>
       </div>
 
-      {dispatch.overall_status === 'closed' && (
-        <div className="bg-white/5 border border-white/10 rounded-2xl p-4 flex items-center justify-between">
-          <div className="flex items-center gap-3 text-gray-400">
-            <ShieldAlert className="w-5 h-5 text-gray-500" />
-            <div>
-              <p className="text-sm font-medium text-white">Despacho Cerrado para Auditoría</p>
-              <p className="text-xs">Los documentos han sido sellados. No se permiten nuevas subidas ni validaciones.</p>
-            </div>
+      {cerrado && (
+        <div className="bg-white/5 border border-white/10 rounded-2xl p-4 flex items-center gap-3 text-gray-400">
+          <ShieldAlert className="w-5 h-5 text-gray-500 shrink-0" />
+          <div>
+            <p className="text-sm font-medium text-white">Despacho cerrado para auditoría</p>
+            <p className="text-xs">Los documentos están sellados. No se permiten nuevas subidas ni validaciones.</p>
           </div>
         </div>
       )}
 
-      {/* Info del despacho */}
+      {/* ── DATOS RESUMEN ────────────────────────────────────────────────── */}
       <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-3">
         <div className="bg-white/3 border border-white/8 rounded-xl p-4">
           <p className="text-gray-500 text-xs mb-1 flex items-center gap-1"><Building2 className="w-3 h-3" />Cliente</p>
@@ -627,7 +552,7 @@ export default function DispatchDetailPage({ params }: { params: Promise<{ id: s
         </div>
         <div className="bg-white/3 border border-white/8 rounded-xl p-4">
           <p className="text-gray-500 text-xs mb-1 flex items-center gap-1"><Package className="w-3 h-3" />Pallets</p>
-          <p className="text-white font-medium text-sm">{dispatch.expected_pallets || '—'} Esperados</p>
+          <p className="text-white font-medium text-sm">{dispatch.expected_pallets || '—'} esperados</p>
         </div>
         <div className="bg-white/3 border border-white/8 rounded-xl p-4">
           <p className="text-gray-500 text-xs mb-1 flex items-center gap-1"><Truck className="w-3 h-3" />Contenedor</p>
@@ -639,462 +564,277 @@ export default function DispatchDetailPage({ params }: { params: Promise<{ id: s
         </div>
       </div>
 
-      {/* Grid de Documentos */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-        
-        {/* Columna Izquierda: Pack List y Fotos */}
-        <div className="space-y-6">
-          {/* Pack List */}
-          <div className="bg-white/3 border border-white/8 rounded-2xl p-5">
-            <div className="flex items-center justify-between mb-4">
-              <h3 className="text-white font-medium text-sm flex items-center gap-2">
-                <FileText className="w-4 h-4 text-indigo-400" />
-                Pack List
-              </h3>
-              <span className={`text-xs px-2 py-1 rounded-full border ${(docsByType['pack_list'] || []).length >= 1 ? 'text-green-400 border-green-500/30 bg-green-500/10' : 'text-gray-400 border-gray-500/30 bg-gray-500/10'}`}>
-                {(docsByType['pack_list'] || []).length} / 1
-              </span>
-            </div>
-            <div className="space-y-3 mb-4">
-              {(docsByType['pack_list'] || []).sort((a,b) => b.version_number - a.version_number).map((doc, index) => {
-                const isLatest = index === 0 && (docsByType['pack_list'] || []).length > 1
-                return (
-                  <div key={doc.id} className={`border rounded-xl p-3 transition-all ${isLatest ? 'bg-indigo-500/10 border-indigo-500/30 ring-1 ring-indigo-500/20' : 'bg-white/5 border-white/10'}`}>
-                    <div className="flex items-center gap-3 mb-1">
-                      <FileText className={`w-4 h-4 flex-shrink-0 ${isLatest ? 'text-indigo-400' : 'text-gray-400'}`} />
-                      <span className={`text-sm flex-1 truncate ${isLatest ? 'text-indigo-100 font-medium' : 'text-gray-300'}`}>{doc.original_file_name}</span>
-                      <div className="flex items-center gap-2">
-                        {doc.drive_file_url && (user?.role === 'admin' || user?.canViewDrive || !doc.storage_url) ? (
-                          <button 
-                            onClick={() => {
-                              const isImage = /\.(jpg|jpeg|png|gif|webp|bmp)$/i.test(doc.original_file_name)
-                              setPreviewFile({ 
-                                isOpen: true, 
-                                url: (isImage && doc.storage_url) ? doc.storage_url : doc.drive_file_url!, 
-                                name: doc.original_file_name 
-                              })
-                            }} 
-                            className={`${!doc.storage_url ? 'text-amber-400' : 'text-indigo-400'} p-1 hover:bg-white/5 rounded flex items-center gap-1`} 
-                            title={!doc.storage_url ? "Archivo Archivado en Drive" : "Ver en Google Drive"}
-                          >
-                            <Eye className="w-4 h-4" />
-                            {!doc.storage_url && <span className="text-[10px] font-bold">DRIVE</span>}
-                          </button>
-                        ) : doc.storage_url ? (
-                          <button onClick={() => setPreviewFile({ isOpen: true, url: doc.storage_url!, name: doc.original_file_name })} className="text-gray-400 p-1 hover:bg-white/5 rounded" title="Ver en Supabase">
-                            <Eye className="w-4 h-4" />
-                          </button>
-                        ) : (
-                          <span className="text-gray-600 p-1"><XCircle className="w-4 h-4" /></span>
-                        )}
-                        {user?.role === 'admin' && dispatch.overall_status !== 'closed' && (
-                          <button onClick={() => handleDeleteDocument(doc.id, 'dispatch_documents')} className="text-red-400 p-1 hover:bg-red-400/10 rounded" title="Eliminar">
-                            <Trash2 className="w-4 h-4" />
-                          </button>
-                        )}
-                      </div>
-                    </div>
-                    <div className="flex items-center justify-between mt-2">
-                      <div className="flex items-center gap-2">
-                        <p className={`text-[10px] ${isLatest ? 'text-indigo-300' : 'text-gray-500'}`}>
-                          v{doc.version_number} • {formatDateTime(doc.created_at)}
-                        </p>
-                        {isLatest && <span className="text-[9px] bg-indigo-500/20 text-indigo-300 px-1.5 py-0.5 rounded-full font-bold uppercase tracking-wider">Actual</span>}
-                      </div>
-                      {doc.status === 'validated' && (
-                        <p className="text-[10px] text-green-400 flex items-center gap-1 font-medium">
-                          <CheckCircle className="w-3 h-3" /> Validado
-                        </p>
-                      )}
-                      {doc.status === 'observed' && (
-                        <p className="text-[10px] text-yellow-400 flex items-center gap-1 font-medium">
-                          <AlertCircle className="w-3 h-3" /> Observado
-                        </p>
-                      )}
-                    </div>
-                    {doc.status !== 'validated' && user?.role === 'admin' && dispatch.overall_status !== 'closed' && (
-                      <div className="mt-2">
-                        {validatingDocId === doc.id ? (
-                          <InlineValidation 
-                            docId={doc.id}
-                            tableName="dispatch_documents"
-                            onValidated={() => fetchDispatch(true)}
-                            onCancel={() => setValidatingDocId(null)}
-                          />
-                        ) : (
-                          <button
-                            onClick={() => setValidatingDocId(doc.id)}
-                            className="w-full py-1.5 bg-blue-500/10 text-blue-400 hover:bg-blue-500/20 rounded-lg text-xs font-medium transition-colors border border-blue-500/20"
-                          >
-                            Validar / Observar
-                          </button>
-                        )}
-                      </div>
-                    )}
-                  </div>
-                )
-              })}
-            </div>
-            {dispatch.overall_status !== 'closed' && !['gerencia', 'agronomo'].includes(user?.role || '') && (
-              <UploadZone
-                lotId={id}
-                lotCode={dispatch.dispatch_code}
-                documentType="pack_list"
-                documentLabel="Pack List"
-                onUploadSuccess={() => fetchDispatch(true)}
-                uploadUrl={`/api/despachos/${id}/upload`}
-              />
-            )}
-          </div>
-
-          {/* Fotos Pata Pata */}
-          <div className="bg-white/3 border border-white/8 rounded-2xl p-5">
-            <div className="flex items-center justify-between mb-4">
-              <h3 className="text-white font-medium text-sm flex items-center gap-2">
-                <ImageIcon className="w-4 h-4 text-indigo-400" />
-                Fotos Pata a Pata
-              </h3>
-              {(() => {
-                const minPhotos = Math.ceil((dispatch.expected_pallets || 0) / 2)
-                const isComplete = dispatch.pata_pata_photos_count >= minPhotos
-                return (
-                  <span className={`text-xs px-2 py-1 rounded-full border ${isComplete ? 'text-green-400 border-green-500/30 bg-green-500/10' : 'text-yellow-400 border-yellow-500/30 bg-yellow-500/10'}`}>
-                    {dispatch.pata_pata_photos_count} / {minPhotos} mín.
-                  </span>
-                )
-              })()}
-            </div>
-            <div className="space-y-3 mb-4 max-h-64 overflow-y-auto pr-1">
-              {(docsByType['pata_pata_photo'] || []).sort((a,b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()).map(doc => (
-                <div key={doc.id} className="bg-white/5 border border-white/10 rounded-xl px-3 py-2 flex items-center justify-between group transition-all hover:bg-white/10">
-                  <div className="flex flex-col truncate">
-                    <div className="flex items-center gap-2">
-                      <ImageIcon className="w-3.5 h-3.5 text-gray-400 flex-shrink-0" />
-                      <span className="text-gray-300 text-[11px] truncate">{doc.original_file_name}</span>
-                    </div>
-                    <span className="text-[9px] text-gray-500 ml-5">{formatDateTime(doc.created_at)}</span>
-                  </div>
-                  <div className="flex items-center gap-1 md:opacity-0 md:group-hover:opacity-100 transition-opacity">
-                    {doc.drive_file_url && (user?.role === 'admin' || user?.canViewDrive || !doc.storage_url) ? (
-                      <button 
-                        onClick={() => {
-                          const isImage = /\.(jpg|jpeg|png|gif|webp|bmp)$/i.test(doc.original_file_name)
-                          setPreviewFile({ 
-                            isOpen: true, 
-                            url: (isImage && doc.storage_url) ? doc.storage_url : doc.drive_file_url!, 
-                            name: doc.original_file_name 
-                          })
-                        }} 
-                        className={`${!doc.storage_url ? 'text-amber-400' : 'text-indigo-400'} p-1 hover:bg-white/10 rounded flex items-center gap-1`} 
-                        title={!doc.storage_url ? "Archivo Archivado en Drive" : "Ver en Google Drive"}
-                      >
-                        <Eye className="w-3.5 h-3.5" />
-                        {!doc.storage_url && <span className="text-[9px] font-bold">DRIVE</span>}
-                      </button>
-                    ) : doc.storage_url ? (
-                      <button onClick={() => setPreviewFile({ isOpen: true, url: doc.storage_url!, name: doc.original_file_name })} className="text-gray-400 p-1 hover:bg-white/10 rounded" title="Ver en Supabase">
-                        <Eye className="w-3.5 h-3.5" />
-                      </button>
-                    ) : (
-                      <span className="text-gray-600 p-1"><XCircle className="w-3.5 h-3.5" /></span>
-                    )}
-                    {user?.role === 'admin' && dispatch.overall_status !== 'closed' && (
-                      <button onClick={() => handleDeleteDocument(doc.id, 'dispatch_documents')} className="text-red-400 p-1 hover:bg-red-400/10 rounded" title="Eliminar">
-                        <Trash2 className="w-3.5 h-3.5" />
-                      </button>
-                    )}
-                  </div>
-                </div>
-              ))}
-            </div>
-            {dispatch.overall_status !== 'closed' && ['admin', 'jefe_frio', 'sag', 'despacho'].includes(user?.role || '') && !['gerencia', 'agronomo'].includes(user?.role || '') && (
-              <PalletUploadZone dispatchId={id} onUploadSuccess={() => fetchDispatch(true)} />
-            )}
-          </div>
-        </div>
-
-        {/* Columna Derecha: Termógrafos y Otros */}
-        <div className="space-y-6">
-          {/* Termógrafos */}
-          <div className="bg-white/3 border border-white/8 rounded-2xl p-5">
-            <div className="flex items-center justify-between mb-4">
-              <h3 className="text-white font-medium text-sm flex items-center gap-2">
-                <ImageIcon className="w-4 h-4 text-indigo-400" />
-                Fotos Termógrafos
-              </h3>
-              <span className={`text-xs px-2 py-1 rounded-full border ${dispatch.thermograph_photos_count >= 2 ? 'text-green-400 border-green-500/30 bg-green-500/10' : 'text-gray-400 border-gray-500/30 bg-gray-500/10'}`}>
-                {dispatch.thermograph_photos_count} / 2
-              </span>
-            </div>
-            <div className="space-y-3 mb-4">
-              {(docsByType['thermograph_photo'] || []).sort((a,b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()).map(doc => (
-                <div key={doc.id} className="bg-white/5 border border-white/10 rounded-xl px-3 py-2 flex items-center justify-between group transition-all hover:bg-white/10">
-                  <div className="flex flex-col truncate">
-                    <div className="flex items-center gap-2">
-                      <ImageIcon className="w-3.5 h-3.5 text-gray-400 flex-shrink-0" />
-                      <span className="text-gray-300 text-[11px] truncate">{doc.original_file_name}</span>
-                    </div>
-                    <span className="text-[9px] text-gray-500 ml-5">{formatDateTime(doc.created_at)}</span>
-                  </div>
-                  <div className="flex items-center gap-1 md:opacity-0 md:group-hover:opacity-100 transition-opacity">
-                    {doc.drive_file_url && (user?.role === 'admin' || user?.canViewDrive || !doc.storage_url) ? (
-                      <button 
-                        onClick={() => {
-                          const isImage = /\.(jpg|jpeg|png|gif|webp|bmp)$/i.test(doc.original_file_name)
-                          setPreviewFile({ 
-                            isOpen: true, 
-                            url: (isImage && doc.storage_url) ? doc.storage_url : doc.drive_file_url!, 
-                            name: doc.original_file_name 
-                          })
-                        }} 
-                        className={`${!doc.storage_url ? 'text-amber-400' : 'text-indigo-400'} p-1 hover:bg-white/10 rounded flex items-center gap-1`} 
-                        title={!doc.storage_url ? "Archivo Archivado en Drive" : "Ver en Google Drive"}
-                      >
-                        <Eye className="w-3.5 h-3.5" />
-                        {!doc.storage_url && <span className="text-[9px] font-bold">DRIVE</span>}
-                      </button>
-                    ) : doc.storage_url ? (
-                      <button onClick={() => setPreviewFile({ isOpen: true, url: doc.storage_url!, name: doc.original_file_name })} className="text-gray-400 p-1 hover:bg-white/10 rounded" title="Ver en Supabase">
-                        <Eye className="w-3.5 h-3.5" />
-                      </button>
-                    ) : (
-                      <span className="text-gray-600 p-1"><XCircle className="w-3.5 h-3.5" /></span>
-                    )}
-                    {user?.role === 'admin' && dispatch.overall_status !== 'closed' && (
-                      <button onClick={() => handleDeleteDocument(doc.id, 'dispatch_documents')} className="text-red-400 p-1 hover:bg-red-400/10 rounded" title="Eliminar">
-                        <Trash2 className="w-3.5 h-3.5" />
-                      </button>
-                    )}
-                  </div>
-                </div>
-              ))}
-            </div>
-            {dispatch.overall_status !== 'closed' && ['admin', 'jefe_frio', 'sag', 'despacho'].includes(user?.role || '') && !['gerencia', 'agronomo'].includes(user?.role || '') && (
-              <UploadZone
-                lotId={id}
-                lotCode={dispatch.dispatch_code}
-                documentType="thermograph_photo"
-                documentLabel="Foto Termógrafo"
-                accept={{ 'image/*': ['.png', '.jpg', '.jpeg', '.webp', '.heic'] }}
-                onUploadSuccess={() => fetchDispatch(true)}
-                uploadUrl={`/api/despachos/${id}/upload`}
-              />
-            )}
-          </div>
-
-          {/* Respaldos */}
-          <div className="bg-white/3 border border-white/8 rounded-2xl p-5">
-            <h3 className="text-white font-medium text-sm mb-4 flex items-center gap-2">
-              <FolderOpen className="w-4 h-4 text-indigo-400" />
-              Otros / Respaldos
-            </h3>
-            <div className="space-y-3 mb-4">
-              {(docsByType['backup'] || []).sort((a,b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()).map(doc => (
-                <div key={doc.id} className="bg-white/5 border border-white/10 rounded-xl px-3 py-2 flex items-center justify-between group transition-all hover:bg-white/10">
-                  <div className="flex flex-col truncate">
-                    <div className="flex items-center gap-2">
-                      <FileText className="w-3.5 h-3.5 text-gray-400 flex-shrink-0" />
-                      <span className="text-gray-300 text-[11px] truncate">{doc.original_file_name}</span>
-                    </div>
-                    <span className="text-[9px] text-gray-500 ml-5">{formatDateTime(doc.created_at)}</span>
-                  </div>
-                  <div className="flex items-center gap-1 md:opacity-0 md:group-hover:opacity-100 transition-opacity">
-                    {doc.drive_file_url && (user?.role === 'admin' || user?.canViewDrive || !doc.storage_url) ? (
-                      <button 
-                        onClick={() => {
-                          const isImage = /\.(jpg|jpeg|png|gif|webp|bmp)$/i.test(doc.original_file_name)
-                          setPreviewFile({ 
-                            isOpen: true, 
-                            url: (isImage && doc.storage_url) ? doc.storage_url : doc.drive_file_url!, 
-                            name: doc.original_file_name 
-                          })
-                        }} 
-                        className={`${!doc.storage_url ? 'text-amber-400' : 'text-indigo-400'} p-1 hover:bg-white/10 rounded flex items-center gap-1`} 
-                        title={!doc.storage_url ? "Archivo Archivado en Drive" : "Ver en Google Drive"}
-                      >
-                        <Eye className="w-3.5 h-3.5" />
-                        {!doc.storage_url && <span className="text-[9px] font-bold">DRIVE</span>}
-                      </button>
-                    ) : doc.storage_url ? (
-                      <button onClick={() => setPreviewFile({ isOpen: true, url: doc.storage_url!, name: doc.original_file_name })} className="text-gray-400 p-1 hover:bg-white/10 rounded" title="Ver en Supabase">
-                        <Eye className="w-3.5 h-3.5" />
-                      </button>
-                    ) : (
-                      <span className="text-gray-600 p-1"><XCircle className="w-3.5 h-3.5" /></span>
-                    )}
-                    {user?.role === 'admin' && dispatch.overall_status !== 'closed' && (
-                      <button onClick={() => handleDeleteDocument(doc.id, 'dispatch_documents')} className="text-red-400 p-1 hover:bg-red-400/10 rounded" title="Eliminar">
-                        <Trash2 className="w-3.5 h-3.5" />
-                      </button>
-                    )}
-                  </div>
-                </div>
-              ))}
-            </div>
-            {dispatch.overall_status !== 'closed' && ['admin', 'jefe_frio', 'sag', 'despacho'].includes(user?.role || '') && !['gerencia', 'agronomo'].includes(user?.role || '') && (
-              <UploadZone
-                lotId={id}
-                lotCode={dispatch.dispatch_code}
-                documentType="backup"
-                documentLabel="Respaldo"
-                onUploadSuccess={() => fetchDispatch(true)}
-                uploadUrl={`/api/despachos/${id}/upload`}
-              />
-            )}
-          </div>
-
-          {/* Recepción de Calidad en Destino */}
-          <div className="bg-white/3 border border-white/8 rounded-2xl p-5">
-            <h3 className="text-white font-medium text-sm mb-4 flex items-center gap-2">
-              <CheckCircle className="w-4 h-4 text-indigo-400" />
-              Recepción de Calidad en Destino
-            </h3>
-            <div className="space-y-3 mb-4">
-              {(docsByType['calidad_destino'] || []).sort((a,b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()).map(doc => (
-                <div key={doc.id} className="bg-white/5 border border-white/10 rounded-xl px-3 py-2 flex items-center justify-between group transition-all hover:bg-white/10">
-                  <div className="flex flex-col truncate">
-                    <div className="flex items-center gap-2">
-                      <FileText className="w-3.5 h-3.5 text-gray-400 flex-shrink-0" />
-                      <span className="text-gray-300 text-[11px] truncate">{doc.original_file_name}</span>
-                    </div>
-                    <span className="text-[9px] text-gray-500 ml-5">{formatDateTime(doc.created_at)}</span>
-                  </div>
-                  <div className="flex items-center gap-1 md:opacity-0 md:group-hover:opacity-100 transition-opacity">
-                    {doc.drive_file_url && (user?.role === 'admin' || user?.canViewDrive || !doc.storage_url) ? (
-                      <button 
-                        onClick={() => {
-                          const isImage = /\.(jpg|jpeg|png|gif|webp|bmp)$/i.test(doc.original_file_name)
-                          setPreviewFile({ 
-                            isOpen: true, 
-                            url: (isImage && doc.storage_url) ? doc.storage_url : doc.drive_file_url!, 
-                            name: doc.original_file_name 
-                          })
-                        }} 
-                        className={`${!doc.storage_url ? 'text-amber-400' : 'text-indigo-400'} p-1 hover:bg-white/10 rounded flex items-center gap-1`} 
-                        title={!doc.storage_url ? "Archivo Archivado en Drive" : "Ver en Google Drive"}
-                      >
-                        <Eye className="w-3.5 h-3.5" />
-                        {!doc.storage_url && <span className="text-[9px] font-bold">DRIVE</span>}
-                      </button>
-                    ) : doc.storage_url ? (
-                      <button onClick={() => setPreviewFile({ isOpen: true, url: doc.storage_url!, name: doc.original_file_name })} className="text-gray-400 p-1 hover:bg-white/10 rounded" title="Ver en Supabase">
-                        <Eye className="w-3.5 h-3.5" />
-                      </button>
-                    ) : (
-                      <span className="text-gray-600 p-1"><XCircle className="w-3.5 h-3.5" /></span>
-                    )}
-                    {user?.role === 'admin' && dispatch.overall_status !== 'closed' && (
-                      <button onClick={() => handleDeleteDocument(doc.id, 'dispatch_documents')} className="text-red-400 p-1 hover:bg-red-400/10 rounded" title="Eliminar">
-                        <Trash2 className="w-3.5 h-3.5" />
-                      </button>
-                    )}
-                  </div>
-                </div>
-              ))}
-            </div>
-            {dispatch.overall_status !== 'closed' && ['admin', 'jefe_frio', 'sag', 'despacho'].includes(user?.role || '') && !['gerencia', 'agronomo'].includes(user?.role || '') && (
-              <UploadZone
-                lotId={id}
-                lotCode={dispatch.dispatch_code}
-                documentType="calidad_destino"
-                documentLabel="Calidad en Destino"
-                onUploadSuccess={() => fetchDispatch(true)}
-                uploadUrl={`/api/despachos/${id}/upload`}
-              />
-            )}
-          </div>
-        </div>
+      {/* ── PESTAÑAS ─────────────────────────────────────────────────────── */}
+      <div className="flex items-center gap-1 border-b border-white/8 overflow-x-auto">
+        {PESTANAS.map(p => (
+          <button
+            key={p.id}
+            onClick={() => setPestana(p.id)}
+            className={`flex items-center gap-2 px-4 py-2.5 text-sm font-medium border-b-2 -mb-px transition-all whitespace-nowrap ${
+              pestana === p.id
+                ? 'border-indigo-500 text-white'
+                : 'border-transparent text-gray-400 hover:text-gray-200 hover:border-white/20'
+            }`}
+          >
+            {p.icono}
+            {p.etiqueta}
+          </button>
+        ))}
       </div>
 
-      {/* Módulo de Liquidación de Contenedor (Sector Financiero) */}
-      <div className="border-t border-white/10 pt-8 mt-8">
-        <ContainerLiquidationCard
-          dispatchId={id}
-          dispatchCode={dispatch.dispatch_code}
-          isClosed={dispatch.overall_status === 'closed'}
-          userId={user?.userId}
-        />
-      </div>
-
-      {/* Sección Documentos Financieros */}
-      <div className="border-t border-white/10 pt-8 mt-8 space-y-6">
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-          <div>
-            <h2 className="text-lg font-bold text-white flex items-center gap-2">
-              <span className="p-2 rounded-xl bg-emerald-500/10 border border-emerald-500/20 text-emerald-400">
-                <FileText className="w-5 h-5" />
-              </span>
-              Documentación Financiera del Contenedor
-            </h2>
-            <p className="text-gray-400 text-xs mt-1">
-              Guías de despacho, proformas, facturas, abonos y pagos de la carga
-            </p>
-          </div>
-
-          {/* Botón para marcar pagado en su totalidad (Solo Admin y Gerencia) */}
-          {['admin', 'gerencia'].includes(user?.role || '') && (
-            <button
-              onClick={handleTogglePaymentStatus}
-              disabled={dispatch.overall_status === 'closed'}
-              className={`flex items-center gap-2 px-4 py-2.5 rounded-xl font-semibold text-sm transition-all duration-200 shadow-md ${
-                dispatch.payment_status === 'paid'
-                  ? 'bg-emerald-600 hover:bg-emerald-500 text-white shadow-emerald-950/20'
-                  : 'bg-white/5 border border-white/10 text-gray-300 hover:bg-white/10'
-              } disabled:opacity-50 disabled:cursor-not-allowed`}
-            >
-              {dispatch.payment_status === 'paid' ? (
-                <>
-                  <CheckCircle className="w-4 h-4" />
-                  Contenedor Pagado (Marcar como Pendiente)
-                </>
-              ) : (
-                <>
-                  <Clock className="w-4 h-4" />
-                  Marcar como Pagado en su Totalidad
-                </>
-              )}
-            </button>
-          )}
-        </div>
-
-        {/* Resumen Financiero del Contenedor */}
-        {dispatch.invoice_amount !== null && dispatch.invoice_amount !== undefined && dispatch.invoice_amount > 0 && (
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 bg-white/3 border border-white/8 rounded-2xl p-4">
-            <div className="bg-white/5 border border-white/10 rounded-xl p-3.5">
-              <p className="text-gray-400 text-xs font-semibold uppercase tracking-wider">Monto Factura Total</p>
-              <p className="text-xl font-bold text-white mt-1">{formatCLP(dispatch.invoice_amount)}</p>
-            </div>
-            <div className="bg-white/5 border border-white/10 rounded-xl p-3.5">
-              <p className="text-gray-400 text-xs font-semibold uppercase tracking-wider">Abonos / Adelantos</p>
-              <p className="text-xl font-bold text-indigo-300 mt-1">{formatCLP(dispatch.advance_amount || 0)}</p>
-            </div>
-            {(() => {
-              const debt = Number(dispatch.invoice_amount || 0) - Number(dispatch.advance_amount || 0)
-              const isPaid = debt <= 0
-              return (
-                <div className={`border rounded-xl p-3.5 ${
-                  isPaid ? 'bg-emerald-500/10 border-emerald-500/30' : 'bg-amber-500/10 border-amber-500/30'
-                }`}>
-                  <p className={`text-xs font-bold uppercase tracking-wider ${isPaid ? 'text-emerald-400' : 'text-amber-400'}`}>
-                    Saldo Adeudado
-                  </p>
-                  <p className={`text-xl font-black mt-1 ${isPaid ? 'text-emerald-300' : 'text-amber-300'}`}>
-                    {formatCLP(debt)} {isPaid ? '✓' : ''}
-                  </p>
-                </div>
-              )
-            })()}
-          </div>
-        )}
-
+      {/* ── PESTAÑA: DOCUMENTOS Y FOTOS ──────────────────────────────────── */}
+      {pestana === 'documentos' && (
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-          {renderDocumentCard('guia_despacho', '1. Guía de Despacho', <FileText className="w-4 h-4 text-emerald-400" />, true)}
-          {renderDocumentCard('proforma', '2. Proforma', <FileText className="w-4 h-4 text-emerald-400" />, true)}
-          {renderDocumentCard('factura', '3. Factura', <FileText className="w-4 h-4 text-emerald-400" />, true)}
-          {renderDocumentCard('abonos_adelantos', '4. Abonos o Adelantos', <FileText className="w-4 h-4 text-emerald-400" />, true)}
-          {renderDocumentCard('pagos_liquidaciones', '5. Pagos y Liquidaciones', <FileText className="w-4 h-4 text-emerald-400" />, true)}
+          <div className="space-y-6">
+            <DocumentList
+              titulo="Pack List"
+              icono={<FileSpreadsheet className="w-4 h-4 text-indigo-400" />}
+              ayuda="El listado de embalaje del contenedor. Alimenta la liquidación."
+              documentos={docsByType['pack_list'] || []}
+              requeridos={1}
+              tableName="dispatch_documents"
+              puedeSubir={puedeSubir}
+              puedeEliminar={esAdmin && !cerrado}
+              puedeValidar={esAdmin && !cerrado}
+              puedeVerDrive={puedeVerDrive}
+              zonaSubida={zonaSubida('pack_list', 'Pack List')}
+              onPreview={abrirPreview}
+              onEliminar={handleDeleteDocument}
+              onValidado={() => fetchDispatch(true)}
+            />
+
+            <DocumentList
+              titulo="Fotos Pata a Pata"
+              icono={<ImageIcon className="w-4 h-4 text-indigo-400" />}
+              ayuda={`Mínimo ${minFotos} fotos (una cada dos pallets).`}
+              documentos={docsByType['pata_pata_photo'] || []}
+              requeridos={minFotos}
+              variante="galeria"
+              tableName="dispatch_documents"
+              puedeSubir={puedeSubirFotos}
+              puedeEliminar={esAdmin && !cerrado}
+              puedeVerDrive={puedeVerDrive}
+              zonaSubida={<PalletUploadZone dispatchId={id} onUploadSuccess={() => fetchDispatch(true)} />}
+              onPreview={abrirPreview}
+              onEliminar={handleDeleteDocument}
+              onValidado={() => fetchDispatch(true)}
+            />
+          </div>
+
+          <div className="space-y-6">
+            <DocumentList
+              titulo="Fotos Termógrafos"
+              icono={<Thermometer className="w-4 h-4 text-indigo-400" />}
+              ayuda="Dos fotos del registro de temperatura del contenedor."
+              documentos={docsByType['thermograph_photo'] || []}
+              requeridos={2}
+              variante="galeria"
+              tableName="dispatch_documents"
+              puedeSubir={puedeSubirFotos}
+              puedeEliminar={esAdmin && !cerrado}
+              puedeVerDrive={puedeVerDrive}
+              zonaSubida={
+                <UploadZone
+                  lotId={id}
+                  lotCode={dispatch.dispatch_code}
+                  documentType="thermograph_photo"
+                  documentLabel="Foto Termógrafo"
+                  accept={{ 'image/*': ['.png', '.jpg', '.jpeg', '.webp', '.heic'] }}
+                  onUploadSuccess={() => fetchDispatch(true)}
+                  uploadUrl={`/api/despachos/${id}/upload`}
+                />
+              }
+              onPreview={abrirPreview}
+              onEliminar={handleDeleteDocument}
+              onValidado={() => fetchDispatch(true)}
+            />
+
+            <DocumentList
+              titulo="Recepción de Calidad en Destino"
+              icono={<ClipboardCheck className="w-4 h-4 text-indigo-400" />}
+              ayuda="Informe de cómo llegó la fruta al mercado de destino."
+              documentos={docsByType['calidad_destino'] || []}
+              tableName="dispatch_documents"
+              puedeSubir={puedeSubirFotos}
+              puedeEliminar={esAdmin && !cerrado}
+              puedeVerDrive={puedeVerDrive}
+              zonaSubida={zonaSubida('calidad_destino', 'Calidad en Destino')}
+              onPreview={abrirPreview}
+              onEliminar={handleDeleteDocument}
+              onValidado={() => fetchDispatch(true)}
+            />
+
+            <DocumentList
+              titulo="Otros / Respaldos"
+              icono={<Archive className="w-4 h-4 text-indigo-400" />}
+              ayuda="Cualquier documento adicional del despacho."
+              documentos={docsByType['backup'] || []}
+              tableName="dispatch_documents"
+              puedeSubir={puedeSubirFotos}
+              puedeEliminar={esAdmin && !cerrado}
+              puedeVerDrive={puedeVerDrive}
+              zonaSubida={zonaSubida('backup', 'Respaldo')}
+              onPreview={abrirPreview}
+              onEliminar={handleDeleteDocument}
+              onValidado={() => fetchDispatch(true)}
+            />
+          </div>
         </div>
-      </div>
+      )}
+
+      {/* ── PESTAÑA: FINANCIERO ──────────────────────────────────────────── */}
+      {pestana === 'financiero' && (
+        <div className="space-y-6">
+          {/* Resumen económico: antes estos montos estaban enterrados dentro
+              de las tarjetas de documento "Factura" y "Abonos". */}
+          <div className="bg-white/3 border border-white/8 rounded-2xl p-5 space-y-4">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+              <h2 className="text-sm font-bold text-white flex items-center gap-2">
+                <Wallet className="w-4 h-4 text-emerald-400" />
+                Resumen económico del contenedor
+              </h2>
+              {['admin', 'gerencia'].includes(user?.role || '') && (
+                <button
+                  onClick={handleTogglePaymentStatus}
+                  disabled={cerrado}
+                  className={`flex items-center gap-2 px-4 py-2 rounded-xl font-semibold text-xs transition-all shadow-md ${
+                    dispatch.payment_status === 'paid'
+                      ? 'bg-emerald-600 hover:bg-emerald-500 text-white'
+                      : 'bg-white/5 border border-white/10 text-gray-300 hover:bg-white/10'
+                  } disabled:opacity-50 disabled:cursor-not-allowed`}
+                  title={cerrado ? 'El despacho está cerrado' : undefined}
+                >
+                  {dispatch.payment_status === 'paid' ? <CheckCircle className="w-4 h-4" /> : <Clock className="w-4 h-4" />}
+                  {dispatch.payment_status === 'paid' ? 'Pagado (marcar pendiente)' : 'Marcar como pagado'}
+                </button>
+              )}
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+              <div className="bg-white/5 border border-white/10 rounded-xl p-3.5 space-y-2">
+                <label className="text-gray-400 text-[10px] font-bold uppercase tracking-wider block">Monto Factura ($ CLP)</label>
+                <div className="flex gap-2">
+                  <div className="relative flex-1">
+                    <DollarSign className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-gray-400" />
+                    <input
+                      type="number" min="0" step="1" placeholder="Ej: 10000000"
+                      value={editingInvoiceAmount}
+                      onChange={(e) => setEditingInvoiceAmount(e.target.value)}
+                      disabled={cerrado || savingAmounts}
+                      className="w-full bg-white/5 border border-white/10 rounded-lg pl-8 pr-2 py-1.5 text-sm text-white placeholder-gray-500 focus:outline-none focus:border-emerald-400/50 disabled:opacity-50"
+                    />
+                  </div>
+                  <button
+                    onClick={handleSaveAmounts}
+                    disabled={cerrado || savingAmounts}
+                    className="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg text-xs font-medium transition-colors flex items-center gap-1.5 disabled:opacity-50"
+                  >
+                    <Save className="w-3.5 h-3.5" />
+                  </button>
+                </div>
+                <p className="text-lg font-bold text-white">{formatCLP(dispatch.invoice_amount)}</p>
+              </div>
+
+              <div className="bg-white/5 border border-white/10 rounded-xl p-3.5 space-y-2">
+                <label className="text-gray-400 text-[10px] font-bold uppercase tracking-wider block">Abonos / Adelantos ($ CLP)</label>
+                <div className="flex gap-2">
+                  <div className="relative flex-1">
+                    <DollarSign className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-gray-400" />
+                    <input
+                      type="number" min="0" step="1" placeholder="Ej: 5000000"
+                      value={editingAdvanceAmount}
+                      onChange={(e) => setEditingAdvanceAmount(e.target.value)}
+                      disabled={cerrado || savingAmounts}
+                      className="w-full bg-white/5 border border-white/10 rounded-lg pl-8 pr-2 py-1.5 text-sm text-white placeholder-gray-500 focus:outline-none focus:border-indigo-400/50 disabled:opacity-50"
+                    />
+                  </div>
+                  <button
+                    onClick={handleSaveAmounts}
+                    disabled={cerrado || savingAmounts}
+                    className="px-3 py-1.5 bg-indigo-600 hover:bg-indigo-500 text-white rounded-lg text-xs font-medium transition-colors flex items-center gap-1.5 disabled:opacity-50"
+                  >
+                    <Save className="w-3.5 h-3.5" />
+                  </button>
+                </div>
+                <p className="text-lg font-bold text-indigo-300">{formatCLP(dispatch.advance_amount || 0)}</p>
+              </div>
+
+              <div className={`border rounded-xl p-3.5 flex flex-col justify-center ${
+                saldo <= 0 ? 'bg-emerald-500/10 border-emerald-500/30' : 'bg-amber-500/10 border-amber-500/30'
+              }`}>
+                <p className={`text-[10px] font-bold uppercase tracking-wider ${saldo <= 0 ? 'text-emerald-400' : 'text-amber-400'}`}>
+                  Saldo adeudado
+                </p>
+                <p className={`text-2xl font-black mt-1 ${saldo <= 0 ? 'text-emerald-300' : 'text-amber-300'}`}>
+                  {formatCLP(saldo)} {saldo <= 0 ? '✓' : ''}
+                </p>
+              </div>
+            </div>
+          </div>
+
+          {/* Liquidación del contenedor */}
+          <ContainerLiquidationCard
+            dispatchId={id}
+            dispatchCode={dispatch.dispatch_code}
+            isClosed={cerrado}
+            userId={user?.userId}
+          />
+
+          {/* Documentos de respaldo financiero */}
+          <div className="space-y-4">
+            <div>
+              <h2 className="text-sm font-bold text-white flex items-center gap-2">
+                <FileText className="w-4 h-4 text-emerald-400" />
+                Documentos de respaldo financiero
+              </h2>
+              <p className="text-gray-400 text-xs mt-1">Guías, proformas, facturas, abonos y pagos de la carga.</p>
+            </div>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              {tarjetaFinanciera('guia_despacho', '1. Guía de Despacho')}
+              {tarjetaFinanciera('proforma', '2. Proforma')}
+              {tarjetaFinanciera('factura', '3. Factura')}
+              {tarjetaFinanciera('abonos_adelantos', '4. Abonos o Adelantos')}
+              {tarjetaFinanciera('pagos_liquidaciones', '5. Pagos y Liquidaciones')}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── PESTAÑA: INFORMES Y DESCARGAS ────────────────────────────────── */}
+      {pestana === 'informes' && (
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
+          <TarjetaInforme
+            icono={<FileText className="w-6 h-6" />}
+            color="indigo"
+            titulo="Dossier del despacho"
+            descripcion="Portada de control, fotos de pallets, termógrafos y el Pack List, todo en un PDF."
+            detalle={`${(docsByType['pata_pata_photo'] || []).length} fotos de pallet · ${(docsByType['thermograph_photo'] || []).length} termógrafos`}
+            href={`/api/despachos/${dispatch.id}/reporte-pdf`}
+            textoBoton="Ver PDF"
+          />
+
+          <TarjetaInforme
+            icono={<BarChart3 className="w-6 h-6" />}
+            color="emerald"
+            titulo="Informe financiero"
+            descripcion="Venta por calibre, gastos en destino, utilidad del contenedor y ranking de rentabilidad."
+            detalle="Se genera con la liquidación guardada"
+            href={`/api/despachos/${dispatch.id}/liquidacion/reporte-pdf`}
+            textoBoton="Ver PDF"
+          />
+
+          <TarjetaInforme
+            icono={<Download className="w-6 h-6" />}
+            color="blue"
+            titulo="Todos los archivos"
+            descripcion="Descarga en un .zip todos los documentos y fotos originales de este despacho."
+            detalle={`${(dispatch.dispatch_documents || []).length} archivos`}
+            href={`/api/despachos/${dispatch.id}/download-all`}
+            textoBoton="Descargar .zip"
+            descarga
+          />
+        </div>
+      )}
 
       {showEditModal && (
         <NewDispatchModal
@@ -1110,6 +850,48 @@ export default function DispatchDetailPage({ params }: { params: Promise<{ id: s
         fileUrl={previewFile?.url || ''}
         fileName={previewFile?.name || ''}
       />
+    </div>
+  )
+}
+
+// Tarjeta de la pestaña de informes: cada salida explica qué contiene, en vez
+// de ser un botón con un nombre que no distingue un PDF del otro.
+function TarjetaInforme({
+  icono, color, titulo, descripcion, detalle, href, textoBoton, descarga = false,
+}: {
+  icono: React.ReactNode
+  color: 'indigo' | 'emerald' | 'blue'
+  titulo: string
+  descripcion: string
+  detalle: string
+  href: string
+  textoBoton: string
+  descarga?: boolean
+}) {
+  const colores = {
+    indigo: 'bg-indigo-500/10 border-indigo-500/20 text-indigo-400',
+    emerald: 'bg-emerald-500/10 border-emerald-500/20 text-emerald-400',
+    blue: 'bg-blue-500/10 border-blue-500/20 text-blue-400',
+  }[color]
+
+  return (
+    <div className="bg-white/3 border border-white/8 rounded-2xl p-5 flex flex-col gap-3">
+      <div className={`w-12 h-12 rounded-2xl border flex items-center justify-center ${colores}`}>
+        {icono}
+      </div>
+      <div className="flex-1">
+        <h3 className="text-white font-semibold text-sm">{titulo}</h3>
+        <p className="text-gray-400 text-xs mt-1.5 leading-relaxed">{descripcion}</p>
+        <p className="text-gray-500 text-[11px] mt-2 font-mono">{detalle}</p>
+      </div>
+      <a
+        href={href}
+        {...(descarga ? {} : { target: '_blank', rel: 'noopener noreferrer' })}
+        className={`flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl border text-xs font-bold transition-all hover:brightness-125 ${colores}`}
+      >
+        {descarga ? <Download className="w-4 h-4" /> : <ExternalLink className="w-4 h-4" />}
+        {textoBoton}
+      </a>
     </div>
   )
 }

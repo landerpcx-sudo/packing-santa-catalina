@@ -10,7 +10,6 @@ import dynamic from 'next/dynamic'
 import Link from 'next/link'
 
 const NewDispatchModal = dynamic(() => import('@/components/despachos/NewDispatchModal'), { ssr: false })
-const LiquidationModal = dynamic(() => import('@/components/despachos/LiquidationModal'), { ssr: false })
 import { useRouter } from 'next/navigation'
 
 interface Dispatch {
@@ -74,7 +73,6 @@ export default function DespachosPage() {
   const [total, setTotal] = useState(0)
   const [loading, setLoading] = useState(true)
   const [showModal, setShowModal] = useState(false)
-  const [selectedLiquidationDispatch, setSelectedLiquidationDispatch] = useState<Dispatch | null>(null)
   const router = useRouter()
   const [search, setSearch] = useState('')
   const [filterStatus, setFilterStatus] = useState('')
@@ -531,10 +529,13 @@ export default function DespachosPage() {
                     type="button"
                     onClick={(e) => {
                       e.stopPropagation()
-                      setSelectedLiquidationDispatch(dispatch)
+                      // Una sola puerta al módulo financiero: la ficha del
+                      // despacho. Antes esto abría un modal aparte que, además,
+                      // no registraba quién guardaba la liquidación.
+                      router.push(`/despachos/${dispatch.id}?tab=financiero`)
                     }}
                     className="flex items-center gap-1 px-2 py-1.5 rounded-xl bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 hover:border-emerald-500/50 transition-all shadow-sm group/btn shrink-0"
-                    title="Ingreso Financiero / Liquidación"
+                    title="Ir al módulo financiero de este despacho"
                   >
                     <Calculator className="w-4 h-4 group-hover/btn:scale-110 transition-transform" />
                     <span className="hidden xl:inline text-[10px] font-bold uppercase tracking-wider">Finanzas</span>
@@ -569,18 +570,6 @@ export default function DespachosPage() {
         />
       )}
 
-      {/* Modal de Liquidación Financiera */}
-      {selectedLiquidationDispatch && (
-        <LiquidationModal
-          dispatchId={selectedLiquidationDispatch.id}
-          dispatchCode={selectedLiquidationDispatch.dispatch_code}
-          isClosed={selectedLiquidationDispatch.overall_status === 'closed'}
-          onClose={() => setSelectedLiquidationDispatch(null)}
-          onSuccess={() => {
-            fetchDispatches()
-          }}
-        />
-      )}
     </div>
   )
 }

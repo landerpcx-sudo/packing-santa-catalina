@@ -18,6 +18,7 @@ export async function GET(
         uploader:uploaded_by(display_name, username)
       `)
       .eq('client_id', id)
+      .is('deleted_at', null)
       .order('created_at', { ascending: false })
 
     if (error) throw error

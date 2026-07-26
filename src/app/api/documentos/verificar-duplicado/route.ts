@@ -15,6 +15,8 @@ export async function GET(request: Request) {
       .from('lot_documents')
       .select('original_file_name, lot_id, lots(internal_code)')
       .eq('file_hash', hash)
+      .is('deleted_at', null)
+      .limit(1)
       .maybeSingle()
 
     if (lotDoc) {
@@ -32,6 +34,8 @@ export async function GET(request: Request) {
       .from('dispatch_documents')
       .select('original_file_name, dispatch_id, dispatches(internal_code)')
       .eq('file_hash', hash)
+      .is('deleted_at', null)
+      .limit(1)
       .maybeSingle()
 
     if (dispatchDoc) {
@@ -49,6 +53,8 @@ export async function GET(request: Request) {
       .from('temperature_documents')
       .select('original_file_name, temperature_report_id, temperature_reports(internal_code)')
       .eq('file_hash', hash)
+      .is('deleted_at', null)
+      .limit(1)
       .maybeSingle()
 
     if (tempDoc) {
@@ -66,6 +72,8 @@ export async function GET(request: Request) {
       .from('client_documents')
       .select('original_file_name, client_id, clients(name)')
       .eq('file_hash', hash)
+      .is('deleted_at', null)
+      .limit(1)
       .maybeSingle()
 
     if (clientDoc) {

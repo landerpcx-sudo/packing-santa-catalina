@@ -36,6 +36,7 @@ export default function ContainerLiquidationCard({
   const [saving, setSaving] = useState(false)
   const [fetchingRate, setFetchingRate] = useState(false)
   const [showReportModal, setShowReportModal] = useState(false)
+  const [generatingPdf, setGeneratingPdf] = useState(false)
   const [dispatchMeta, setDispatchMeta] = useState<{
     client?: string | null
     destination?: string | null
@@ -123,6 +124,16 @@ export default function ContainerLiquidationCard({
           setOtherExpenses(existingLiq.other_expenses ?? 0)
           setAdvanceAmount(existingLiq.advance_amount || Number(data.dispatch?.invoice_amount || 0))
           setExchangeRate(existingLiq.exchange_rate ?? 1)
+
+          // Datos de moneda que antes no se guardaban y volvían a su valor por
+          // defecto en cada recarga.
+          const liq = existingLiq as any
+          if (liq.target_currency) setTargetCurrency(liq.target_currency)
+          if (liq.fob_currency) setFobCurrency(liq.fob_currency)
+          if (liq.fob_exchange_rate) setFobExchangeRate(Number(liq.fob_exchange_rate))
+          if (liq.abonos_amount) setAbonosAmount(Number(liq.abonos_amount))
+          if (liq.rate_provider_info) setRateProviderInfo(liq.rate_provider_info)
+          if (liq.rate_date) setRateDate(String(liq.rate_date).split('T')[0])
 
           if (existingLiq.items && existingLiq.items.length > 0) {
             setRows(existingLiq.items.map(it => ({
@@ -276,7 +287,15 @@ export default function ContainerLiquidationCard({
         final_balance: finalBalanceInCurrency,
         status: statusToSave,
         user_id: userId,
-        items: rows
+        items: rows,
+        // Se guardan para que al recargar no se pierdan y para que el informe
+        // financiero en PDF reproduzca exactamente lo que se ve en pantalla.
+        target_currency: targetCurrency,
+        fob_currency: fobCurrency,
+        fob_exchange_rate: fobExchangeRate,
+        abonos_amount: abonosAmount,
+        rate_provider_info: rateProviderInfo || null,
+        rate_date: rateDate || null
       }
 
       const res = await fetch(`/api/despachos/${dispatchId}/liquidacion`, {
@@ -306,6 +325,73 @@ export default function ContainerLiquidationCard({
 
   const formatMoney = (val: number, symbol = currSymbol) => {
     return `${symbol} ${val.toLocaleString('es-CL', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+  }
+
+  // Abre el informe financiero como PDF de verdad, en una pestaña nueva.
+  //
+  // El PDF lo dibuja el servidor a partir de la liquidación GUARDADA, así que
+  // primero se guarda el borrador en silencio; si no, se imprimirían las cifras
+  // anteriores. La pestaña se abre de inmediato (antes del await) porque si se
+  // abriera después, el navegador la bloquearía por considerarla un pop-up.
+  const handleOpenFinancialPDF = async () => {
+    if (rows.length === 0) {
+      setMessage({ type: 'error', text: 'Primero carga el Packlist: no hay calibres que informar.' })
+      return
+    }
+
+    const pestana = window.open('', '_blank')
+    setGeneratingPdf(true)
+    setMessage(null)
+
+    try {
+      if (!isClosed) {
+        const res = await fetch(`/api/despachos/${dispatchId}/liquidacion`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            currency,
+            gross_sales: grossSales,
+            commission_percentage: commissionPct,
+            commission_amount: commissionAmount,
+            freight_amount: freight,
+            handling_amount: handling,
+            cold_storage_amount: coldStorage,
+            surveyor_amount: surveyor,
+            transport_amount: transport,
+            other_expenses: otherExpenses,
+            total_expenses: totalExpenses,
+            net_amount: netAmount,
+            advance_amount: advanceAmount,
+            exchange_rate: exchangeRate,
+            final_balance: finalBalanceInCurrency,
+            // Guardar el PDF no debe finalizar una liquidación en borrador.
+            status: liquidationStatus,
+            user_id: userId,
+            items: rows,
+            target_currency: targetCurrency,
+            fob_currency: fobCurrency,
+            fob_exchange_rate: fobExchangeRate,
+            abonos_amount: abonosAmount,
+            rate_provider_info: rateProviderInfo || null,
+            rate_date: rateDate || null
+          })
+        })
+
+        if (!res.ok) {
+          const data = await res.json().catch(() => ({}))
+          throw new Error(data.error || 'No se pudo guardar la liquidación antes de generar el informe.')
+        }
+      }
+
+      const url = `/api/despachos/${dispatchId}/liquidacion/reporte-pdf`
+      if (pestana) pestana.location.href = url
+      else window.location.href = url // si el navegador bloqueó la pestaña
+    } catch (e: any) {
+      pestana?.close()
+      setMessage({ type: 'error', text: e.message || 'Error al generar el informe financiero.' })
+    } finally {
+      setGeneratingPdf(false)
+    }
   }
 
   if (loading) {
@@ -622,7 +708,7 @@ export default function ContainerLiquidationCard({
 
               {fobCurrency !== currency && (
                 <div className="flex items-center justify-between text-xs bg-slate-100 dark:bg-gray-900/60 p-2 rounded-lg border border-slate-200 dark:border-gray-800">
-                  <span className="text-slate-600 dark:text-gray-400 font-medium">Equivalencia Factura FOB ({fobCurrency} $\rightarrow$ {currency}):</span>
+                  <span className="text-slate-600 dark:text-gray-400 font-medium">Equivalencia Factura FOB ({fobCurrency} → {currency}):</span>
                   <div className="flex items-center gap-2 font-mono text-xs">
                     <span className="text-slate-500">1 {currency} =</span>
                     <input
@@ -695,7 +781,7 @@ export default function ContainerLiquidationCard({
 
                 <div className="flex items-center justify-between text-xs pt-1">
                   <div>
-                    <label className="text-slate-700 dark:text-gray-300 font-medium">Tasa de Cambio ({currency} $\rightarrow$ {targetCurrency})</label>
+                    <label className="text-slate-700 dark:text-gray-300 font-medium">Tasa de Cambio ({currency} → {targetCurrency})</label>
                     {rateProviderInfo && (
                       <p className="text-[10px] text-indigo-600 dark:text-indigo-400">{rateProviderInfo}</p>
                     )}
@@ -750,11 +836,22 @@ export default function ContainerLiquidationCard({
       {/* BOTONES DE ACCIÓN */}
       <div className="flex flex-wrap items-center justify-end gap-3 pt-4 border-t border-slate-200 dark:border-gray-800">
         <button
+          onClick={handleOpenFinancialPDF}
+          disabled={generatingPdf}
+          title="Abre el informe en PDF en una pestaña nueva: ahí puedes verlo, imprimirlo o descargarlo para enviarlo"
+          className="flex items-center gap-2 px-4 py-2 text-xs font-bold bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl transition shadow-lg shadow-indigo-900/20 disabled:opacity-50"
+        >
+          {generatingPdf ? <RefreshCw className="w-4 h-4 animate-spin" /> : <FileText className="w-4 h-4" />}
+          {generatingPdf ? 'Preparando informe...' : 'Ver Informe Financiero (PDF)'}
+        </button>
+
+        <button
           onClick={() => setShowReportModal(true)}
+          title="Vista interactiva en pantalla, con ordenamiento por utilidad, volumen o aporte"
           className="flex items-center gap-2 px-4 py-2 text-xs font-semibold bg-slate-100 hover:bg-slate-200 dark:bg-gray-800 dark:hover:bg-gray-700 text-slate-700 dark:text-gray-300 border border-slate-300 dark:border-gray-700 rounded-xl transition shadow-sm"
         >
           <Printer className="w-4 h-4 text-indigo-500" />
-          Imprimir / Exportar Informe Comercial
+          Analizar en pantalla
         </button>
 
         <button
@@ -809,6 +906,7 @@ export default function ContainerLiquidationCard({
           totalCajas={totalCajas}
           rows={rows}
           onClose={() => setShowReportModal(false)}
+          onOpenPdf={handleOpenFinancialPDF}
         />
       )}
     </div>

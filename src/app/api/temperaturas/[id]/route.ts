@@ -15,7 +15,7 @@ export async function GET(
       responsible:responsible_id(display_name),
       temperature_documents(
         id, document_type, original_file_name, drive_file_url, storage_url, storage_path,
-        status, created_at,
+        status, created_at, deleted_at,
         uploaded_by_user:uploaded_by(display_name)
       )
     `)
@@ -25,7 +25,13 @@ export async function GET(
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
   if (!data) return NextResponse.json({ error: 'Reporte no encontrado' }, { status: 404 })
 
-  return NextResponse.json({ data })
+  // Los documentos en la papelera no se muestran (el archivo sigue guardado).
+  const report = {
+    ...data,
+    temperature_documents: (data.temperature_documents || []).filter((d: any) => !d.deleted_at),
+  }
+
+  return NextResponse.json({ data: report })
 }
 
 export async function PATCH(

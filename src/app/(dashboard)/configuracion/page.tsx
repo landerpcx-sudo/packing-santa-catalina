@@ -19,6 +19,7 @@ import {
   Thermometer,
   Plus
 } from 'lucide-react'
+import DocumentHealthPanel from '@/components/admin/DocumentHealthPanel'
 
 function ConfigurationContent() {
   const { user } = useAuth()
@@ -645,6 +646,9 @@ function ConfigurationContent() {
           </div>
         </section>
       )}
+      {/* Salud de los documentos: respaldo en Drive, subidas fantasma y papelera */}
+      <DocumentHealthPanel />
+
       {/* Reorganización de Drive (Herramientas de Mantenimiento) */}
       <section className="bg-[#1e293b] border border-white/10 rounded-3xl overflow-hidden shadow-2xl">
         <div className="p-8">

@@ -36,7 +36,8 @@ export async function GET(
           original_file_name,
           document_type,
           version_number,
-          created_at
+          created_at,
+          deleted_at
         )
       `)
       .eq('id', id)
@@ -46,7 +47,7 @@ export async function GET(
       return NextResponse.json({ error: 'Despacho no encontrado' }, { status: 404 })
     }
 
-    const documents = dispatch.dispatch_documents || []
+    const documents = (dispatch.dispatch_documents || []).filter((d: any) => !d.deleted_at)
 
     // 2. Clasificar documentos
     // Filtrar Pack List más reciente (mayor versión)

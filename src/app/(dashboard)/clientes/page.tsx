@@ -167,7 +167,7 @@ export default function ClientesPage() {
 
   // Eliminar un archivo
   const handleDeleteDoc = async (docId: string, fileName: string) => {
-    if (!confirm(`¿Estás seguro de que deseas eliminar permanentemente el archivo "${fileName}" tanto de la plataforma como de Google Drive?`)) return
+    if (!confirm(`¿Enviar "${fileName}" a la papelera?\n\nEl archivo NO se borra: se guarda 30 días y puedes restaurarlo desde Configuración → Salud de los Documentos.`)) return
 
     try {
       const res = await fetch(`/api/documentos/client_documents/${docId}`, {

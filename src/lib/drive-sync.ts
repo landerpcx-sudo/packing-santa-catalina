@@ -300,7 +300,9 @@ function driveFileName(table: SyncTable, doc: any): string {
 export async function syncDocsToDrive(
   { table, docId }: { table: SyncTable; docId?: string },
 ): Promise<SyncResult> {
-  let query = supabaseAdmin.from(table).select('*').is('drive_file_id', null)
+  // Los documentos en la papelera no se suben a Drive: si el usuario los
+  // restaura, el cron los tomará en la siguiente pasada.
+  let query = supabaseAdmin.from(table).select('*').is('drive_file_id', null).is('deleted_at', null)
   if (docId) query = query.eq('id', docId)
 
   const { data: docs, error } = await query

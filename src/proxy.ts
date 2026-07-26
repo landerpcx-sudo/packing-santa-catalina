@@ -1,8 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { verifyToken } from '@/lib/auth'
 
-// Rutas que NO requieren autenticación
-const PUBLIC_PATHS = ['/login', '/api/auth/login', '/api/auth/google', '/sw.js', '/manifest.json']
+// Rutas que NO requieren sesión de usuario.
+// OJO con /api/cron: lo invoca Vercel Cron, que NO envía cookie de sesión. Si el
+// proxy lo redirige a /login, la sincronización horaria a Google Drive —la red de
+// seguridad que garantiza que todo archivo termine en Drive— nunca se ejecuta.
+// La ruta se protege sola validando el header Authorization contra CRON_SECRET.
+const PUBLIC_PATHS = ['/login', '/api/auth/login', '/api/auth/google', '/api/cron/', '/sw.js', '/manifest.json']
 
 export async function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl

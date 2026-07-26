@@ -3,6 +3,7 @@ import { headers } from 'next/headers'
 import { supabaseAdmin } from '@/lib/supabase-admin'
 import { syncDocsToDrive } from '@/lib/drive-sync'
 import { resolveMimeType } from '@/lib/mime-helper'
+import { recalcularDespacho } from '@/lib/papelera'
 
 // Margen para que la sincronización a Drive en segundo plano (after()) complete.
 export const maxDuration = 60
@@ -160,15 +161,8 @@ export async function POST(
       return NextResponse.json({ error: dbError.message }, { status: 500 })
     }
 
-    // 4. Actualizar conteos del despacho
-    let packListStatus = dispatchRecord.pack_list_status
-    let pataCount = dispatchRecord.pata_pata_photos_count
-    let thermoCount = dispatchRecord.thermograph_photos_count
-
+    // 4. Auto-parseo del Packlist
     if (document_type === 'pack_list') {
-      packListStatus = 'uploaded'
-      await supabaseAdmin.from('dispatches').update({ pack_list_status: 'uploaded' }).eq('id', id)
-
       // Auto-parsear automáticamente el Packlist en la subida
       try {
         const { parsePacklistPdf } = await import('@/lib/packlist-parser')
@@ -190,37 +184,11 @@ export async function POST(
       } catch (e: any) {
         console.error('Error auto-parseando Packlist en subida:', e?.message)
       }
-    } else if (document_type === 'pata_pata_photo' || document_type === 'thermograph_photo') {
-      const { data: cur } = await supabaseAdmin
-        .from('dispatches')
-        .select('pata_pata_photos_count, thermograph_photos_count')
-        .eq('id', id)
-        .single()
-      if (cur) {
-        if (document_type === 'pata_pata_photo') {
-          pataCount = (cur.pata_pata_photos_count as number) + 1
-          await supabaseAdmin.from('dispatches').update({ pata_pata_photos_count: pataCount }).eq('id', id)
-        } else {
-          thermoCount = (cur.thermograph_photos_count as number) + 1
-          await supabaseAdmin.from('dispatches').update({ thermograph_photos_count: thermoCount }).eq('id', id)
-        }
-      }
     }
 
-    // 5. Recalcular Estado General
-    const minPata = Math.ceil((dispatchRecord.expected_pallets || 0) / 2)
-    
-    // El despacho está completo SOLAMENTE si el Pack List está VALIDADO
-    // Si solo está cargado, el estado general es 'uploaded' (En Proceso)
-    const isComplete = packListStatus === 'validated' && pataCount >= minPata && thermoCount >= 2
-    
-    await supabaseAdmin
-      .from('dispatches')
-      .update({
-        overall_status: isComplete ? 'complete' : 'uploaded',
-        updated_at: new Date().toISOString()
-      })
-      .eq('id', id)
+    // 5. Contadores y estado general: se recuentan los documentos vivos.
+    // El despacho queda 'complete' solo si el Pack List está VALIDADO.
+    await recalcularDespacho(id)
 
     // Tras responder: sincronizar a Drive en segundo plano (con reintentos) y
     // registrar auditoría. Si Drive fallara, el cron automático lo recupera.

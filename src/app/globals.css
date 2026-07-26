@@ -995,6 +995,33 @@ body::after {
    REGLAS DE IMPRESIÓN Y DESCARGA A4/LETTER (ALTA CALIDAD)
    ============================================= */
 @media print {
+  /* ── AISLAMIENTO DEL INFORME ──────────────────────────────────────────────
+     Al imprimir desde el modal del informe financiero, el <body> lleva la
+     clase .imprimiendo-informe. Sin esto salía impresa TODA la página del
+     despacho que está detrás del modal (tarjetas, zonas de subida, listados)
+     y el informe aparecía al final, en la página 6 o 7.
+     La técnica: ocultar todo y volver a mostrar solo la rama que contiene
+     el informe (padres visibles, hijos visibles).                          */
+  body.imprimiendo-informe * {
+    visibility: hidden !important;
+  }
+  body.imprimiendo-informe #commercial-report-print,
+  body.imprimiendo-informe #commercial-report-print * {
+    visibility: visible !important;
+  }
+  body.imprimiendo-informe #commercial-report-print {
+    position: absolute !important;
+    left: 0 !important;
+    top: 0 !important;
+    width: 100% !important;
+  }
+  /* Lo marcado como print:hidden sigue oculto aunque esté dentro del informe */
+  body.imprimiendo-informe .print\:hidden,
+  body.imprimiendo-informe .print\:hidden * {
+    visibility: hidden !important;
+    display: none !important;
+  }
+
   /* Ocultar elementos de UI globales */
   aside,
   header,
@@ -1014,8 +1041,10 @@ body::after {
     print-color-adjust: exact !important;
   }
 
-  /* Modal backdrop reset al imprimir */
-  .fixed.inset-0 {
+  /* Marco del modal del informe: sin sombras ni bordes, a ancho completo.
+     Los selectores van acotados a .imprimiendo-informe; antes eran globales
+     (.fixed.inset-0 y .max-w-5xl) y afectaban a cualquier otro modal. */
+  body.imprimiendo-informe .fixed.inset-0 {
     position: static !important;
     background: #ffffff !important;
     padding: 0 !important;
@@ -1024,8 +1053,7 @@ body::after {
     overflow: visible !important;
   }
 
-  /* Ocultar contenedor exterior del modal */
-  .max-w-5xl {
+  body.imprimiendo-informe .max-w-5xl {
     max-width: 100% !important;
     border: none !important;
     box-shadow: none !important;
