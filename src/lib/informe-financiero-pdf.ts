@@ -348,11 +348,11 @@ export async function construirInformeFinancieroPDF(
         fondo: rentable ? COLOR.verdeFondo : COLOR.rojoFondo,
       },
       {
-        etiqueta: 'ING. NETO PROMEDIO DESTINO',
-        cifra: clp(ingresoNetoPromedioCLP),
-        pie: `Neto Venta: ${dinero(netAmount / safeCajas)} / cj`,
-        color: COLOR.teal,
-        fondo: COLOR.tealFondo,
+        etiqueta: 'UTILIDAD PROMEDIO / CAJA',
+        cifra: `${dinero(finalBalance / safeCajas)} / cj`,
+        pie: `Margen: ${pct(margenPct)} · ${clp(utilidadTotalCLPEst / safeCajas)}/cj`,
+        color: rentable ? COLOR.teal : COLOR.rojo,
+        fondo: rentable ? COLOR.tealFondo : COLOR.rojoFondo,
       },
       {
         etiqueta: facturaPagada ? 'FACTURA FOB' : 'SALDO FACTURA FOB',
