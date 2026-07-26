@@ -102,9 +102,14 @@ export async function construirInformeFinancieroPDF(
 
   // 3. Análisis por calibre (mismo criterio que la pantalla)
   const analisis = rows.map((r: any) => {
+    const destNet = r.precio - expensePerBox
     const utilidadPorCaja = r.precio - expensePerBox - fobPerBox
     const altoVolumen = r.cajas >= cajasMediaPorCalibre
     const altoMargen = utilidadPorCaja >= utilidadMediaPorCaja
+
+    // Retorno estimado al productor por caja en CLP (Neto Destino x Tasa Cambio FOB)
+    const retornoProductorCLP = destNet * (fobExchangeRate || 1000)
+    const utilidadPorCajaTarget = utilidadPorCaja * exchangeRate
 
     let cuadrante: string
     if (utilidadPorCaja < 0) cuadrante = 'PERDIDA'
@@ -114,8 +119,12 @@ export async function construirInformeFinancieroPDF(
 
     return {
       ...r,
+      destNet,
       utilidadPorCaja,
+      utilidadPorCajaTarget,
+      retornoProductorCLP,
       aporteTotal: utilidadPorCaja * r.cajas * exchangeRate,
+      aporteTotalCLP: utilidadPorCaja * r.cajas * exchangeRate * (fobExchangeRate || 1000),
       puntoEquilibrio: expensePerBox + fobPerBox,
       porcentajeVolumen: (r.cajas / safeCajas) * 100,
       cuadrante,
@@ -195,6 +204,9 @@ export async function construirInformeFinancieroPDF(
 
     const dinero = (v: number, s = simb) =>
       `${s} ${v.toLocaleString('es-CL', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+
+    const clp = (v: number) =>
+      `$ ${Math.round(v).toLocaleString('es-CL')} CLP`
 
     const fecha = (f?: string | null) => {
       if (!f) return '—'
@@ -281,6 +293,7 @@ export async function construirInformeFinancieroPDF(
     const facturaPagada = saldoFob <= 0 && advanceAmount > 0
     const rentable = finalBalance >= 0
     const margenPct = grossSales > 0 ? (finalBalance / grossSales) * 100 : 0
+    const retornoPromedioProductorCLP = (fobEnMonedaVenta * (fobExchangeRate || 1000)) / safeCajas
 
     const tarjetas: Array<{ etiqueta: string; cifra: string; pie: string; color: string; fondo: string }> = [
       {
@@ -290,18 +303,18 @@ export async function construirInformeFinancieroPDF(
         color: COLOR.indigo, fondo: COLOR.fondo,
       },
       {
-        etiqueta: rentable ? 'UTILIDAD FINAL DEL NEGOCIO' : 'PÉRDIDA DEL NEGOCIO',
+        etiqueta: rentable ? 'UTILIDAD FINAL EXPORTADOR' : 'PÉRDIDA DEL NEGOCIO',
         cifra: `${simbTarget} ${finalBalanceTarget.toLocaleString('es-CL', { maximumFractionDigits: 0 })}`,
         pie: `${targetCurrency} · equivale a ${dinero(finalBalance)}`,
         color: rentable ? COLOR.verde : COLOR.rojo,
         fondo: rentable ? COLOR.verdeFondo : COLOR.rojoFondo,
       },
       {
-        etiqueta: 'UTILIDAD MEDIA POR CAJA',
-        cifra: dinero(utilidadMediaPorCaja),
-        pie: `Punto de equilibrio: ${dinero(expensePerBox + fobPerBox)}`,
-        color: utilidadMediaPorCaja >= 0 ? COLOR.verde : COLOR.rojo,
-        fondo: utilidadMediaPorCaja >= 0 ? COLOR.verdeFondo : COLOR.rojoFondo,
+        etiqueta: 'RETORNO PROMEDIO PRODUCTOR',
+        cifra: clp(retornoPromedioProductorCLP),
+        pie: `Costo FOB Fruta: ${dinero(advanceAmount, simbFob)}`,
+        color: COLOR.teal,
+        fondo: COLOR.tealFondo,
       },
       {
         etiqueta: facturaPagada ? 'FACTURA FOB' : 'FACTURA FOB — SALDO PENDIENTE',
@@ -690,8 +703,8 @@ export async function construirInformeFinancieroPDF(
     // fila siguiente — se ve como filas superpuestas/corridas.
     // "Cajas (%)" necesita 62pt: con 56 el calibre más numeroso ("1.120 (26.3%)")
     // se partía en dos líneas y se montaba sobre la fila siguiente.
-    const colRank = [20, 143, 42, 62, 50, 48, 60, 90]
-    const cabRank = ['#', 'Embalaje', 'Calibre', 'Cajas (%)', 'Gastos/caja', 'FOB/caja', 'Utilidad/caja', `Aporte (${targetCurrency})`]
+    const colRank = [22, 116, 36, 56, 52, 75, 68, 90]
+    const cabRank = ['#', 'Embalaje', 'Calibre', 'Cajas (%)', 'Gastos/caja', 'Retorno Prod. (CLP)', `Utilidad (${targetCurrency})`, `Aporte (${targetCurrency})`]
 
     // Red de seguridad adicional: si aun así un nombre no entra en una
     // línea, se recorta con puntos suspensivos en vez de desbordar la fila.
@@ -709,12 +722,12 @@ export async function construirInformeFinancieroPDF(
       filaTabla(
         [
           `${i + 1}`,
-          truncar(a.envase, 26),
+          truncar(a.envase, 24),
           a.calibre,
           `${a.cajas.toLocaleString('es-CL')} (${pct(a.porcentajeVolumen)})`,
           `-${dinero(expensePerBox)}`,
-          `-${dinero(fobPerBox)}`,
-          `${a.utilidadPorCaja >= 0 ? '+' : ''}${dinero(a.utilidadPorCaja)}`,
+          clp(a.retornoProductorCLP),
+          `${a.utilidadPorCajaTarget >= 0 ? '+' : ''}${dinero(a.utilidadPorCajaTarget, simbTarget)}`,
           dinero(a.aporteTotal, simbTarget),
         ],
         colRank,
@@ -830,7 +843,26 @@ export async function construirInformeFinancieroPDF(
     doc.fillColor(COLOR.suave).font('B').fontSize(6)
       .text('MENOR VOLUMEN', R - 160, yFinMatriz + 16, { width: 160, align: 'right', lineBreak: false })
 
-    doc.y = yFinMatriz + 34
+    doc.y = yFinMatriz + 30
+
+    // RECOMENDACIONES TÉCNICO-AGRONÓMICAS PARA PRODUCTOR Y HUERTO
+    asegurar(50)
+    const yReco = doc.y
+    doc.rect(L, yReco, W, 44).fill(COLOR.tealFondo)
+    doc.rect(L, yReco, W, 44).lineWidth(0.8).strokeColor(COLOR.tealBorde).stroke()
+    doc.rect(L, yReco, 3, 44).fill(COLOR.teal)
+    doc.fillColor(COLOR.teal).font('B').fontSize(7)
+      .text('RECOMENDACIONES TÉCNICO-AGRONÓMICAS DE HUERTO PARA PRÓXIMA COSECHA', L + 10, yReco + 6)
+    
+    const textoRecomendaciones = 
+      `• Foco Agronómico: Ajustar labores de raleo temprano para potenciar la concentración de fruta en calibres Estrellas (ej. Calibre ${mejor?.calibre || '—'}). ` +
+      `• Calibres Críticos: Evitar envíos masivos de fruta de menor calibre que no logre cubrir el breakeven de flete marítimo y frío (${dinero(expensePerBox + fobPerBox)}). ` +
+      `• Estrategia Comercial: Derivar oportunamente excedentes de calibres deficitarios a mercado local o industria para preservar el retorno neto promedio en CLP.`
+    
+    doc.fillColor(COLOR.texto).font('R').fontSize(6.5)
+      .text(textoRecomendaciones, L + 10, yReco + 17, { width: W - 20, align: 'justify', lineBreak: true })
+
+    doc.y = yReco + 52
 
     // ── FIRMAS ──────────────────────────────────────────────────────────────
     asegurar(60)
