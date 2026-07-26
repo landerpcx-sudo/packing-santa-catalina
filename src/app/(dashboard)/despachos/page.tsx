@@ -477,28 +477,7 @@ export default function DespachosPage() {
                         {formatDate(dispatch.dispatch_date)}
                         {dispatch.container_number && ` • Cont: ${dispatch.container_number}`}
                       </p>
-                      {dispatch.invoice_amount !== null && dispatch.invoice_amount !== undefined && Number(dispatch.invoice_amount) > 0 && (() => {
-                        const fobInvoice = Number(dispatch.invoice_amount || 0)
-                        const abono = Number(dispatch.advance_amount || 0)
-                        const saldoFactura = fobInvoice - abono
-                        return (
-                          <div className="flex flex-wrap items-center gap-1.5 mt-1.5">
-                            <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-semibold bg-emerald-500/10 text-emerald-300 border border-emerald-500/20" title="Valor Factura FOB de la Operación">
-                              Fact. FOB: {formatCLP(fobInvoice)}
-                            </span>
-                            <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-semibold bg-indigo-500/10 text-indigo-300 border border-indigo-500/20" title="Abonos Recibidos a Factura">
-                              Abono: {formatCLP(abono)}
-                            </span>
-                            <span className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-bold border ${
-                              saldoFactura <= 0 
-                                ? 'bg-emerald-500/15 text-emerald-400 border-emerald-500/30' 
-                                : 'bg-amber-500/15 text-amber-300 border-amber-500/30'
-                            }`} title="Saldo Pendiente de Factura FOB">
-                              Saldo Factura: {formatCLP(saldoFactura)}
-                            </span>
-                          </div>
-                        )
-                      })()}
+                      {/* Información financiera removida de la lista principal para vista limpia */}
                     </div>
                   </div>
                 </div>
