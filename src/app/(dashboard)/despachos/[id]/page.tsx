@@ -921,15 +921,47 @@ function TarjetaInforme({
     setProgreso(10)
     setEstadoTexto('Iniciando procesamiento...')
 
+    // Si es previsualización de PDF, abrimos la pestaña síncronamente para evitar que el navegador la bloquee como pop-up
+    let newTab: Window | null = null
+    if (!descarga) {
+      newTab = window.open('about:blank', '_blank')
+      if (newTab) {
+        newTab.document.write(`
+          <!DOCTYPE html>
+          <html>
+            <head>
+              <title>Generando ${titulo}...</title>
+              <meta charset="utf-8">
+              <style>
+                body { background-color: #0f172a; color: #f8fafc; font-family: system-ui, -apple-system, sans-serif; display: flex; align-items: center; justify-content: center; height: 100vh; margin: 0; }
+                .card { background: rgba(30, 41, 59, 0.7); border: 1px solid rgba(255,255,255,0.1); padding: 2rem; border-radius: 1rem; text-align: center; max-width: 400px; box-shadow: 0 20px 25px -5px rgba(0,0,0,0.5); }
+                .spinner { width: 36px; height: 36px; border: 3px solid rgba(255,255,255,0.1); border-top-color: #6366f1; border-radius: 50%; animation: spin 1s linear infinite; margin: 0 auto 1.25rem; }
+                @keyframes spin { to { transform: rotate(360deg); } }
+                h2 { margin: 0 0 0.5rem; font-size: 1.125rem; font-weight: 700; }
+                p { margin: 0; color: #94a3b8; font-size: 0.875rem; }
+              </style>
+            </head>
+            <body>
+              <div class="card">
+                <div class="spinner"></div>
+                <h2>Generando ${titulo}</h2>
+                <p>Procesando imágenes y documentos. Por favor espera un momento...</p>
+              </div>
+            </body>
+          </html>
+        `)
+      }
+    }
+
     let p = 10
     timerRef.current = setInterval(() => {
       p += Math.floor(Math.random() * 8) + 4
       if (p > 90) p = 90
       setProgreso(p)
-      if (p > 30 && p <= 60) setEstadoTexto('Recopilando documentos y datos...')
-      else if (p > 60 && p <= 85) setEstadoTexto('Generando y formateando archivo...')
-      else if (p > 85) setEstadoTexto('Finalizando y empaquetando...')
-    }, 400)
+      if (p > 30 && p <= 60) setEstadoTexto('Recopilando documentos y fotos...')
+      else if (p > 60 && p <= 85) setEstadoTexto('Compilando páginas en PDF...')
+      else if (p > 85) setEstadoTexto('Finalizando archivo...')
+    }, 350)
 
     try {
       const res = await fetch(href)
@@ -963,7 +995,11 @@ function TarjetaInforme({
         a.click()
         a.remove()
       } else {
-        window.open(blobUrl, '_blank')
+        if (newTab && !newTab.closed) {
+          newTab.location.href = blobUrl
+        } else {
+          window.open(blobUrl, '_blank')
+        }
       }
 
       setTimeout(() => {
@@ -973,9 +1009,12 @@ function TarjetaInforme({
       }, 1200)
     } catch (err: any) {
       if (timerRef.current) clearInterval(timerRef.current)
+      if (newTab && !newTab.closed) {
+        newTab.close()
+      }
       setGenerando(false)
       setProgreso(0)
-      setErrorMsg(err.message || 'Ocurrió un error inesperado')
+      setErrorMsg(err.message || 'Ocurrió un error al generar el documento')
     }
   }
 

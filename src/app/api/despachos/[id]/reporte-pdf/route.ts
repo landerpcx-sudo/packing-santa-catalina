@@ -5,6 +5,8 @@ import { PDFDocument as PDFLibDocument } from 'pdf-lib'
 import path from 'path'
 import fs from 'fs'
 
+export const maxDuration = 60
+
 export async function GET(
   _request: Request,
   { params }: { params: Promise<{ id: string }> }
@@ -50,7 +52,7 @@ export async function GET(
     const documents = (dispatch.dispatch_documents || []).filter((d: any) => !d.deleted_at)
 
     // 2. Clasificar documentos
-    // Filtrar Pack List más reciente (mayor versión)
+    // Filtrar Pack List más reciente (mayor versión) que sea un archivo .pdf
     const packListDocs = documents
       .filter(doc => doc.document_type === 'pack_list' && doc.storage_path)
       .sort((a, b) => b.version_number - a.version_number)
@@ -71,7 +73,7 @@ export async function GET(
       .filter(doc => doc.document_type === 'backup' && doc.storage_path)
       .sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime())
 
-    // 3. Descargar imágenes y documentos desde Supabase Storage
+    // 3. Descargar imágenes y documentos desde Supabase Storage en paralelo (Promise.all)
     const downloadFile = async (storagePath: string): Promise<Buffer | null> => {
       try {
         const { data, error } = await supabaseAdmin.storage
@@ -86,12 +88,45 @@ export async function GET(
       }
     }
 
-    // Descargar imágenes de Pata a Pata
-    const pataPataImages: { name: string; buffer: Buffer; date: string }[] = []
-    for (const doc of pataPataDocs) {
+    // Descargar en paralelo todas las imágenes de Pata a Pata
+    const pataPataPromises = pataPataDocs.map(async doc => {
       const buffer = await downloadFile(doc.storage_path!)
-      if (buffer) {
-        pataPataImages.push({
+      if (!buffer) return null
+      return {
+        name: doc.original_file_name,
+        buffer,
+        date: new Date(doc.created_at).toLocaleDateString('es-CL', {
+          day: '2-digit',
+          month: '2-digit',
+          hour: '2-digit',
+          minute: '2-digit'
+        })
+      }
+    })
+
+    // Descargar en paralelo imágenes de Termógrafos
+    const thermographPromises = thermographDocs.map(async doc => {
+      const buffer = await downloadFile(doc.storage_path!)
+      if (!buffer) return null
+      return {
+        name: doc.original_file_name,
+        buffer,
+        date: new Date(doc.created_at).toLocaleDateString('es-CL', {
+          day: '2-digit',
+          month: '2-digit',
+          hour: '2-digit',
+          minute: '2-digit'
+        })
+      }
+    })
+
+    // Descargar en paralelo imágenes de Respaldos (solo formatos de imagen soportados)
+    const backupPromises = backupDocs
+      .filter(doc => /\.(jpg|jpeg|png|webp|gif)$/i.test(doc.original_file_name))
+      .map(async doc => {
+        const buffer = await downloadFile(doc.storage_path!)
+        if (!buffer) return null
+        return {
           name: doc.original_file_name,
           buffer,
           date: new Date(doc.created_at).toLocaleDateString('es-CL', {
@@ -100,53 +135,23 @@ export async function GET(
             hour: '2-digit',
             minute: '2-digit'
           })
-        })
-      }
-    }
+        }
+      })
 
-    // Descargar imágenes de Termógrafos
-    const thermographImages: { name: string; buffer: Buffer; date: string }[] = []
-    for (const doc of thermographDocs) {
-      const buffer = await downloadFile(doc.storage_path!)
-      if (buffer) {
-        thermographImages.push({
-          name: doc.original_file_name,
-          buffer,
-          date: new Date(doc.created_at).toLocaleDateString('es-CL', {
-            day: '2-digit',
-            month: '2-digit',
-            hour: '2-digit',
-            minute: '2-digit'
-          })
-        })
-      }
-    }
+    const packListPromise = (activePackList && activePackList.original_file_name.toLowerCase().endsWith('.pdf'))
+      ? downloadFile(activePackList.storage_path!)
+      : Promise.resolve(null)
 
-    // Descargar imágenes de Respaldos (filtrar solo las que sean imágenes legibles)
-    const backupImages: { name: string; buffer: Buffer; date: string }[] = []
-    for (const doc of backupDocs) {
-      const isImg = /\.(jpg|jpeg|png|webp|gif)$/i.test(doc.original_file_name)
-      if (!isImg) continue
-      const buffer = await downloadFile(doc.storage_path!)
-      if (buffer) {
-        backupImages.push({
-          name: doc.original_file_name,
-          buffer,
-          date: new Date(doc.created_at).toLocaleDateString('es-CL', {
-            day: '2-digit',
-            month: '2-digit',
-            hour: '2-digit',
-            minute: '2-digit'
-          })
-        })
-      }
-    }
+    const [pataPataRes, thermographRes, backupRes, packListBuffer] = await Promise.all([
+      Promise.all(pataPataPromises),
+      Promise.all(thermographPromises),
+      Promise.all(backupPromises),
+      packListPromise,
+    ])
 
-    // Descargar Pack List PDF (si existe)
-    let packListBuffer: Buffer | null = null
-    if (activePackList) {
-      packListBuffer = await downloadFile(activePackList.storage_path!)
-    }
+    const pataPataImages = pataPataRes.filter(Boolean) as { name: string; buffer: Buffer; date: string }[]
+    const thermographImages = thermographRes.filter(Boolean) as { name: string; buffer: Buffer; date: string }[]
+    const backupImages = backupRes.filter(Boolean) as { name: string; buffer: Buffer; date: string }[]
 
     // 4. Generar el PDF base del reporte usando PDFKit
     const generateReportBuffer = (): Promise<Buffer> => {

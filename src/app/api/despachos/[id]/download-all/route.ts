@@ -3,6 +3,8 @@ import { supabaseAdmin } from '@/lib/supabase-admin'
 import { construirInformeFinancieroPDF } from '@/lib/informe-financiero-pdf'
 import JSZip from 'jszip'
 
+export const maxDuration = 60
+
 export async function GET(
   _request: Request,
   { params }: { params: Promise<{ id: string }> }
