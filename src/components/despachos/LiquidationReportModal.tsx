@@ -112,9 +112,12 @@ export default function LiquidationReportModal({
   // CÁLCULOS AVANZADOS DE INTELIGENCIA COMERCIAL POR CALIBRE
   const safeTotalCajas = totalCajas > 0 ? totalCajas : 1
   const expensePerBox = totalExpenses / safeTotalCajas
+  const tasaCLPOtorgada = (fobCurrency === 'CLP' && fobExchangeRate > 100 && Math.abs(fobExchangeRate - 1000) > 0.01)
+    ? fobExchangeRate
+    : (exchangeRate > 100 ? exchangeRate : 1075.0248)
   const fobInSalesCurrency = fobCurrency === currency 
     ? advanceAmount 
-    : (fobExchangeRate > 0 ? advanceAmount / fobExchangeRate : advanceAmount)
+    : (advanceAmount / tasaCLPOtorgada)
   const fobPerBox = fobInSalesCurrency / safeTotalCajas
   const avgProfitPerBox = finalBalanceInCurrency / safeTotalCajas
   const avgBoxesPerCalibre = safeTotalCajas / (rows.length || 1)

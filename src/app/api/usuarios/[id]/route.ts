@@ -13,7 +13,7 @@ export async function PATCH(
     const headersList = await headers()
     const currentUserId = headersList.get('x-user-id')
     const body = await request.json()
-    const { display_name, role, area, active, can_validate, can_view_all, can_download_all, can_manage_users, can_sync_drive, can_create_lot, can_view_drive, password } = body
+    const { display_name, role, area, active, can_validate, can_view_all, can_download_all, can_manage_users, can_sync_drive, can_create_lot, can_view_drive, client_name, password } = body
 
     const updateData: any = {}
     if (display_name !== undefined) updateData.display_name = display_name
@@ -27,6 +27,7 @@ export async function PATCH(
     if (can_sync_drive !== undefined) updateData.can_sync_drive = can_sync_drive
     if (can_create_lot !== undefined) updateData.can_create_lot = can_create_lot
     if (can_view_drive !== undefined) updateData.can_view_drive = can_view_drive
+    if (client_name !== undefined) updateData.client_name = client_name ? client_name.trim().toUpperCase() : null
     
     if (password) {
       updateData.password_hash = await bcrypt.hash(password, 12)

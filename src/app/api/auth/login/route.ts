@@ -63,6 +63,7 @@ export async function POST(request: NextRequest) {
       canSyncDrive: !!user.can_sync_drive,
       canCreateLot: !!user.can_create_lot,
       canViewDrive: user.role === 'admin',
+      clientName: user.client_name || null,
     })
 
     // Registrar login exitoso
@@ -90,6 +91,7 @@ export async function POST(request: NextRequest) {
         canSyncDrive: !!user.can_sync_drive,
         canCreateLot: !!user.can_create_lot,
         canViewDrive: user.role === 'admin',
+        client_name: user.client_name || null,
       },
     })
 

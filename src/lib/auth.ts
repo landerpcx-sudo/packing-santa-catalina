@@ -17,6 +17,7 @@ export interface JWTPayload {
   canSyncDrive: boolean
   canCreateLot: boolean
   canViewDrive: boolean
+  clientName?: string | null
 }
 
 export async function signToken(payload: JWTPayload): Promise<string> {

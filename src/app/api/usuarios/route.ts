@@ -8,7 +8,7 @@ export async function GET() {
   try {
     const { data: users, error } = await supabaseAdmin
       .from('users_app')
-      .select('id, username, display_name, role, area, active, can_validate, can_view_all, can_download_all, can_manage_users, can_sync_drive, can_create_lot, can_view_drive, created_at')
+      .select('id, username, display_name, role, area, active, can_validate, can_view_all, can_download_all, can_manage_users, can_sync_drive, can_create_lot, can_view_drive, client_name, created_at')
       .order('created_at', { ascending: false })
 
     if (error) throw error
@@ -24,7 +24,7 @@ export async function POST(request: Request) {
     const headersList = await headers()
     const currentUserId = headersList.get('x-user-id')
     const body = await request.json()
-    const { username, display_name, role, area, password, can_validate, can_view_all, can_download_all, can_manage_users, can_sync_drive, can_create_lot, can_view_drive } = body
+    const { username, display_name, role, area, password, can_validate, can_view_all, can_download_all, can_manage_users, can_sync_drive, can_create_lot, can_view_drive, client_name } = body
 
     if (!username || !password || !display_name || !role) {
       return NextResponse.json({ error: 'Faltan campos requeridos.' }, { status: 400 })
@@ -48,6 +48,7 @@ export async function POST(request: Request) {
         can_sync_drive: !!can_sync_drive,
         can_create_lot: !!can_create_lot,
         can_view_drive: !!can_view_drive,
+        client_name: client_name ? client_name.trim().toUpperCase() : null,
         active: true
       })
       .select()

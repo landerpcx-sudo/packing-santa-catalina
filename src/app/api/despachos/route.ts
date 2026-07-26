@@ -4,6 +4,23 @@ import { supabaseAdmin } from '@/lib/supabase-admin'
 import { createFolder } from '@/lib/drive'
 
 export async function GET(request: Request) {
+  const headersList = await headers()
+  const userRole = headersList.get('x-user-role')
+  let clientNameHeader = headersList.get('x-user-client-name')
+  const userId = headersList.get('x-user-id')
+
+  // Si el usuario es de rol 'cliente' pero el header de cliente no viene en la petición, buscarlo en la DB
+  if (userRole === 'cliente' && !clientNameHeader && userId) {
+    const { data: userData } = await supabaseAdmin
+      .from('users_app')
+      .select('client_name')
+      .eq('id', userId)
+      .single()
+    if (userData?.client_name) {
+      clientNameHeader = userData.client_name
+    }
+  }
+
   const searchParams = new URL(request.url).searchParams
   const page = parseInt(searchParams.get('page') || '1')
   const limit = parseInt(searchParams.get('limit') || '50')
@@ -23,9 +40,18 @@ export async function GET(request: Request) {
     .order('created_at', { ascending: false })
     .range(offset, offset + limit - 1)
 
+  // Filtro de seguridad estricto para rol Cliente
+  if (userRole === 'cliente') {
+    if (!clientNameHeader) {
+      return NextResponse.json({ data: [], total: 0, page, limit })
+    }
+    query = query.ilike('client', `%${clientNameHeader.trim()}%`)
+  } else if (client) {
+    query = query.ilike('client', `%${client}%`)
+  }
+
   if (status) query = query.eq('overall_status', status)
   if (search) query = query.or(`internal_code.ilike.%${search}%,client.ilike.%${search}%,destination.ilike.%${search}%,container_number.ilike.%${search}%`)
-  if (client) query = query.ilike('client', `%${client}%`)
   if (market) query = query.ilike('destination', `%${market}%`)
   if (container) query = query.ilike('container_number', `%${container}%`)
   

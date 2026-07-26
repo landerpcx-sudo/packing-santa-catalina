@@ -41,13 +41,14 @@ interface UserApp {
   can_sync_drive: boolean
   can_create_lot: boolean
   can_view_drive: boolean
+  client_name?: string | null
   created_at: string
 }
 
 const getPermissionsByRole = (role: string) => {
   const isOperative = ['jefe_frio', 'calidad', 'cuadratura', 'sag', 'despacho'].includes(role)
   const isAdmin = role === 'admin'
-  const isReader = ['gerencia', 'agronomo'].includes(role)
+  const isReader = ['gerencia', 'agronomo', 'cliente'].includes(role)
 
   return {
     can_validate: isAdmin,
@@ -75,6 +76,7 @@ export default function UsuariosPage() {
     display_name: '',
     role: 'calidad',
     area: '',
+    client_name: '',
     password: '',
     can_validate: false,
     can_view_all: false,
@@ -120,6 +122,7 @@ export default function UsuariosPage() {
         display_name: user.display_name,
         role: user.role,
         area: user.area || '',
+        client_name: user.client_name || '',
         password: '', // No mostrar password
         ...perms
       })
@@ -132,6 +135,7 @@ export default function UsuariosPage() {
         display_name: '',
         role: defaultRole,
         area: '',
+        client_name: '',
         password: '',
         ...perms
       })
@@ -288,7 +292,9 @@ export default function UsuariosPage() {
                         <div className="p-1.5 bg-white/5 rounded-lg text-indigo-400 shrink-0"><Shield size={12} /></div>
                         <div>
                           <p className="text-sm font-bold text-white truncate max-w-[150px]">{ROLE_DISPLAY_NAMES[user.role as keyof typeof ROLE_DISPLAY_NAMES] || user.role}</p>
-                          <p className="text-[10px] text-gray-500 uppercase tracking-wider truncate max-w-[150px]">{user.area || 'Sin Área'}</p>
+                          <p className="text-[10px] text-emerald-400 uppercase font-semibold tracking-wider truncate max-w-[170px]">
+                            {user.role === 'cliente' && user.client_name ? `Empresa: ${user.client_name}` : (user.area || 'Sin Área')}
+                          </p>
                         </div>
                       </div>
                     </td>
@@ -480,6 +486,25 @@ export default function UsuariosPage() {
                     />
                   </div>
                 </div>
+
+                {formData.role === 'cliente' && (
+                  <div className="space-y-2 bg-emerald-500/10 p-3.5 rounded-2xl border border-emerald-500/20 animate-in fade-in duration-300">
+                    <label className="text-[11px] uppercase tracking-widest font-bold text-emerald-400 ml-1 flex items-center gap-1.5">
+                      <Briefcase className="w-3.5 h-3.5" /> Empresa Cliente Acceso Exclusivo
+                    </label>
+                    <input 
+                      type="text" 
+                      required
+                      placeholder="ej. THE GROWERS CLUB"
+                      value={formData.client_name}
+                      onChange={(e) => setFormData({...formData, client_name: e.target.value})}
+                      className="w-full bg-black/50 border border-emerald-500/30 rounded-xl px-4 py-3 text-sm font-bold text-white focus:outline-none focus:border-emerald-500"
+                    />
+                    <p className="text-[10px] text-emerald-300/80 leading-snug">
+                      Este usuario solo podrá ver los Lotes y Despachos asociados a esta empresa cliente.
+                    </p>
+                  </div>
+                )}
 
                 <div className="space-y-2">
                   <label className="text-[11px] uppercase tracking-widest font-bold text-gray-500 ml-1">

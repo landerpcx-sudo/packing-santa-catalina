@@ -14,6 +14,7 @@ export interface User {
   can_sync_drive: boolean
   can_create_lot: boolean
   can_view_drive: boolean
+  client_name?: string | null
   created_at: string
   updated_at: string
 }

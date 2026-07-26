@@ -274,7 +274,9 @@ export default function ContainerLiquidationCard({
   const netAmount = Math.round((grossSales - totalExpenses) * 100) / 100
 
   // Conversión del Valor Facturado FOB a la moneda de venta en destino (ej: CLP -> EUR con tasa real API)
-  const tasaCLPRias = (fobCurrency === 'CLP' && fobExchangeRate > 100) ? fobExchangeRate : (exchangeRate > 100 ? exchangeRate : 1075.0248)
+  const tasaCLPRias = (fobCurrency === 'CLP' && fobExchangeRate > 100 && Math.abs(fobExchangeRate - 1000) > 0.01)
+    ? fobExchangeRate 
+    : (exchangeRate > 100 ? exchangeRate : 1075.0248)
   const fobAmountInCurrency = fobCurrency === currency 
     ? advanceAmount 
     : Math.round((advanceAmount / tasaCLPRias) * 100) / 100

@@ -8,9 +8,9 @@ import { useTheme } from '@/context/ThemeContext'
 
 const BOTTOM_ITEMS = [
   { href: '/dashboard',   label: 'Inicio',      icon: LayoutDashboard, roles: ['admin', 'jefe_frio', 'calidad', 'cuadratura', 'sag', 'despacho', 'gerencia', 'agronomo'] },
-  { href: '/lotes',       label: 'Lotes',        icon: Package,         roles: ['admin', 'jefe_frio', 'calidad', 'cuadratura', 'gerencia', 'agronomo'] },
+  { href: '/lotes',       label: 'Lotes',        icon: Package,         roles: ['admin', 'jefe_frio', 'calidad', 'cuadratura', 'gerencia', 'agronomo', 'cliente'] },
   { href: '/temperaturas',label: 'Temp.',        icon: Thermometer,     roles: ['admin', 'jefe_frio', 'gerencia', 'agronomo'] },
-  { href: '/despachos',   label: 'Despachos',    icon: Truck,           roles: ['admin', 'jefe_frio', 'sag', 'despacho', 'gerencia', 'agronomo'] },
+  { href: '/despachos',   label: 'Despachos',    icon: Truck,           roles: ['admin', 'jefe_frio', 'sag', 'despacho', 'gerencia', 'agronomo', 'cliente'] },
   { href: '/pendientes',  label: 'Pendientes',   icon: ClipboardList,   roles: ['admin'] },
 ]
 

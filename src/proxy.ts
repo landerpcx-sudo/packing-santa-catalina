@@ -42,6 +42,9 @@ export async function proxy(request: NextRequest) {
   requestHeaders.set('x-user-id', payload.userId)
   requestHeaders.set('x-user-role', payload.role)
   requestHeaders.set('x-user-name', payload.username)
+  if (payload.clientName) {
+    requestHeaders.set('x-user-client-name', payload.clientName)
+  }
 
   return NextResponse.next({
     request: { headers: requestHeaders },
