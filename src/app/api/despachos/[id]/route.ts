@@ -43,9 +43,21 @@ export async function PATCH(
     const { id } = await params
     const body = await request.json()
 
+    const updateData: any = { ...body }
+    const numericFields = ['invoice_amount', 'advance_amount', 'expected_pallets']
+    for (const field of numericFields) {
+      if (field in updateData) {
+        if (updateData[field] === '' || updateData[field] === undefined || updateData[field] === null || isNaN(Number(updateData[field]))) {
+          updateData[field] = null
+        } else {
+          updateData[field] = Number(updateData[field])
+        }
+      }
+    }
+
     const { data: updated, error } = await supabaseAdmin
       .from('dispatches')
-      .update(body)
+      .update(updateData)
       .eq('id', id)
       .select()
       .single()

@@ -54,10 +54,23 @@ export default function NewDispatchModal({ onClose, onSuccess, initialData }: Pr
       const url = isEdit ? `/api/despachos/${initialData.id}` : '/api/despachos'
       const method = isEdit ? 'PATCH' : 'POST'
 
+      const payload = {
+        ...formData,
+        expected_pallets: formData.expected_pallets !== '' && formData.expected_pallets !== null && !isNaN(Number(formData.expected_pallets))
+          ? Number(formData.expected_pallets)
+          : null,
+        invoice_amount: formData.invoice_amount !== '' && formData.invoice_amount !== null && !isNaN(Number(formData.invoice_amount))
+          ? Number(formData.invoice_amount)
+          : null,
+        advance_amount: formData.advance_amount !== '' && formData.advance_amount !== null && !isNaN(Number(formData.advance_amount))
+          ? Number(formData.advance_amount)
+          : null,
+      }
+
       const res = await fetch(url, {
         method,
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(formData),
+        body: JSON.stringify(payload),
       })
       const json = await res.json()
 

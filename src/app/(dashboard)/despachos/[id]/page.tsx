@@ -410,20 +410,10 @@ export default function DispatchDetailPage({ params }: { params: Promise<{ id: s
 
         <div className="flex flex-col lg:flex-row lg:items-start justify-between gap-4">
           <div className="flex items-center gap-4 min-w-0">
-            <div className="w-16 h-16 sm:w-20 sm:h-20 bg-gradient-to-b from-white/10 to-white/5 border border-white/15 rounded-2xl flex flex-col items-center justify-center shrink-0 shadow-xl gap-1 p-1" title={`Especie: ${fruit.label} | Destino: ${country.label}`}>
+            <div className="w-16 h-16 sm:w-20 sm:h-20 bg-gradient-to-b from-white/10 to-white/5 border border-white/15 rounded-2xl flex items-center justify-center shrink-0 shadow-xl p-1" title={`Especie: ${fruit.label}`}>
               <span className="text-3xl sm:text-4xl leading-none filter drop-shadow-md">
                 {fruit.icon}
               </span>
-              {country.flagUrl ? (
-                <img 
-                  src={country.flagUrl} 
-                  alt={country.label} 
-                  title={`Destino: ${country.label}`} 
-                  className="h-3.5 w-5 rounded-xs object-cover border border-white/20 shadow-xs" 
-                />
-              ) : (
-                <span className="text-xs leading-none" title={`Destino: ${country.label}`}>{country.flag}</span>
-              )}
             </div>
             <div className="min-w-0">
               <h1 className="text-2xl font-bold text-white truncate">Despacho {dispatch.dispatch_code}</h1>
@@ -434,16 +424,6 @@ export default function DispatchDetailPage({ params }: { params: Promise<{ id: s
                 </span>
                 <span className="text-gray-600">|</span>
                 <span><strong>Cliente:</strong> {dispatch.client || '—'}</span>
-                <span className="text-gray-600">|</span>
-                <span className="inline-flex items-center gap-1.5">
-                  <strong>Destino:</strong> 
-                  {country.flagUrl ? (
-                    <img src={country.flagUrl} alt={country.label} className="h-3.5 w-5 rounded-xs inline-block object-cover border border-white/20 shadow-xs" />
-                  ) : (
-                    <span>{country.flag}</span>
-                  )}
-                  {dispatch.destination || '—'}
-                </span>
                 {dispatch.container_number && (
                   <>
                     <span className="text-gray-600">|</span>
@@ -600,14 +580,18 @@ export default function DispatchDetailPage({ params }: { params: Promise<{ id: s
           <p className="text-white font-medium text-sm truncate">{dispatch.client || '—'}</p>
         </div>
         <div className="bg-white/3 border border-white/8 rounded-xl p-4">
-          <p className="text-gray-500 text-xs mb-1 flex items-center gap-1"><MapPin className="w-3 h-3" />Destino</p>
-          <p className="text-white font-medium text-sm truncate flex items-center gap-2">
+          <p className="text-gray-500 text-xs mb-1.5 flex items-center gap-1"><MapPin className="w-3 h-3" />Destino</p>
+          <p className="text-white font-semibold text-base truncate flex items-center gap-2.5">
             {country.flagUrl ? (
-              <img src={country.flagUrl} alt={country.label} className="h-3.5 w-5 rounded-xs inline-block object-cover border border-white/20 shadow-xs" />
+              <img 
+                src={country.flagUrl} 
+                alt={country.label} 
+                className="h-5.5 w-8 rounded-xs inline-block object-cover border border-white/20 shadow-md shrink-0" 
+              />
             ) : (
-              <span className="text-base leading-none">{country.flag}</span>
+              <span className="text-2xl leading-none shrink-0">{country.flag}</span>
             )}
-            <span>{dispatch.destination || '—'}</span>
+            <span className="truncate">{dispatch.destination || '—'}</span>
           </p>
         </div>
         <div className="bg-white/3 border border-white/8 rounded-xl p-4">
