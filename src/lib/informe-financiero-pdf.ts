@@ -882,7 +882,7 @@ export async function construirInformeFinancieroPDF(
 
     doc.y = yCardDic + 10
 
-    // ── V. MATRIZ GERENCIAL 2X2 DE DECISIONES DE COSECHA & COMERCIALIZACIÓN ──
+    // ── V. MATRIZ GERENCIAL DE DECISIONES DE COSECHA & COMERCIALIZACIÓN (STACK VERTICAL) ──
     nuevaPagina()
     marcador('V. Matriz gerencial 2x2')
     tituloSeccion('V. Matriz gerencial 2x2 de decisiones de cosecha & comercialización')
@@ -914,74 +914,57 @@ export async function construirInformeFinancieroPDF(
       },
     ]
 
-    const anchoCaja = (W - 14) / 2
-    const dibujarCuadrante = (x: number, y: number, w: number, h: number, c: typeof cuadrantes[number]) => {
-      doc.rect(x, y, w, h).fill(c.bg)
-      doc.rect(x, y, w, h).lineWidth(1).strokeColor(c.borde).stroke()
-      doc.fillColor(c.texto).font('B').fontSize(7.5).text(c.titulo, x + 10, y + 8, { width: w - 20 })
-      doc.fillColor(c.texto).font('R').fontSize(6).text(c.sub, x + 10, y + 19, { width: w - 20 })
-      doc.fillColor(COLOR.texto).font('R').fontSize(6).text(c.desc, x + 10, y + 27, { width: w - 20 })
-      let yItem = y + 48
+    cuadrantes.forEach((c) => {
+      const cantItems = Math.max(c.items.length, 1)
+      const altoCard = 34 + cantItems * 15
+
+      asegurar(altoCard + 8)
+      const yCard = doc.y
+
+      // Fondo y Borde Card Ancho Completo
+      doc.rect(L, yCard, W, altoCard).fill(c.bg)
+      doc.rect(L, yCard, W, altoCard).lineWidth(0.8).strokeColor(c.borde).stroke()
+
+      // Título Izquierda
+      doc.fillColor(c.texto).font('B').fontSize(8)
+        .text(c.titulo, L + 12, yCard + 7, { lineBreak: false })
+
+      // Subtítulo Derecha
+      doc.fillColor(c.texto).font('B').fontSize(7)
+        .text(c.sub, R - 200, yCard + 7, { width: 188, align: 'right', lineBreak: false })
+
+      // Descripción abajo del título
+      doc.fillColor(COLOR.texto).font('R').fontSize(6.5)
+        .text(c.desc, L + 12, yCard + 18, { width: W - 24, lineBreak: false })
+
+      // Ítems de calibres
+      let yItem = yCard + 30
       if (c.items.length === 0) {
         doc.fillColor(COLOR.tenue).font('R').fontSize(6.5)
-          .text('Sin calibres en esta categoría.', x + 10, yItem, { width: w - 20 })
+          .text('Sin calibres en esta categoría.', L + 12, yItem, { width: W - 24 })
       } else {
         c.items.forEach((it: any) => {
-          const envaseCorto = it.envase.length > 15 ? `${it.envase.slice(0, 12)}...` : it.envase
+          const envaseCorto = it.envase.length > 30 ? `${it.envase.slice(0, 27)}...` : it.envase
           const esPos = it.utilidadPorCajaTarget >= 0
           
-          doc.rect(x + 8, yItem - 2, w - 16, 14).fill('#ffffff')
-          doc.rect(x + 8, yItem - 2, w - 16, 14).lineWidth(0.4).strokeColor(c.borde).stroke()
+          doc.fillColor(COLOR.tinta).font('B').fontSize(7)
+            .text(`• Calibre ${it.calibre} (${envaseCorto})`, L + 16, yItem, { width: W - 180, lineBreak: false })
 
-          doc.fillColor(COLOR.tinta).font('B').fontSize(6.5)
-            .text(`Calibre ${it.calibre} (${envaseCorto})`, x + 12, yItem + 1, { width: w - 95, lineBreak: false })
-          doc.fillColor(esPos ? COLOR.verde : COLOR.rojo).font('B').fontSize(6.5)
-            .text(`${esPos ? '+' : ''}${dinero(it.utilidadPorCajaTarget, simbTarget)} / caja (${it.cajas} cajas)`, x + w - 100, yItem + 1, { width: 90, align: 'right', lineBreak: false })
-          yItem += 16
+          doc.fillColor(esPos ? COLOR.verde : COLOR.rojo).font('B').fontSize(7)
+            .text(`${esPos ? '+' : ''}${dinero(it.utilidadPorCajaTarget, simbTarget)} / caja (${it.cajas.toLocaleString('es-CL')} cajas)`, R - 180, yItem, { width: 168, align: 'right', lineBreak: false })
+
+          yItem += 15
         })
       }
-    }
 
-    const altoFila = (a: typeof cuadrantes[number], b: typeof cuadrantes[number]) =>
-      Math.max(85, 52 + Math.max(a.items.length, b.items.length, 1) * 16)
+      doc.y = yCard + altoCard + 8
+    })
 
-    const altoFila1 = altoFila(cuadrantes[0], cuadrantes[1])
-    const altoFila2 = altoFila(cuadrantes[2], cuadrantes[3])
-
-    asegurar(altoFila1 + altoFila2 + 50)
-    const yMatriz = doc.y
-    let yFila = yMatriz
-
-    dibujarCuadrante(L, yFila, anchoCaja, altoFila1, cuadrantes[0])
-    dibujarCuadrante(L + anchoCaja + 14, yFila, anchoCaja, altoFila1, cuadrantes[1])
-    yFila += altoFila1 + 12
-    dibujarCuadrante(L, yFila, anchoCaja, altoFila2, cuadrantes[2])
-    dibujarCuadrante(L + anchoCaja + 14, yFila, anchoCaja, altoFila2, cuadrantes[3])
-
-    const yFinMatriz = yFila + altoFila2
-
-    // Eje vertical (margen)
-    doc.moveTo(L - 10, yFinMatriz).lineTo(L - 10, yMatriz).lineWidth(0.8).strokeColor(COLOR.tenue).stroke()
-    doc.moveTo(L - 13, yMatriz + 5).lineTo(L - 10, yMatriz).lineTo(L - 7, yMatriz + 5).fill(COLOR.tenue)
-    doc.save()
-    doc.rotate(-90, { origin: [L - 16, (yMatriz + yFinMatriz) / 2] })
-    doc.fillColor(COLOR.suave).font('B').fontSize(6)
-      .text('MAYOR MARGEN POR CAJA', L - 16 - 60, (yMatriz + yFinMatriz) / 2 - 4, { width: 120, align: 'center', lineBreak: false })
-    doc.restore()
-
-    // Eje horizontal (volumen)
-    doc.moveTo(L, yFinMatriz + 10).lineTo(R, yFinMatriz + 10).lineWidth(0.8).strokeColor(COLOR.tenue).stroke()
-    doc.moveTo(L + 5, yFinMatriz + 7).lineTo(L, yFinMatriz + 10).lineTo(L + 5, yFinMatriz + 13).fill(COLOR.tenue)
-    doc.fillColor(COLOR.suave).font('B').fontSize(6)
-      .text('MAYOR VOLUMEN EMBARCADO', L + 10, yFinMatriz + 14, { width: 160, lineBreak: false })
-    doc.fillColor(COLOR.suave).font('B').fontSize(6)
-      .text('MENOR VOLUMEN', R - 160, yFinMatriz + 14, { width: 160, align: 'right', lineBreak: false })
-
-    doc.y = yFinMatriz + 30
+    doc.y += 8
 
     // ── FIRMAS DE CONFORMIDAD ──
     asegurar(60)
-    const yFirma = doc.y + 25
+    const yFirma = doc.y + 20
     doc.moveTo(L + 30, yFirma).lineTo(L + 210, yFirma).lineWidth(0.5).strokeColor(COLOR.tenue).stroke()
     doc.moveTo(R - 210, yFirma).lineTo(R - 30, yFirma).lineWidth(0.5).strokeColor(COLOR.tenue).stroke()
     doc.fillColor(COLOR.texto).font('B').fontSize(7.5)
