@@ -24,13 +24,13 @@ export async function GET(request: Request) {
 
     const cleanClient = (clientName || '').trim()
 
-    // 1. Lotes (consultar por client usando ilike)
+    // 1. Lotes (consultar usando la columna 'client')
     let lotsQuery = supabaseAdmin
       .from('lots')
       .select('id, species, overall_status, created_at, client')
     
     if (cleanClient) {
-      lotsQuery = lotsQuery.or(`client.ilike.%${cleanClient}%,client_name.ilike.%${cleanClient}%`)
+      lotsQuery = lotsQuery.ilike('client', `%${cleanClient}%`)
     }
 
     const { data: lotsData, error: lotsError } = await lotsQuery
