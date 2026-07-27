@@ -600,8 +600,8 @@ export default function DispatchDetailPage({ params }: { params: Promise<{ id: s
             onClick={() => setPestana(p.id)}
             className={`flex items-center gap-2 px-4 py-2.5 text-sm font-medium border-b-2 -mb-px transition-all whitespace-nowrap ${
               pestana === p.id
-                ? 'border-indigo-500 text-white'
-                : 'border-transparent text-gray-400 hover:text-gray-200 hover:border-white/20'
+                ? 'border-indigo-500 text-indigo-600 dark:text-white font-semibold'
+                : 'border-transparent text-slate-500 dark:text-gray-400 hover:text-slate-900 dark:hover:text-gray-200 hover:border-slate-300 dark:hover:border-white/20'
             }`}
           >
             {p.icono}
