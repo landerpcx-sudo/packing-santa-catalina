@@ -61,6 +61,23 @@ export async function getDriveClient() {
   return client
 }
 
+export async function makePublic(fileId: string) {
+  try {
+    const drive = await getDriveClient()
+    await drive.permissions.create({
+      fileId,
+      requestBody: {
+        role: 'reader',
+        type: 'anyone',
+      },
+      supportsAllDrives: true,
+    })
+    console.log(`[DRIVE] Permisos públicos (Anyone with link = reader) asignados a: ${fileId}`)
+  } catch (err: any) {
+    console.warn(`[DRIVE] Advertencia al asignar permiso público a ${fileId}:`, err?.message || err)
+  }
+}
+
 export async function createFolder(name: string, parentId?: string) {
   const drive = await getDriveClient()
   const fileMetadata = {
@@ -74,6 +91,10 @@ export async function createFolder(name: string, parentId?: string) {
     fields: 'id, webViewLink',
     supportsAllDrives: true,
   })
+
+  if (file.data.id) {
+    await makePublic(file.data.id)
+  }
 
   return {
     id: file.data.id,
@@ -110,10 +131,38 @@ export async function uploadFile(
 
   console.log(`Archivo subido con éxito a Drive. ID: ${file.data.id}`)
 
+  if (file.data.id) {
+    await makePublic(file.data.id)
+  }
+
   return {
     id: file.data.id,
     url: file.data.webViewLink,
   }
+}
+
+export async function makeAllDriveFilesPublic() {
+  const drive = await getDriveClient()
+  let pageToken: string | undefined = undefined
+  let count = 0
+  do {
+    const res: any = await drive.files.list({
+      pageSize: 100,
+      fields: 'nextPageToken, files(id, name)',
+      supportsAllDrives: true,
+      includeItemsFromAllDrives: true,
+      pageToken,
+    })
+    const files = res.data.files || []
+    for (const f of files) {
+      if (f.id) {
+        await makePublic(f.id)
+        count++
+      }
+    }
+    pageToken = res.data.nextPageToken || undefined
+  } while (pageToken)
+  return count
 }
 
 export async function trashFolder(folderId: string) {
