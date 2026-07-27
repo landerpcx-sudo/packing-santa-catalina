@@ -83,7 +83,15 @@ export async function POST(
       fob_exchange_rate = 1000,
       abonos_amount = 0,
       rate_provider_info = null,
-      rate_date = null
+      rate_date = null,
+      // Costos de Planta a Puerto (Gastos de Origen)
+      inland_freight = 0,
+      customs_brokerage = 0,
+      phytosanitary_sag = 0,
+      port_expenses_origin = 0,
+      inland_insurance = 0,
+      other_origin_expenses = 0,
+      origin_expenses_total = 0
     } = body
 
     // 1. Crear o actualizar el encabezado de la liquidación
@@ -111,6 +119,13 @@ export async function POST(
       abonos_amount,
       rate_provider_info,
       rate_date: rate_date || null,
+      inland_freight,
+      customs_brokerage,
+      phytosanitary_sag,
+      port_expenses_origin,
+      inland_insurance,
+      other_origin_expenses,
+      origin_expenses_total,
       created_by: user_id,
       updated_at: new Date().toISOString()
     }

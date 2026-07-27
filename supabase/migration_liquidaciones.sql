@@ -61,3 +61,13 @@ CREATE TABLE IF NOT EXISTS dispatch_liquidation_items (
 CREATE INDEX IF NOT EXISTS idx_dispatch_packlist_items_dispatch_id ON dispatch_packlist_items(dispatch_id);
 CREATE INDEX IF NOT EXISTS idx_dispatch_liquidations_dispatch_id ON dispatch_liquidations(dispatch_id);
 CREATE INDEX IF NOT EXISTS idx_dispatch_liquidation_items_liquidation_id ON dispatch_liquidation_items(liquidation_id);
+
+-- Nuevas columnas de Costos de Planta a Puerto (Gastos de Origen)
+ALTER TABLE dispatch_liquidations ADD COLUMN IF NOT EXISTS inland_freight NUMERIC(14,2) DEFAULT 0;
+ALTER TABLE dispatch_liquidations ADD COLUMN IF NOT EXISTS customs_brokerage NUMERIC(14,2) DEFAULT 0;
+ALTER TABLE dispatch_liquidations ADD COLUMN IF NOT EXISTS phytosanitary_sag NUMERIC(14,2) DEFAULT 0;
+ALTER TABLE dispatch_liquidations ADD COLUMN IF NOT EXISTS port_expenses_origin NUMERIC(14,2) DEFAULT 0;
+ALTER TABLE dispatch_liquidations ADD COLUMN IF NOT EXISTS inland_insurance NUMERIC(14,2) DEFAULT 0;
+ALTER TABLE dispatch_liquidations ADD COLUMN IF NOT EXISTS other_origin_expenses NUMERIC(14,2) DEFAULT 0;
+ALTER TABLE dispatch_liquidations ADD COLUMN IF NOT EXISTS origin_expenses_total NUMERIC(14,2) DEFAULT 0;
+

@@ -188,7 +188,16 @@ export interface DispatchLiquidation {
   other_expenses: number
   total_expenses: number
   net_amount: number
-  advance_amount: number
+  advance_amount: number // Representa el Valor Facturado EXW (Planta)
+  exw_amount?: number
+  // Costos de Planta a Puerto (Gastos Origen)
+  inland_freight?: number
+  customs_brokerage?: number
+  phytosanitary_sag?: number
+  port_expenses_origin?: number
+  inland_insurance?: number
+  other_origin_expenses?: number
+  origin_expenses_total?: number
   exchange_rate: number
   final_balance: number
   status: 'draft' | 'finalized'

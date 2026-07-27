@@ -82,25 +82,44 @@ export async function construirInformeFinancieroPDF(
   const totalExpenses = Number(liq.total_expenses) || 0
   const grossSales = Number(liq.gross_sales) || 0
   const netAmount = Number(liq.net_amount) || 0
-  const advanceAmount = Number(liq.advance_amount) || 0
+  const advanceAmount = Number(liq.advance_amount) || 0 // Factura EXW Fruta
   const abonosAmount = Number(liq.abonos_amount) || 0
   const exchangeRate = Number(liq.exchange_rate) || 1
   const fobExchangeRate = Number(liq.fob_exchange_rate) || 1
 
+  // Costos de Planta a Puerto (Gastos de Origen)
+  const inlandFreight = Number(liq.inland_freight) || 0
+  const customsBrokerage = Number(liq.customs_brokerage) || 0
+  const phytosanitarySag = Number(liq.phytosanitary_sag) || 0
+  const portExpensesOrigin = Number(liq.port_expenses_origin) || 0
+  const inlandInsurance = Number(liq.inland_insurance) || 0
+  const otherOriginExpenses = Number(liq.other_origin_expenses) || 0
+  const originExpensesTotal = Number(liq.origin_expenses_total) || (
+    inlandFreight + customsBrokerage + phytosanitarySag + portExpensesOrigin + inlandInsurance + otherOriginExpenses
+  )
+
   // ----------------------------------------------------
   // RECÁLCULO DINÁMICO (Plan Solución PDF Multimoneda)
   // ----------------------------------------------------
-  // 1. Tasa CLP real otorgada (descarta 1000 si hay tasa real disponible)
+  // 1. Tasa CLP/Origen real otorgada (descarta 1000 si hay tasa real disponible)
   const tasaCLPOtorgada = (fobExchangeRate > 100 && Math.abs(fobExchangeRate - 1000) > 0.01) 
     ? fobExchangeRate 
     : (exchangeRate > 100 ? exchangeRate : 1075.0248)
 
-  // 2. Costo FOB real en la Moneda de Venta (Euros)
-  const fobEnMonedaVenta = fobCurrency === currency 
+  // 2. Costo EXW Fruta en Moneda de Venta
+  const exwEnMonedaVenta = fobCurrency === currency 
     ? advanceAmount 
     : (advanceAmount / tasaCLPOtorgada)
 
-  // 3. Utilidad Final Real del Negocio (Euros) - Anula final_balance estático de la BD
+  // 3. Costos de Planta a Puerto (Origen) en Moneda de Venta
+  const origenEnMonedaVenta = fobCurrency === currency
+    ? originExpensesTotal
+    : (originExpensesTotal / tasaCLPOtorgada)
+
+  // 4. Costo FOB Real en Puerto (EXW + Planta a Puerto)
+  const fobEnMonedaVenta = exwEnMonedaVenta + origenEnMonedaVenta
+
+  // 5. Utilidad Final Real del Negocio - Anula final_balance estático de la BD
   const finalBalance = netAmount - fobEnMonedaVenta
 
   const freight = Number(liq.freight_amount) || 0
@@ -686,17 +705,29 @@ export async function construirInformeFinancieroPDF(
     const netCj_CLP = `${clp((netAmount * tasaCLPOtorgada) / safeCajas)} / cj`
     filaMulti(esVentaUSD ? ['    Ingreso Neto / Caja', netCj_USD, netCj_CLP] : ['    Ingreso Neto / Caja', netCj_Dest, netCj_USD, netCj_CLP], { color: COLOR.teal, alto: 15 })
 
-    // Costo FOB Facturado
+    // Costo Fruta EXW Facturado (En Planta)
+    const exw_Dest = `-${dinero(exwEnMonedaVenta)}`
+    const exw_USD = `-${simbTarget} ${(exwEnMonedaVenta * tasaSaleToTarget).toLocaleString('es-CL', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+    const exw_CLP = `-${clp(advanceAmount)}`
+    filaMulti(esVentaUSD ? ['(-) Costo Fruta EXW Facturado (Planta)', exw_USD, exw_CLP] : ['(-) Costo Fruta EXW Facturado (Planta)', exw_Dest, exw_USD, exw_CLP], { color: COLOR.rojo })
+
+    // Costos de Planta a Puerto (Gastos Origen)
+    const orig_Dest = `-${dinero(origenEnMonedaVenta)}`
+    const orig_USD = `-${simbTarget} ${(origenEnMonedaVenta * tasaSaleToTarget).toLocaleString('es-CL', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+    const orig_CLP = `-${clp(originExpensesTotal)}`
+    filaMulti(esVentaUSD ? ['(-) Costos de Planta a Puerto (Origen)', orig_USD, orig_CLP] : ['(-) Costos de Planta a Puerto (Origen)', orig_Dest, orig_USD, orig_CLP], { color: COLOR.indigo })
+
+    // Costo FOB Real en Puerto (EXW + Origen)
     const fob_Dest = `-${dinero(fobEnMonedaVenta)}`
     const fob_USD = `-${simbTarget} ${(fobEnMonedaVenta * tasaSaleToTarget).toLocaleString('es-CL', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
-    const fob_CLP = `-${clp(advanceAmount)}`
-    filaMulti(esVentaUSD ? ['(-) Costo FOB Fruta Facturado', fob_USD, fob_CLP] : ['(-) Costo FOB Fruta Facturado', fob_Dest, fob_USD, fob_CLP], { color: COLOR.rojo })
+    const fob_CLP = `-${clp(advanceAmount + originExpensesTotal)}`
+    filaMulti(esVentaUSD ? ['(=) Costo FOB Real en Puerto', fob_USD, fob_CLP] : ['(=) Costo FOB Real en Puerto', fob_Dest, fob_USD, fob_CLP], { negrita: true, color: COLOR.rojo, fondo: COLOR.fondoCabecera })
 
-    // FOB / Caja (Campo)
+    // FOB Real / Caja (Puerto)
     const fobCj_Dest = `${dinero(fobEnMonedaVenta / safeCajas)} / cj`
     const fobCj_USD = `${simbTarget} ${(fobEnMonedaVenta * tasaSaleToTarget / safeCajas).toLocaleString('es-CL', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} / cj`
-    const fobCj_CLP = `${clp(advanceAmount / safeCajas)} / cj`
-    filaMulti(esVentaUSD ? ['    FOB Fruta / Caja (Campo)', fobCj_USD, fobCj_CLP] : ['    FOB Fruta / Caja (Campo)', fobCj_Dest, fobCj_USD, fobCj_CLP], { color: COLOR.suave, alto: 15 })
+    const fobCj_CLP = `${clp((advanceAmount + originExpensesTotal) / safeCajas)} / cj`
+    filaMulti(esVentaUSD ? ['    FOB Real Fruta / Caja (Puerto)', fobCj_USD, fobCj_CLP] : ['    FOB Real Fruta / Caja (Puerto)', fobCj_Dest, fobCj_USD, fobCj_CLP], { color: COLOR.suave, alto: 15 })
 
     // UTILIDAD FINAL NEGOCIO
     const ut_Dest = dinero(finalBalance)
@@ -723,10 +754,10 @@ export async function construirInformeFinancieroPDF(
     const yAbonos = doc.y
     doc.rect(L, yAbonos, W, 16).fill(COLOR.fondo)
     doc.fillColor(COLOR.suave).font('R').fontSize(7)
-      .text(`Abonos recibidos a factura: `, L + 8, yAbonos + 5, { continued: true })
+      .text(`Abonos recibidos a factura EXW: `, L + 8, yAbonos + 5, { continued: true })
       .fillColor(COLOR.verde).font('B').text(dinero(abonosAmount, simbFob))
     doc.fillColor(COLOR.suave).font('R').fontSize(7)
-      .text(`Saldo pendiente de factura FOB: `, L + W / 2, yAbonos + 5, { continued: true })
+      .text(`Saldo pendiente de factura EXW: `, L + W / 2, yAbonos + 5, { continued: true })
       .fillColor(COLOR.ambar).font('B').text(dinero(Math.max(advanceAmount - abonosAmount, 0), simbFob))
     doc.y = yAbonos + 20
 
@@ -753,8 +784,8 @@ export async function construirInformeFinancieroPDF(
     doc.fillColor(positivo ? COLOR.verde : COLOR.ambar).font('B').fontSize(7.5)
       .text(
         positivo
-          ? '(=) UTILIDAD FINAL DEL NEGOCIO (VENTA DESTINO - DEDUCCIONES - COSTO FOB FRUTA)'
-          : 'RESULTADO POR DEBAJO DEL COSTO FOB FACTURADO',
+          ? '(=) UTILIDAD FINAL DEL NEGOCIO (VENTA DESTINO - DEDUCCIONES - COSTO FOB REAL)'
+          : 'RESULTADO POR DEBAJO DEL COSTO FOB REAL',
         L + 12, yDetalle + 7, { width: W - 24 }
       )
 
