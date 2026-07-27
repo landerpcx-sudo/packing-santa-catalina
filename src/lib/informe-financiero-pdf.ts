@@ -771,147 +771,144 @@ export async function construirInformeFinancieroPDF(
 
     doc.y = yDetalle + 60
 
-    // ── IV. RANKING POR CALIBRE — con barra de margen integrada ─────────────
-    // Página nueva siempre: antes la tabla arrancaba a dos filas del final
-    // de la página anterior y se veía cortada de forma arbitraria.
+    // ── IV. MATRIZ SINTÉTICA DE CURVA DE CALIBRES & MARGEN DE COSECHA ────────
     nuevaPagina()
-    marcador('IV. Rentabilidad por calibre')
-    tituloSeccion('IV. Rentabilidad por calibre (de mayor a menor margen)')
+    marcador('IV. Matriz sintética por calibre')
+    tituloSeccion('IV. Matriz sintética de curva de calibres & margen de cosecha')
     doc.fillColor(COLOR.tenue).font('R').fontSize(6.5)
-      .text('La barra bajo "Utilidad/caja" representa su magnitud relativa frente al mejor y peor calibre del contenedor.', L, doc.y, { width: W })
-    doc.y += 10
+      .text(`Orden: UTILIDAD / CAJA (${targetCurrency}) · Las barras indican la magnitud de rentabilidad neta por caja`, L, doc.y, { width: W })
+    doc.y += 12
 
-    // Embalaje va ancho a propósito: nombres reales como "LEMONS BLANCA
-    // (LE16) 15 KG" no caben en una columna angosta. Antes, con 88pt,
-    // PDFKit envolvía el texto a una segunda línea que se montaba sobre la
-    // fila siguiente — se ve como filas superpuestas/corridas.
-    // "Cajas (%)" necesita 62pt: con 56 el calibre más numeroso ("1.120 (26.3%)")
-    // se partía en dos líneas y se montaba sobre la fila siguiente.
-    const colRank = [22, 116, 36, 56, 52, 75, 68, 90]
-    const cabRank = ['#', 'Embalaje', 'Calibre', 'Cajas (%)', 'Gastos/caja', 'Ingreso Neto (CLP)', `Utilidad (${targetCurrency})`, `Aporte (${targetCurrency})`]
-
-    // Red de seguridad adicional: si aun así un nombre no entra en una
-    // línea, se recorta con puntos suspensivos en vez de desbordar la fila.
-    const truncar = (s: string, maxChars: number) => (s.length > maxChars ? `${s.slice(0, maxChars - 3)}...` : s)
-
-    filaTabla(cabRank, colRank, { cabecera: true, fondo: COLOR.fondoCabecera, alto: 18 })
-
-    analisis.forEach((a: any, i: number) => {
-      // Si la fila no cabe, se rompe página ANTES de dibujarla y se repite
-      // el encabezado — así nunca queda una fila "huérfana" sin sus títulos.
-      if (doc.y + 20 > LIMITE_Y) {
+    // Dibujar cada calibre como una fila sintetizada con barra visual
+    const maxUtilAbs = Math.max(...analisis.map((a: any) => Math.abs(a.utilidadPorCajaTarget)), 0.01)
+    
+    analisis.forEach((a: any, idx: number) => {
+      if (doc.y + 36 > LIMITE_Y) {
         nuevaPagina()
-        filaTabla(cabRank, colRank, { cabecera: true, fondo: COLOR.fondoCabecera, alto: 18 })
       }
-      filaTabla(
-        [
-          `${i + 1}`,
-          truncar(a.envase, 24),
-          a.calibre,
-          `${a.cajas.toLocaleString('es-CL')} (${pct(a.porcentajeVolumen)})`,
-          `-${dinero(expensePerBox)}`,
-          clp(a.retornoProductorCLP),
-          `${a.utilidadPorCajaTarget >= 0 ? '+' : ''}${dinero(a.utilidadPorCajaTarget, simbTarget)}`,
-          dinero(a.aporteTotal, simbTarget),
-        ],
-        colRank,
-        {
-          fondo: i % 2 === 1 ? COLOR.fondo : undefined,
-          color: a.utilidadPorCaja < 0 ? COLOR.rojo : COLOR.texto,
-          barra: {
-            columna: 6,
-            pct: Math.abs(a.utilidadPorCaja) / maxUtilidadAbs,
-            color: a.utilidadPorCaja >= 0 ? COLOR.verdeBorde : COLOR.rojoBorde,
-          },
-        }
-      )
-    })
+      const yFilaCard = doc.y
+      const esPositivo = a.utilidadPorCajaTarget >= 0
 
-    doc.y += 10
+      // Fondo de la fila tipo tarjeta
+      doc.rect(L, yFilaCard, W, 32).fill(idx % 2 === 0 ? COLOR.fondo : '#ffffff')
+      doc.rect(L, yFilaCard, W, 32).lineWidth(0.5).strokeColor(COLOR.lineaSuave).stroke()
 
-    // ── INTELIGENCIA GRÁFICA DE CALIBRES EN PÁGINA 3 ────────────
-    asegurar(160)
-    const yGraficosP3 = doc.y
+      // Badge #Rank
+      doc.circle(L + 18, yFilaCard + 16, 9).fill(COLOR.tinta)
+      doc.fillColor('#ffffff').font('B').fontSize(7.5)
+        .text(`#${idx + 1}`, L + 8, yFilaCard + 12, { width: 20, align: 'center' })
 
-    // Título de la subsección gráfica
-    doc.rect(L, yGraficosP3, W, 16).fill(COLOR.fondoCabecera)
-    doc.fillColor(COLOR.tinta).font('B').fontSize(7.5)
-      .text('INTELIGENCIA GRÁFICA: CURVA DE CAJAS & INGRESO NETO EN PESOS CHILENOS (CLP / CAJA)', L + 8, yGraficosP3 + 4)
+      // Nombre Calibre y Envase
+      const envaseCorto = a.envase.length > 25 ? `${a.envase.slice(0, 22)}...` : a.envase
+      doc.fillColor(COLOR.tinta).font('B').fontSize(8)
+        .text(`Calibre ${a.calibre} (${envaseCorto})`, L + 34, yFilaCard + 6, { width: 190, lineBreak: false })
 
-    let yFilaGraf = yGraficosP3 + 22
-    const anchoMitad = (W - 14) / 2
+      // Subtexto de Cajas y %
+      doc.fillColor(COLOR.suave).font('R').fontSize(6.5)
+        .text(`${a.cajas.toLocaleString('es-CL')} cajas · ${pct(a.porcentajeVolumen)} del lote`, L + 34, yFilaCard + 18, { width: 190, lineBreak: false })
 
-    // Gráfico Izquierdo: Curva de Cajas por Calibre
-    doc.rect(L, yFilaGraf, anchoMitad, 130).fill(COLOR.fondo)
-    doc.rect(L, yFilaGraf, anchoMitad, 130).lineWidth(0.5).strokeColor(COLOR.lineaSuave).stroke()
-    doc.fillColor(COLOR.indigo).font('B').fontSize(7)
-      .text('DISTRIBUCIÓN DE CAJAS POR CALIBRE (CURVA HUERTO)', L + 8, yFilaGraf + 6)
+      // Break-even
+      const breakevenVal = expensePerBox + (advanceAmount / safeCajas)
+      doc.fillColor(COLOR.tenue).font('R').fontSize(6.5)
+        .text(`Break-even: ${dinero(breakevenVal, simb)}`, L + 210, yFilaCard + 12, { width: 85, lineBreak: false })
 
-    const maxCajasCalibre = Math.max(...analisis.map((a: any) => a.cajas), 1)
-    let yBarraCajas = yFilaGraf + 18
+      // Barra de progreso horizontal
+      const anchoMaxBarra = 95
+      const pctBarra = Math.min(1, Math.abs(a.utilidadPorCajaTarget) / maxUtilAbs)
+      const anchoBarraReal = Math.max(4, pctBarra * anchoMaxBarra)
+      doc.rect(L + 300, yFilaCard + 12, anchoBarraReal, 8).fill(esPositivo ? COLOR.verdeBorde : COLOR.rojoBorde)
 
-    analisis.slice(0, 6).forEach((a: any) => {
-      doc.fillColor(COLOR.tinta).font('B').fontSize(6.5)
-        .text(`Cal. ${a.calibre}`, L + 8, yBarraCajas, { width: 35 })
+      // Margen unitario por caja
+      doc.fillColor(esPositivo ? COLOR.verde : COLOR.rojo).font('B').fontSize(8)
+        .text(`${esPositivo ? '+' : ''}${dinero(a.utilidadPorCajaTarget, simbTarget)} / caja`, L + 405, yFilaCard + 6, { width: 85, align: 'right', lineBreak: false })
+
+      // Aporte total
       doc.fillColor(COLOR.tenue).font('R').fontSize(6)
-        .text(`${a.cajas} cj (${pct(a.porcentajeVolumen)})`, L + 45, yBarraCajas, { width: 65 })
+        .text('APORTE TOTAL', L + 405, yFilaCard + 18, { width: 85, align: 'right', lineBreak: false })
+      doc.fillColor(COLOR.tinta).font('B').fontSize(7.5)
+        .text(`${dinero(a.aporteTotal, simbTarget)}`, L + 405, yFilaCard + 24, { width: 85, align: 'right', lineBreak: false })
+
+      doc.y = yFilaCard + 36
+    })
+
+    doc.y += 12
+
+    // ── DICTAMEN EJECUTIVO FRUTÍCOLA COMERCIAL (3 Cajas estructuradas) ──
+    asegurar(130)
+    const yDictamen = doc.y
+
+    doc.rect(L, yDictamen, W, 18).fill(COLOR.fondoCabecera)
+    doc.fillColor(COLOR.tinta).font('B').fontSize(8)
+      .text('DICTAMEN EJECUTIVO FRUTÍCOLA COMERCIAL (ANÁLISIS DE COSECHA & MERCADO)', L + 8, yDictamen + 5)
+
+    let yCardDic = yDictamen + 24
+    const dicCards = [
+      {
+        num: '1.',
+        titulo: 'PERFIL DE CURVA DE COSECHA:',
+        texto: `La carga presenta una concentración relevante en Calibre ${mejor?.calibre || '—'} (${mejor?.cajas || 0} cajas, ${pct(mejor?.porcentajeVolumen || 0)} del lote). La curva promedio promedia ${Math.round(totalCajas / (analisis.length || 1))} cajas por tamaño.`,
+        border: COLOR.indigo,
+        bg: '#f8fafc'
+      },
+      {
+        num: '2.',
+        titulo: 'CALIBRE MÁXIMA UTILIDAD:',
+        texto: `El mejor retorno unitario lo entregó el Calibre ${mejor?.calibre || '—'} (+${dinero(mejor?.utilidadPorCajaTarget || 0, simbTarget)} / caja), superando por ${dinero((mejor?.utilidadPorCajaTarget || 0) - (peor?.utilidadPorCajaTarget || 0), simbTarget)} al calibre más bajo.`,
+        border: COLOR.verde,
+        bg: COLOR.verdeFondo
+      },
+      {
+        num: '3.',
+        titulo: 'DIRECTRIZ PARA PACKING & CAMPO:',
+        texto: `Se recomienda ajustar la labor de raleo en huerto y potenciar el embalaje de fruta mediana-grande. Derivar fruta de calibre menor a mercado interno o industria para optimizar el retorno de fletes marítimos.`,
+        border: COLOR.ambar,
+        bg: COLOR.ambarFondo
+      }
+    ]
+
+    dicCards.forEach((c) => {
+      doc.rect(L, yCardDic, W, 32).fill(c.bg)
+      doc.rect(L, yCardDic, W, 32).lineWidth(0.5).strokeColor(COLOR.lineaSuave).stroke()
+      doc.rect(L, yCardDic, 3, 32).fill(c.border)
+
+      doc.fillColor(c.border).font('B').fontSize(7.5)
+        .text(`${c.num} ${c.titulo}`, L + 10, yCardDic + 5, { lineBreak: false })
       
-      const anchoBarraVisual = Math.max(3, (a.cajas / maxCajasCalibre) * (anchoMitad - 120))
-      doc.rect(L + 112, yBarraCajas + 1, anchoBarraVisual, 7).fill(COLOR.indigo)
-      yBarraCajas += 17
+      doc.fillColor(COLOR.texto).font('R').fontSize(6.5)
+        .text(c.texto, L + 10, yCardDic + 16, { width: W - 20, lineBreak: true })
+
+      yCardDic += 36
     })
 
-    // Gráfico Derecho: Ingreso Neto Venta Destino en CLP
-    const xGrafDerecha = L + anchoMitad + 14
-    doc.rect(xGrafDerecha, yFilaGraf, anchoMitad, 130).fill(COLOR.fondo)
-    doc.rect(xGrafDerecha, yFilaGraf, anchoMitad, 130).lineWidth(0.5).strokeColor(COLOR.lineaSuave).stroke()
-    doc.fillColor(COLOR.teal).font('B').fontSize(7)
-      .text('INGRESO NETO VENTA DESTINO ($ CLP / CAJA)', xGrafDerecha + 8, yFilaGraf + 6)
+    doc.y = yCardDic + 10
 
-    const maxRetornoCLP = Math.max(...analisis.map((a: any) => Math.abs(a.retornoProductorCLP)), 1)
-    let yBarraCLP = yFilaGraf + 18
-
-    analisis.slice(0, 6).forEach((a: any) => {
-      const esPositivo = a.retornoProductorCLP >= 0
-      doc.fillColor(COLOR.tinta).font('B').fontSize(6.5)
-        .text(`Cal. ${a.calibre}`, xGrafDerecha + 8, yBarraCLP, { width: 35 })
-      doc.fillColor(esPositivo ? COLOR.verde : COLOR.rojo).font('B').fontSize(6)
-        .text(clp(a.retornoProductorCLP), xGrafDerecha + 45, yBarraCLP, { width: 75 })
-
-      const anchoBarraCLP = Math.max(3, (Math.abs(a.retornoProductorCLP) / maxRetornoCLP) * (anchoMitad - 130))
-      doc.rect(xGrafDerecha + 122, yBarraCLP + 1, anchoBarraCLP, 7).fill(esPositivo ? COLOR.teal : COLOR.rojo)
-      yBarraCLP += 17
-    })
-
-    doc.y = yFilaGraf + 140
-
-    // ── V. MATRIZ GERENCIAL 2x2 — cuadrantes visuales de colores ────────────
+    // ── V. MATRIZ GERENCIAL 2X2 DE DECISIONES DE COSECHA & COMERCIALIZACIÓN ──
     nuevaPagina()
     marcador('V. Matriz gerencial 2x2')
-    tituloSeccion('V. Matriz gerencial 2x2 de decisiones de cosecha')
+    tituloSeccion('V. Matriz gerencial 2x2 de decisiones de cosecha & comercialización')
 
     const cuadrantes = [
       {
-        titulo: 'ESTRELLAS DE EXPORTACIÓN', sub: 'Alto volumen + alto margen',
-        desc: 'Motor principal de ganancias: prioriza su venta.',
+        titulo: 'ESTRELLAS DE EXPORTACIÓN', sub: 'ALTO VOLUMEN + ALTO MARGEN',
+        desc: 'Motor principal de ganancias del despacho. Se recomienda priorizar la selección y envío masivo de estos calibres a EU.',
         bg: COLOR.verdeFondo, borde: COLOR.verdeBorde, texto: COLOR.verde,
         items: analisis.filter((a: any) => a.cuadrante === 'ESTRELLA'),
       },
       {
-        titulo: 'NICHOS DE ALTO MARGEN', sub: 'Bajo volumen + alto margen',
-        desc: 'Buen retorno unitario: conviene embalar más.',
+        titulo: 'NICHOS DE ALTO MARGEN', sub: 'BAJO VOLUMEN + ALTO MARGEN',
+        desc: 'Excelente margen unitario pero poco volumen en el contenedor. Oportunidad para aumentar el embalaje de este calibre en futuras cosechas.',
         bg: COLOR.tealFondo, borde: COLOR.tealBorde, texto: COLOR.teal,
         items: analisis.filter((a: any) => a.cuadrante === 'NICHO'),
       },
       {
-        titulo: 'VOLUMEN COMMODITY', sub: 'Alto volumen + margen estándar',
-        desc: 'Mucha carga con margen ajustado: renegociar comisión y flete.',
+        titulo: 'VOLUMEN COMMODITY', sub: 'ALTO VOLUMEN + MARGEN ESTÁNDAR',
+        desc: 'Mucha carga enviada con margen ajustado. Se recomienda renegociar comisiones y tarifas flete marítimo para mejorar su rentabilidad global.',
         bg: COLOR.fondo, borde: COLOR.linea, texto: COLOR.texto,
         items: analisis.filter((a: any) => a.cuadrante === 'COMMODITY'),
       },
       {
-        titulo: 'CALIBRES EN PÉRDIDA', sub: 'Resultado negativo',
-        desc: 'Restan valor: renegociar precio o derivar a mercado interno.',
+        titulo: 'CALIBRES CRÍTICOS / PÉRDIDA NETA', sub: 'PÉRDIDA POR CAJA',
+        desc: 'Restan valor a la exportación. Se sugiere renegociar precio mínimo en destino o desviar estas categorías a mercado interno / industria de jugo.',
         bg: COLOR.rojoFondo, borde: COLOR.rojoBorde, texto: COLOR.rojo,
         items: analisis.filter((a: any) => a.cuadrante === 'PERDIDA'),
       },
@@ -922,35 +919,36 @@ export async function construirInformeFinancieroPDF(
       doc.rect(x, y, w, h).fill(c.bg)
       doc.rect(x, y, w, h).lineWidth(1).strokeColor(c.borde).stroke()
       doc.fillColor(c.texto).font('B').fontSize(7.5).text(c.titulo, x + 10, y + 8, { width: w - 20 })
-      doc.fillColor(c.texto).font('R').fontSize(6).text(c.sub.toUpperCase(), x + 10, y + 19, { width: w - 20 })
-      doc.fillColor(COLOR.texto).font('R').fontSize(6.5).text(c.desc, x + 10, y + 29, { width: w - 20 })
-      let yItem = y + 42
+      doc.fillColor(c.texto).font('R').fontSize(6).text(c.sub, x + 10, y + 19, { width: w - 20 })
+      doc.fillColor(COLOR.texto).font('R').fontSize(6).text(c.desc, x + 10, y + 27, { width: w - 20 })
+      let yItem = y + 48
       if (c.items.length === 0) {
         doc.fillColor(COLOR.tenue).font('R').fontSize(6.5)
           .text('Sin calibres en esta categoría.', x + 10, yItem, { width: w - 20 })
       } else {
         c.items.forEach((it: any) => {
-          const envaseCorto = it.envase.length > 18 ? `${it.envase.slice(0, 15)}...` : it.envase
-          doc.fillColor(c.texto).font('B').fontSize(6.5)
-            .text(`Calibre ${it.calibre} (${envaseCorto})`, x + 10, yItem, { width: w - 90, lineBreak: false })
-          doc.fillColor(c.texto).font('B').fontSize(6.5)
-            .text(`${dinero(it.utilidadPorCaja)}/caja`, x + w - 82, yItem, { width: 72, align: 'right', lineBreak: false })
-          yItem += 10.5
+          const envaseCorto = it.envase.length > 15 ? `${it.envase.slice(0, 12)}...` : it.envase
+          const esPos = it.utilidadPorCajaTarget >= 0
+          
+          doc.rect(x + 8, yItem - 2, w - 16, 14).fill('#ffffff')
+          doc.rect(x + 8, yItem - 2, w - 16, 14).lineWidth(0.4).strokeColor(c.borde).stroke()
+
+          doc.fillColor(COLOR.tinta).font('B').fontSize(6.5)
+            .text(`Calibre ${it.calibre} (${envaseCorto})`, x + 12, yItem + 1, { width: w - 95, lineBreak: false })
+          doc.fillColor(esPos ? COLOR.verde : COLOR.rojo).font('B').fontSize(6.5)
+            .text(`${esPos ? '+' : ''}${dinero(it.utilidadPorCajaTarget, simbTarget)} / caja (${it.cajas} cajas)`, x + w - 100, yItem + 1, { width: 90, align: 'right', lineBreak: false })
+          yItem += 16
         })
       }
     }
 
-    // Alto dinámico por fila de cuadrantes, según cuántos calibres listar.
     const altoFila = (a: typeof cuadrantes[number], b: typeof cuadrantes[number]) =>
-      Math.max(70, 46 + Math.max(a.items.length, b.items.length, 1) * 10.5)
+      Math.max(85, 52 + Math.max(a.items.length, b.items.length, 1) * 16)
 
     const altoFila1 = altoFila(cuadrantes[0], cuadrantes[1])
     const altoFila2 = altoFila(cuadrantes[2], cuadrantes[3])
 
-    // Ejes: sin ellos las cuatro cajas se leen como una lista suelta. Con la
-    // flecha de margen a la izquierda y la de volumen abajo se entiende que
-    // es una matriz y por qué cada calibre cae donde cae.
-    asegurar(altoFila1 + altoFila2 + 46)
+    asegurar(altoFila1 + altoFila2 + 50)
     const yMatriz = doc.y
     let yFila = yMatriz
 
@@ -962,57 +960,36 @@ export async function construirInformeFinancieroPDF(
 
     const yFinMatriz = yFila + altoFila2
 
-    // Eje vertical (margen): la flecha apunta hacia arriba, al mayor margen.
-    doc.moveTo(L - 12, yFinMatriz).lineTo(L - 12, yMatriz).lineWidth(0.8).strokeColor(COLOR.tenue).stroke()
-    doc.moveTo(L - 15, yMatriz + 5).lineTo(L - 12, yMatriz).lineTo(L - 9, yMatriz + 5).fill(COLOR.tenue)
+    // Eje vertical (margen)
+    doc.moveTo(L - 10, yFinMatriz).lineTo(L - 10, yMatriz).lineWidth(0.8).strokeColor(COLOR.tenue).stroke()
+    doc.moveTo(L - 13, yMatriz + 5).lineTo(L - 10, yMatriz).lineTo(L - 7, yMatriz + 5).fill(COLOR.tenue)
     doc.save()
-    doc.rotate(-90, { origin: [L - 18, (yMatriz + yFinMatriz) / 2] })
+    doc.rotate(-90, { origin: [L - 16, (yMatriz + yFinMatriz) / 2] })
     doc.fillColor(COLOR.suave).font('B').fontSize(6)
-      .text('MAYOR MARGEN POR CAJA', L - 18 - 60, (yMatriz + yFinMatriz) / 2 - 4, { width: 120, align: 'center', lineBreak: false })
+      .text('MAYOR MARGEN POR CAJA', L - 16 - 60, (yMatriz + yFinMatriz) / 2 - 4, { width: 120, align: 'center', lineBreak: false })
     doc.restore()
 
-    // Eje horizontal (volumen). Ojo con la orientación: la columna IZQUIERDA
-    // es la de alto volumen (Estrellas y Commodity), así que la flecha apunta
-    // a la izquierda, no a la derecha.
-    doc.moveTo(L, yFinMatriz + 12).lineTo(R, yFinMatriz + 12).lineWidth(0.8).strokeColor(COLOR.tenue).stroke()
-    doc.moveTo(L + 5, yFinMatriz + 9).lineTo(L, yFinMatriz + 12).lineTo(L + 5, yFinMatriz + 15).fill(COLOR.tenue)
+    // Eje horizontal (volumen)
+    doc.moveTo(L, yFinMatriz + 10).lineTo(R, yFinMatriz + 10).lineWidth(0.8).strokeColor(COLOR.tenue).stroke()
+    doc.moveTo(L + 5, yFinMatriz + 7).lineTo(L, yFinMatriz + 10).lineTo(L + 5, yFinMatriz + 13).fill(COLOR.tenue)
     doc.fillColor(COLOR.suave).font('B').fontSize(6)
-      .text('MAYOR VOLUMEN EMBARCADO', L + 10, yFinMatriz + 16, { width: 160, lineBreak: false })
+      .text('MAYOR VOLUMEN EMBARCADO', L + 10, yFinMatriz + 14, { width: 160, lineBreak: false })
     doc.fillColor(COLOR.suave).font('B').fontSize(6)
-      .text('MENOR VOLUMEN', R - 160, yFinMatriz + 16, { width: 160, align: 'right', lineBreak: false })
+      .text('MENOR VOLUMEN', R - 160, yFinMatriz + 14, { width: 160, align: 'right', lineBreak: false })
 
     doc.y = yFinMatriz + 30
 
-    // RECOMENDACIONES TÉCNICO-AGRONÓMICAS PARA PRODUCTOR Y HUERTO
-    asegurar(50)
-    const yReco = doc.y
-    doc.rect(L, yReco, W, 44).fill(COLOR.tealFondo)
-    doc.rect(L, yReco, W, 44).lineWidth(0.8).strokeColor(COLOR.tealBorde).stroke()
-    doc.rect(L, yReco, 3, 44).fill(COLOR.teal)
-    doc.fillColor(COLOR.teal).font('B').fontSize(7)
-      .text('RECOMENDACIONES TÉCNICO-AGRONÓMICAS DE HUERTO PARA PRÓXIMA COSECHA', L + 10, yReco + 6)
-    
-    const textoRecomendaciones = 
-      `• Foco Agronómico: Ajustar labores de raleo temprano para potenciar la concentración de fruta en calibres Estrellas (ej. Calibre ${mejor?.calibre || '—'}). ` +
-      `• Calibres Críticos: Evitar envíos masivos de fruta de menor calibre que no logre cubrir el breakeven de flete marítimo y frío (${dinero(expensePerBox + fobPerBox)}). ` +
-      `• Estrategia Comercial: Derivar oportunamente excedentes de calibres deficitarios a mercado local o industria para preservar el retorno neto promedio en CLP.`
-    
-    doc.fillColor(COLOR.texto).font('R').fontSize(6.5)
-      .text(textoRecomendaciones, L + 10, yReco + 17, { width: W - 20, align: 'justify', lineBreak: true })
-
-    doc.y = yReco + 52
-
-    // ── FIRMAS ──────────────────────────────────────────────────────────────
+    // ── FIRMAS DE CONFORMIDAD ──
     asegurar(60)
-    const yFirma = doc.y + 20
+    const yFirma = doc.y + 25
     doc.moveTo(L + 30, yFirma).lineTo(L + 210, yFirma).lineWidth(0.5).strokeColor(COLOR.tenue).stroke()
     doc.moveTo(R - 210, yFirma).lineTo(R - 30, yFirma).lineWidth(0.5).strokeColor(COLOR.tenue).stroke()
-    doc.fillColor(COLOR.texto).font('B').fontSize(7)
+    doc.fillColor(COLOR.texto).font('B').fontSize(7.5)
       .text('Emisión & Control Financiero', L + 30, yFirma + 6, { width: 180, align: 'center' })
       .text('Conformidad Cliente / Exportador', R - 210, yFirma + 6, { width: 180, align: 'center' })
-    doc.fillColor(COLOR.tenue).font('R').fontSize(6)
+    doc.fillColor(COLOR.tenue).font('R').fontSize(6.5)
       .text('Packing Santa Catalina S.A.', L + 30, yFirma + 17, { width: 180, align: 'center' })
-      .text(dispatch.client || 'Firma de aceptación', R - 210, yFirma + 17, { width: 180, align: 'center' })
+      .text(dispatch.client || 'THE GROWERS CLUB', R - 210, yFirma + 17, { width: 180, align: 'center' })
 
     // ── PIE DE PÁGINA EN TODAS LAS PÁGINAS ──────────────────────────────────
     const rango = doc.bufferedPageRange()
