@@ -160,8 +160,8 @@ export async function construirInformeFinancieroPDF(
 
     // Fuentes locales: en Vercel no existen las fuentes internas de PDFKit.
     try {
-      doc.registerFont('R', path.join(process.cwd(), 'public', 'fonts', 'Roboto-Regular.ttf'))
-      doc.registerFont('B', path.join(process.cwd(), 'public', 'fonts', 'Roboto-Bold.ttf'))
+      doc.registerFont('R', path.join(/* turbopackIgnore: true */ process.cwd(), 'public', 'fonts', 'Roboto-Regular.ttf'))
+      doc.registerFont('B', path.join(/* turbopackIgnore: true */ process.cwd(), 'public', 'fonts', 'Roboto-Bold.ttf'))
     } catch (e) {
       console.error('[LIQUIDACION-PDF] No se pudieron registrar las fuentes:', e)
     }
