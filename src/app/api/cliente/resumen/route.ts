@@ -24,10 +24,10 @@ export async function GET(request: Request) {
 
     const cleanClient = (clientName || '').trim()
 
-    // 1. Lotes (consultar todos los lotes del cliente)
+    // 1. Lotes (consultar por client usando ilike)
     let lotsQuery = supabaseAdmin
       .from('lots')
-      .select('id, species, closed, created_at, client')
+      .select('id, species, overall_status, created_at, client')
     
     if (cleanClient) {
       lotsQuery = lotsQuery.or(`client.ilike.%${cleanClient}%,client_name.ilike.%${cleanClient}%`)
@@ -35,18 +35,18 @@ export async function GET(request: Request) {
 
     const { data: lotsData, error: lotsError } = await lotsQuery
     if (lotsError) {
-      console.error('Error al obtener lotes:', lotsError)
+      console.error('Error al obtener lotes en resumen cliente:', lotsError)
     }
 
     const allLots = lotsData || []
-    const openLotsCount = allLots.filter(l => !l.closed).length
-    const closedLotsCount = allLots.filter(l => l.closed).length
+    const openLotsCount = allLots.filter(l => l.overall_status !== 'closed').length
+    const closedLotsCount = allLots.filter(l => l.overall_status === 'closed').length
     const totalLotsCount = allLots.length
 
     // 2. Despachos (todos los despachos creados para el cliente)
     let despachosQuery = supabaseAdmin
       .from('dispatches')
-      .select('id, species, client, closed, created_at, drive_folder_id')
+      .select('id, species, client, overall_status, created_at, drive_folder_id')
 
     if (cleanClient) {
       despachosQuery = despachosQuery.ilike('client', `%${cleanClient}%`)
@@ -54,18 +54,32 @@ export async function GET(request: Request) {
 
     const { data: despachosData, error: despachosError } = await despachosQuery
     if (despachosError) {
-      console.error('Error al obtener despachos:', despachosError)
+      console.error('Error al obtener despachos en resumen cliente:', despachosError)
     }
 
     const allDispatches = despachosData || []
     const activeDispatchesCount = allDispatches.length
 
-    // 3. Conteo por Especie de Fruta (combinando Lotes y Despachos)
+    // 3. Conteo por Especie de Fruta
     const speciesMap: Record<string, number> = {}
+
+    const normalizeSpecies = (rawName?: string | null) => {
+      if (!rawName) return null
+      const clean = rawName.trim()
+      if (clean.toLowerCase().includes('limon')) return 'Limones'
+      if (clean.toLowerCase().includes('manzana')) return 'Manzanas'
+      if (clean.toLowerCase().includes('cereza')) return 'Cerezas'
+      if (clean.toLowerCase().includes('uva')) return 'Uvas'
+      if (clean.toLowerCase().includes('naranja')) return 'Naranjas'
+      if (clean.toLowerCase().includes('palta')) return 'Paltas'
+      if (clean.toLowerCase().includes('kiwi')) return 'Kiwis'
+      if (clean.toLowerCase().includes('arandano')) return 'Arándanos'
+      return clean
+    }
 
     // De Lotes
     allLots.forEach(l => {
-      let spec = l.species?.trim()
+      const spec = normalizeSpecies(l.species)
       if (spec) {
         speciesMap[spec] = (speciesMap[spec] || 0) + 1
       }
@@ -73,7 +87,7 @@ export async function GET(request: Request) {
 
     // De Despachos
     allDispatches.forEach(d => {
-      let spec = d.species?.trim()
+      let spec = normalizeSpecies(d.species)
       if (!spec && d.client && d.client.toUpperCase().includes('GROWERS')) {
         spec = 'Limones'
       }
@@ -82,7 +96,6 @@ export async function GET(request: Request) {
       }
     })
 
-    // Si sigue vacío pero el cliente es THE GROWERS CLUB, asegurar 'Limones'
     if (Object.keys(speciesMap).length === 0 && cleanClient.toUpperCase().includes('GROWERS')) {
       speciesMap['Limones'] = allDispatches.length || 1
     }
