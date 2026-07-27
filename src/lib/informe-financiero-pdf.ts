@@ -882,7 +882,7 @@ export async function construirInformeFinancieroPDF(
 
     doc.y = yCardDic + 10
 
-    // ── V. MATRIZ GERENCIAL DE DECISIONES DE COSECHA & COMERCIALIZACIÓN (STACK VERTICAL) ──
+    // ── V. MATRIZ GERENCIAL DE DECISIONES DE COSECHA & COMERCIALIZACIÓN (DISENO EXECUTIVE CAPSULES) ──
     nuevaPagina()
     marcador('V. Matriz gerencial 2x2')
     tituloSeccion('V. Matriz gerencial 2x2 de decisiones de cosecha & comercialización')
@@ -916,55 +916,67 @@ export async function construirInformeFinancieroPDF(
 
     cuadrantes.forEach((c) => {
       const cantItems = Math.max(c.items.length, 1)
-      const altoCard = 34 + cantItems * 15
+      const altoHeaderDesc = 34
+      const altoCapsula = 22
+      const gapCapsulas = 6
+      const paddingBottom = 12
+      const altoCard = altoHeaderDesc + (cantItems * altoCapsula) + ((cantItems - 1) * gapCapsulas) + paddingBottom
 
-      asegurar(altoCard + 8)
+      asegurar(altoCard + 12)
       const yCard = doc.y
 
-      // Fondo y Borde Card Ancho Completo
-      doc.rect(L, yCard, W, altoCard).fill(c.bg)
-      doc.rect(L, yCard, W, altoCard).lineWidth(0.8).strokeColor(c.borde).stroke()
+      // Fondo y Borde Redondeado de la Tarjeta de Categoría
+      doc.roundedRect(L, yCard, W, altoCard, 6).fill(c.bg)
+      doc.roundedRect(L, yCard, W, altoCard, 6).lineWidth(0.8).strokeColor(c.borde).stroke()
 
       // Título Izquierda
-      doc.fillColor(c.texto).font('B').fontSize(8)
-        .text(c.titulo, L + 12, yCard + 7, { lineBreak: false })
+      doc.fillColor(c.texto).font('B').fontSize(8.5)
+        .text(c.titulo, L + 14, yCard + 9, { lineBreak: false })
 
-      // Subtítulo Derecha
-      doc.fillColor(c.texto).font('B').fontSize(7)
-        .text(c.sub, R - 200, yCard + 7, { width: 188, align: 'right', lineBreak: false })
+      // Subtítulo Derecha (Categoría de Volumen y Margen)
+      doc.fillColor(c.texto).font('B').fontSize(7.5)
+        .text(c.sub, R - 220, yCard + 9, { width: 206, align: 'right', lineBreak: false })
 
       // Descripción abajo del título
-      doc.fillColor(COLOR.texto).font('R').fontSize(6.5)
-        .text(c.desc, L + 12, yCard + 18, { width: W - 24, lineBreak: false })
+      doc.fillColor('#475569').font('R').fontSize(7)
+        .text(c.desc, L + 14, yCard + 21, { width: W - 28, lineBreak: false })
 
-      // Ítems de calibres
-      let yItem = yCard + 30
+      // Cápsulas de calibres dentro de la tarjeta
+      let yCap = yCard + 36
+
       if (c.items.length === 0) {
-        doc.fillColor(COLOR.tenue).font('R').fontSize(6.5)
-          .text('Sin calibres en esta categoría.', L + 12, yItem, { width: W - 24 })
+        // Cápsula vacía si no hay calibres en esta categoría
+        doc.roundedRect(L + 12, yCap, W - 24, altoCapsula, 4).fill('#ffffff')
+        doc.roundedRect(L + 12, yCap, W - 24, altoCapsula, 4).lineWidth(0.4).strokeColor(COLOR.lineaSuave).stroke()
+        doc.fillColor(COLOR.tenue).font('R').fontSize(7)
+          .text('Sin calibres en esta categoría.', L + 22, yCap + 6, { width: W - 44 })
       } else {
         c.items.forEach((it: any) => {
-          const envaseCorto = it.envase.length > 30 ? `${it.envase.slice(0, 27)}...` : it.envase
+          const envaseCorto = it.envase.length > 32 ? `${it.envase.slice(0, 29)}...` : it.envase
           const esPos = it.utilidadPorCajaTarget >= 0
           
-          doc.fillColor(COLOR.tinta).font('B').fontSize(7)
-            .text(`• Calibre ${it.calibre} (${envaseCorto})`, L + 16, yItem, { width: W - 180, lineBreak: false })
+          // Fondo cápsula blanca redondeada con borde suave
+          doc.roundedRect(L + 12, yCap, W - 24, altoCapsula, 4).fill('#ffffff')
+          doc.roundedRect(L + 12, yCap, W - 24, altoCapsula, 4).lineWidth(0.5).strokeColor(COLOR.lineaSuave).stroke()
 
-          doc.fillColor(esPos ? COLOR.verde : COLOR.rojo).font('B').fontSize(7)
-            .text(`${esPos ? '+' : ''}${dinero(it.utilidadPorCajaTarget, simbTarget)} / caja (${it.cajas.toLocaleString('es-CL')} cajas)`, R - 180, yItem, { width: 168, align: 'right', lineBreak: false })
+          // Nombre de Calibre y Envase (Izquierda)
+          doc.fillColor(COLOR.tinta).font('B').fontSize(7.5)
+            .text(`Calibre ${it.calibre} (${envaseCorto})`, L + 22, yCap + 6, { width: W - 200, lineBreak: false })
 
-          yItem += 15
+          // Margen y Cajas (Derecha)
+          doc.fillColor(esPos ? COLOR.verde : COLOR.rojo).font('B').fontSize(7.5)
+            .text(`${esPos ? '+' : ''}${dinero(it.utilidadPorCajaTarget, simbTarget)} / caja (${it.cajas.toLocaleString('es-CL')} cajas)`, R - 200, yCap + 6, { width: 178, align: 'right', lineBreak: false })
+
+          yCap += altoCapsula + gapCapsulas
         })
       }
 
-      doc.y = yCard + altoCard + 8
+      doc.y = yCard + altoCard + 14
     })
 
-    doc.y += 8
-
     // ── FIRMAS DE CONFORMIDAD ──
-    asegurar(60)
-    const yFirma = doc.y + 20
+    // Anclar firmas hacia la parte inferior de la página para equilibrar espacios
+    const yFirma = Math.max(doc.y + 15, 725)
     doc.moveTo(L + 30, yFirma).lineTo(L + 210, yFirma).lineWidth(0.5).strokeColor(COLOR.tenue).stroke()
     doc.moveTo(R - 210, yFirma).lineTo(R - 30, yFirma).lineWidth(0.5).strokeColor(COLOR.tenue).stroke()
     doc.fillColor(COLOR.texto).font('B').fontSize(7.5)
