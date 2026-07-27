@@ -92,6 +92,7 @@ export default function ClientSidebarWidget() {
       try {
         setLoading(true)
         const res = await fetch('/api/cliente/resumen', {
+          cache: 'no-store',
           headers: {
             'x-user-id': user?.userId || '',
             'x-user-role': user?.role || '',

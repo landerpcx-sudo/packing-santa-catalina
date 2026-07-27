@@ -1,3 +1,6 @@
+export const dynamic = 'force-dynamic'
+export const revalidate = 0
+
 import { NextResponse } from 'next/server'
 import { headers } from 'next/headers'
 import { supabaseAdmin } from '@/lib/supabase-admin'
@@ -52,7 +55,9 @@ export async function GET(request: Request) {
     const allDispatches = despachosData || []
     const activeDispatchesCount = allDispatches.length
 
-    // 3. Normalizar especies sin duplicados (Limón y Limones se agrupan en Limones)
+    // 3. Normalizar especies sin duplicados
+    const speciesMap: Record<string, number> = {}
+
     const normalizeSpecies = (rawName?: string | null) => {
       if (!rawName) return null
       const clean = rawName.trim().normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase()
@@ -69,31 +74,30 @@ export async function GET(request: Request) {
       return rawName.trim()
     }
 
-    const speciesSet = new Set<string>()
-
     allLots.forEach(l => {
       const spec = normalizeSpecies(l.species)
-      if (spec) speciesSet.add(spec)
+      if (spec) {
+        speciesMap[spec] = (speciesMap[spec] || 0) + 1
+      }
     })
 
     allDispatches.forEach(d => {
       const spec = normalizeSpecies(d.species)
-      if (spec) speciesSet.add(spec)
+      if (spec) {
+        speciesMap[spec] = (speciesMap[spec] || 0) + 1
+      }
     })
 
-    if (speciesSet.size === 0 && cleanClient.toUpperCase().includes('GROWERS')) {
-      speciesSet.add('Limones')
+    if (Object.keys(speciesMap).length === 0 && cleanClient.toUpperCase().includes('GROWERS')) {
+      speciesMap['Limones'] = totalLotsCount || activeDispatchesCount || 1
     }
 
-    const speciesList = Array.from(speciesSet).map(name => {
-      const normName = normalizeSpecies(name)
-      const countDispatches = allDispatches.filter(d => normalizeSpecies(d.species) === normName).length
-      const countLots = allLots.filter(l => normalizeSpecies(l.species) === normName).length
-      const count = countDispatches || countLots || 1
-      return { name, count }
-    })
+    const speciesList = Object.entries(speciesMap).map(([name, count]) => ({
+      name,
+      count
+    }))
 
-    // 4. Últimos 3 documentos PDF del cliente
+    // 4. Últimos 3 documentos PDF
     let docsQuery = supabaseAdmin
       .from('lot_documents')
       .select('id, file_name, file_url, document_type, created_at')
