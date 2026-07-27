@@ -29,6 +29,9 @@ interface RecentDoc {
 
 interface ClientSummaryData {
   activeLots: number
+  totalLots?: number
+  openLots?: number
+  closedLots?: number
   activeDispatches: number
   species: SpeciesItem[]
   recentDocs: RecentDoc[]
@@ -120,7 +123,9 @@ export default function ClientSidebarWidget() {
   }
 
   const species = data?.species || []
-  const activeLots = data?.activeLots || 0
+  const totalLots = data?.totalLots ?? data?.activeLots ?? 0
+  const openLots = data?.openLots ?? 0
+  const closedLots = data?.closedLots ?? 0
   const activeDispatches = data?.activeDispatches || 0
   const recentDocs = data?.recentDocs || []
 
@@ -189,8 +194,10 @@ export default function ClientSidebarWidget() {
               <span className="text-[10px] font-bold uppercase tracking-wider">Lotes</span>
             </div>
             <div className="mt-1">
-              <span className="text-base font-black text-slate-900 dark:text-white font-mono">{activeLots}</span>
-              <span className="text-[10px] text-emerald-600 dark:text-emerald-400 font-semibold ml-1.5">en proceso</span>
+              <span className="text-base font-black text-slate-900 dark:text-white font-mono">{totalLots}</span>
+              <p className="text-[9px] text-emerald-600 dark:text-emerald-400 font-semibold leading-tight mt-0.5">
+                {openLots} por procesar · {closedLots} procesados
+              </p>
             </div>
           </div>
 
@@ -201,7 +208,9 @@ export default function ClientSidebarWidget() {
             </div>
             <div className="mt-1">
               <span className="text-base font-black text-slate-900 dark:text-white font-mono">{activeDispatches}</span>
-              <span className="text-[10px] text-indigo-500 dark:text-indigo-300 font-semibold ml-1.5">embarcados</span>
+              <p className="text-[9px] text-indigo-500 dark:text-indigo-300 font-semibold leading-tight mt-0.5">
+                embarcados
+              </p>
             </div>
           </div>
         </div>

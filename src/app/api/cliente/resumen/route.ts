@@ -24,37 +24,47 @@ export async function GET(request: Request) {
 
     const cleanClient = (clientName || '').trim()
 
-    // 1. Lotes (usando columna 'client')
+    // 1. Lotes (consultar todos los lotes del cliente)
     let lotsQuery = supabaseAdmin
       .from('lots')
       .select('id, species, closed, created_at, client')
     
     if (cleanClient) {
-      lotsQuery = lotsQuery.ilike('client', `%${cleanClient}%`)
+      lotsQuery = lotsQuery.or(`client.ilike.%${cleanClient}%,client_name.ilike.%${cleanClient}%`)
     }
 
-    const { data: lotsData } = await lotsQuery
+    const { data: lotsData, error: lotsError } = await lotsQuery
+    if (lotsError) {
+      console.error('Error al obtener lotes:', lotsError)
+    }
 
-    const activeLotsCount = (lotsData || []).filter(l => !l.closed).length
+    const allLots = lotsData || []
+    const openLotsCount = allLots.filter(l => !l.closed).length
+    const closedLotsCount = allLots.filter(l => l.closed).length
+    const totalLotsCount = allLots.length
 
-    // 2. Despachos (usando la tabla 'dispatches')
+    // 2. Despachos (todos los despachos creados para el cliente)
     let despachosQuery = supabaseAdmin
       .from('dispatches')
-      .select('id, species, client, closed, created_at')
+      .select('id, species, client, closed, created_at, drive_folder_id')
 
     if (cleanClient) {
       despachosQuery = despachosQuery.ilike('client', `%${cleanClient}%`)
     }
 
-    const { data: despachosData } = await despachosQuery
-    const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString()
-    const activeDispatchesCount = (despachosData || []).filter(d => !d.closed || (d.created_at && d.created_at >= thirtyDaysAgo)).length
+    const { data: despachosData, error: despachosError } = await despachosQuery
+    if (despachosError) {
+      console.error('Error al obtener despachos:', despachosError)
+    }
+
+    const allDispatches = despachosData || []
+    const activeDispatchesCount = allDispatches.length
 
     // 3. Conteo por Especie de Fruta (combinando Lotes y Despachos)
     const speciesMap: Record<string, number> = {}
 
     // De Lotes
-    ;(lotsData || []).forEach(l => {
+    allLots.forEach(l => {
       let spec = l.species?.trim()
       if (spec) {
         speciesMap[spec] = (speciesMap[spec] || 0) + 1
@@ -62,7 +72,7 @@ export async function GET(request: Request) {
     })
 
     // De Despachos
-    ;(despachosData || []).forEach(d => {
+    allDispatches.forEach(d => {
       let spec = d.species?.trim()
       if (!spec && d.client && d.client.toUpperCase().includes('GROWERS')) {
         spec = 'Limones'
@@ -74,7 +84,7 @@ export async function GET(request: Request) {
 
     // Si sigue vacío pero el cliente es THE GROWERS CLUB, asegurar 'Limones'
     if (Object.keys(speciesMap).length === 0 && cleanClient.toUpperCase().includes('GROWERS')) {
-      speciesMap['Limones'] = (despachosData || []).length || 1
+      speciesMap['Limones'] = allDispatches.length || 1
     }
 
     const speciesList = Object.entries(speciesMap).map(([name, count]) => ({
@@ -92,7 +102,10 @@ export async function GET(request: Request) {
     const { data: recentDocs } = await docsQuery
 
     return NextResponse.json({
-      activeLots: activeLotsCount,
+      totalLots: totalLotsCount,
+      openLots: openLotsCount,
+      closedLots: closedLotsCount,
+      activeLots: totalLotsCount,
       activeDispatches: activeDispatchesCount,
       species: speciesList,
       recentDocs: (recentDocs || []).map(d => ({
@@ -105,6 +118,6 @@ export async function GET(request: Request) {
     })
   } catch (error) {
     console.error('Error fetching client summary:', error)
-    return NextResponse.json({ activeLots: 0, activeDispatches: 0, species: [], recentDocs: [] }, { status: 500 })
+    return NextResponse.json({ totalLots: 0, openLots: 0, closedLots: 0, activeLots: 0, activeDispatches: 0, species: [], recentDocs: [] }, { status: 500 })
   }
 }
