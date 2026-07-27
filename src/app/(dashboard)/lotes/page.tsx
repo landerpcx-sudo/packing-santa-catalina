@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState, useCallback, useMemo, useRef, Fragment } from 'react'
+import { useEffect, useState, useCallback, useMemo, useRef, Fragment, Suspense } from 'react'
 import {
   Package, Plus, Search, Filter, ExternalLink,
   Clock, CheckCircle, AlertCircle, XCircle, BarChart3,
@@ -10,7 +10,8 @@ import dynamic from 'next/dynamic'
 
 const NewLotModal = dynamic(() => import('@/components/lotes/NewLotModal'), { ssr: false })
 import Link from 'next/link'
-import { useRouter } from 'next/navigation'
+import { useRouter, useSearchParams } from 'next/navigation'
+import { getFruitInfo } from '@/lib/flags-and-fruits'
 
 interface Lot {
   id: string
@@ -30,24 +31,6 @@ interface Lot {
   process_deadline: string | null
   drive_folder_url: string | null
   created_at: string
-}
-
-const SPECIES_ICONS: Record<string, string> = {
-  'Limón': '🍋',
-  'Limon': '🍋',
-  'Manzana': '🍎',
-  'Pera': '🍐',
-  'Cereza': '🍒',
-  'Arándano': '🫐',
-  'Arandano': '🫐',
-  'Naranja': '🍊',
-  'Mandarina': '🍊',
-  'Kiwi': '🥝',
-  'Uva': '🍇',
-  'Palta': '🥑',
-  'Ciruela': '🫐',
-  'Durazno': '🍑',
-  'Nectarina': '🍑',
 }
 
 const STATUS_CONFIG: Record<string, { label: string; color: string; icon: React.ReactNode }> = {
@@ -139,12 +122,15 @@ const formatDeadline = (deadline: string | null) => {
   return `Vence ${d.toLocaleDateString('es-CL', { day: '2-digit', month: '2-digit' })}`
 }
 
-export default function LotesPage() {
+function LotesContent() {
   const [lots, setLots] = useState<Lot[]>([])
   const [total, setTotal] = useState(0)
   const [loading, setLoading] = useState(true)
   const [showModal, setShowModal] = useState(false)
   const router = useRouter()
+  const searchParams = useSearchParams()
+  const speciesFilterFromUrl = searchParams.get('species') || ''
+
   const [search, setSearch] = useState('')
   const [filterStatus, setFilterStatus] = useState('')
   const [dateFrom, setDateFrom] = useState('')
@@ -155,6 +141,12 @@ export default function LotesPage() {
   const [filterVariety, setFilterVariety] = useState('')
 
   const searchRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+
+  useEffect(() => {
+    if (speciesFilterFromUrl) {
+      setFilterSpecies(speciesFilterFromUrl)
+    }
+  }, [speciesFilterFromUrl])
 
   const fetchLots = useCallback(async (
     searchValue?: string, 
@@ -170,7 +162,7 @@ export default function LotesPage() {
     const f = statusValue !== undefined ? statusValue : filterStatus
     const c = clientValue !== undefined ? clientValue : filterClient
     const p = producerValue !== undefined ? producerValue : filterProducer
-    const sp = speciesValue !== undefined ? speciesValue : filterSpecies
+    const sp = speciesValue !== undefined ? speciesValue : (filterSpecies || speciesFilterFromUrl)
     const v = varietyValue !== undefined ? varietyValue : filterVariety
 
     if (s) params.set('search', s)
@@ -189,7 +181,7 @@ export default function LotesPage() {
       setTotal(json.total || 0)
     }
     setLoading(false)
-  }, [search, filterStatus, filterClient, filterProducer, filterSpecies, filterVariety, dateFrom, dateTo])
+  }, [search, filterStatus, filterClient, filterProducer, filterSpecies, speciesFilterFromUrl, filterVariety, dateFrom, dateTo])
 
   // Debounce para el campo de búsqueda (Mejora #11)
   const handleSearchChange = (value: string) => {
@@ -316,13 +308,21 @@ export default function LotesPage() {
           <label className="block text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-1">Especie</label>
           <select
             value={filterSpecies}
-            onChange={(e) => { setFilterSpecies(e.target.value); fetchLots(search, filterStatus, filterClient, filterProducer, e.target.value, filterVariety) }}
+            onChange={(e) => {
+              const val = e.target.value
+              setFilterSpecies(val)
+              fetchLots(search, filterStatus, filterClient, filterProducer, val, filterVariety)
+            }}
             className="w-full bg-white/5 border border-white/10 rounded-xl px-3 py-2 text-white text-xs focus:outline-none focus:border-green-400/50 transition-all appearance-none cursor-pointer"
           >
             <option value="" className="bg-[#111827]">Todas las especies</option>
-            {Object.keys(SPECIES_ICONS).filter(s => s !== 'Limon' && s !== 'Arandano').map(sp => (
-              <option key={sp} value={sp} className="bg-[#111827]">{SPECIES_ICONS[sp]} {sp}</option>
-            ))}
+            <option value="Limones" className="bg-[#111827]">🍋 Limones</option>
+            <option value="Manzanas" className="bg-[#111827]">🍎 Manzanas</option>
+            <option value="Cerezas" className="bg-[#111827]">🍒 Cerezas</option>
+            <option value="Uvas" className="bg-[#111827]">🍇 Uvas</option>
+            <option value="Naranjas" className="bg-[#111827]">🍊 Naranjas</option>
+            <option value="Paltas" className="bg-[#111827]">🥑 Paltas</option>
+            <option value="Arándanos" className="bg-[#111827]">🫐 Arándanos</option>
           </select>
         </div>
         <div>
@@ -472,11 +472,18 @@ export default function LotesPage() {
                 {/* Especie */}
                 <div className="col-span-2 hidden lg:block">
                   <div className="flex items-center gap-1.5">
-                    <span className="text-lg">{SPECIES_ICONS[lot.species || ''] || '📦'}</span>
-                    <div>
-                      <p className="text-gray-300 text-sm font-medium">{lot.species || '—'}</p>
-                      {lot.variety && <p className="text-gray-500 text-[10px] leading-tight">{lot.variety}</p>}
-                    </div>
+                    {(() => {
+                      const fruit = getFruitInfo(lot.species, lot.client)
+                      return (
+                        <>
+                          <span className="text-lg" title={`Especie: ${fruit.label}`}>{fruit.icon}</span>
+                          <div>
+                            <p className="text-gray-300 text-sm font-medium">{lot.species || fruit.label}</p>
+                            {lot.variety && <p className="text-gray-500 text-[10px] leading-tight">{lot.variety}</p>}
+                          </div>
+                        </>
+                      )
+                    })()}
                   </div>
                 </div>
 
@@ -514,5 +521,17 @@ export default function LotesPage() {
         />
       )}
     </div>
+  )
+}
+
+export default function LotesPage() {
+  return (
+    <Suspense fallback={
+      <div className="flex items-center justify-center p-12 text-gray-400">
+        <RefreshCw className="w-6 h-6 animate-spin mr-2" /> Cargando lotes...
+      </div>
+    }>
+      <LotesContent />
+    </Suspense>
   )
 }

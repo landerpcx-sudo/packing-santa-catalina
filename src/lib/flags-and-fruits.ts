@@ -61,31 +61,56 @@ export function getCountryFlag(destination?: string | null): {
 export const FRUIT_SPECIES: Record<string, { icon: string; label: string }> = {
   limones: { icon: '🍋', label: 'Limones' },
   limon: { icon: '🍋', label: 'Limón' },
+  lemon: { icon: '🍋', label: 'Limón' },
   manzanas: { icon: '🍎', label: 'Manzanas' },
   manzana: { icon: '🍎', label: 'Manzana' },
+  apple: { icon: '🍎', label: 'Manzana' },
+  peras: { icon: '🍐', label: 'Peras' },
+  pera: { icon: '🍐', label: 'Pera' },
+  pear: { icon: '🍐', label: 'Pera' },
   cerezas: { icon: '🍒', label: 'Cerezas' },
   cereza: { icon: '🍒', label: 'Cereza' },
+  cherry: { icon: '🍒', label: 'Cereza' },
   uvas: { icon: '🍇', label: 'Uvas' },
   uva: { icon: '🍇', label: 'Uva' },
+  grape: { icon: '🍇', label: 'Uva' },
   naranjas: { icon: '🍊', label: 'Naranjas' },
   naranja: { icon: '🍊', label: 'Naranja' },
+  orange: { icon: '🍊', label: 'Naranja' },
+  mandarinas: { icon: '🍊', label: 'Mandarinas' },
+  mandarina: { icon: '🍊', label: 'Mandarina' },
   paltas: { icon: '🥑', label: 'Paltas' },
   palta: { icon: '🥑', label: 'Palta' },
+  avocado: { icon: '🥑', label: 'Palta' },
   kiwis: { icon: '🥝', label: 'Kiwis' },
   kiwi: { icon: '🥝', label: 'Kiwi' },
   duraznos: { icon: '🍑', label: 'Duraznos' },
-  arandanos: { icon: '🫐', label: 'Arándanos' }
+  durazno: { icon: '🍑', label: 'Durazno' },
+  nectarinas: { icon: '🍑', label: 'Nectarinas' },
+  nectarina: { icon: '🍑', label: 'Nectarina' },
+  nectarin: { icon: '🍑', label: 'Nectarina' },
+  arandanos: { icon: '🫐', label: 'Arándanos' },
+  arandano: { icon: '🫐', label: 'Arándano' },
+  blueberry: { icon: '🫐', label: 'Arándano' },
+  ciruelas: { icon: '🫐', label: 'Ciruelas' },
+  ciruela: { icon: '🫐', label: 'Ciruela' },
+}
+
+export function getFruitIcon(species?: string | null): string {
+  if (!species || !species.trim()) return '📦'
+  const normalized = species.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().trim()
+  for (const [key, item] of Object.entries(FRUIT_SPECIES)) {
+    if (normalized.includes(key)) {
+      return item.icon
+    }
+  }
+  return '📦'
 }
 
 export function getFruitInfo(species?: string | null, clientName?: string | null): { icon: string; label: string } {
   if (species && species.trim() !== '') {
-    const normalized = species.toLowerCase().trim()
-    for (const [key, item] of Object.entries(FRUIT_SPECIES)) {
-      if (normalized.includes(key)) {
-        return { icon: item.icon, label: species }
-      }
-    }
-    return { icon: '📦', label: species }
+    const icon = getFruitIcon(species)
+    return { icon, label: species }
   }
 
   // Fallback según cliente si no tiene especie definida

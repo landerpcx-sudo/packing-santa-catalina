@@ -14,6 +14,7 @@ import InlineValidation from '@/components/lotes/InlineValidation'
 import ValidationModal from '@/components/lotes/ValidationModal'
 import DocumentList from '@/components/documentos/DocumentList'
 import dynamic from 'next/dynamic'
+import { getFruitInfo } from '@/lib/flags-and-fruits'
 
 const NewLotModal = dynamic(() => import('@/components/lotes/NewLotModal'), { ssr: false })
 const FilePreviewModal = dynamic(() => import('@/components/layout/FilePreviewModal'), { ssr: false })
@@ -262,7 +263,7 @@ export default function LoteDetailPage({ params }: { params: Promise<{ id: strin
                 <h1 className="text-2xl font-bold text-white">{lot.display_name}</h1>
                 {lot.species && (
                   <span className="text-lg animate-pulse" title={`Especie: ${lot.species}`}>
-                    {SPECIES_ICONS[lot.species] || SPECIES_ICONS[lot.species.charAt(0).toUpperCase() + lot.species.slice(1).toLowerCase()] || '🍇'}
+                    {getFruitInfo(lot.species, lot.client).icon}
                   </span>
                 )}
               </div>

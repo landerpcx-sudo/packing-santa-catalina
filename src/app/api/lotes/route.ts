@@ -57,7 +57,19 @@ export async function GET(request: Request) {
   if (status) query = query.eq('overall_status', status)
   if (search) query = query.or(`internal_code.ilike.%${search}%,display_name.ilike.%${search}%,client.ilike.%${search}%`)
   if (producer) query = query.ilike('producer', `%${producer}%`)
-  if (species) query = query.ilike('species', `%${species}%`)
+  if (species) {
+    const cleanSpec = species.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().trim()
+    let matchStr = species.trim()
+    if (cleanSpec.includes('limon')) matchStr = 'Limon'
+    else if (cleanSpec.includes('manzana')) matchStr = 'Manzana'
+    else if (cleanSpec.includes('cereza')) matchStr = 'Cereza'
+    else if (cleanSpec.includes('uva')) matchStr = 'Uva'
+    else if (cleanSpec.includes('naranja')) matchStr = 'Naranja'
+    else if (cleanSpec.includes('palta')) matchStr = 'Palta'
+    else if (cleanSpec.includes('kiwi')) matchStr = 'Kiwi'
+    else if (cleanSpec.includes('arandano')) matchStr = 'Arandano'
+    query = query.ilike('species', `%${matchStr}%`)
+  }
   if (variety) query = query.ilike('variety', `%${variety}%`)
   
   if (dateFrom) query = query.gte('created_at', `${dateFrom}T00:00:00Z`)

@@ -1,6 +1,6 @@
 'use client'
 
-import React, { useEffect, useState, useCallback } from 'react'
+import React, { useEffect, useState, useCallback, Suspense } from 'react'
 import {
   Truck, Plus, Search, Filter, ExternalLink,
   Clock, CheckCircle, AlertCircle, XCircle, BarChart3,
@@ -70,7 +70,7 @@ const StatusBadge = ({ status }: { status: string }) => {
   )
 }
 
-export default function DespachosPage() {
+function DespachosContent() {
   const [dispatches, setDispatches] = useState<Dispatch[]>([])
   const [total, setTotal] = useState(0)
   const [loading, setLoading] = useState(true)
@@ -571,5 +571,17 @@ export default function DespachosPage() {
       )}
 
     </div>
+  )
+}
+
+export default function DespachosPage() {
+  return (
+    <Suspense fallback={
+      <div className="flex items-center justify-center p-12 text-gray-400">
+        <RefreshCw className="w-6 h-6 animate-spin mr-2" /> Cargando despachos...
+      </div>
+    }>
+      <DespachosContent />
+    </Suspense>
   )
 }

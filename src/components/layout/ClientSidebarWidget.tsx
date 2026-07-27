@@ -13,6 +13,7 @@ import {
   Sparkles,
   ChevronRight
 } from 'lucide-react'
+import { getFruitIcon } from '@/lib/flags-and-fruits'
 
 interface SpeciesItem {
   name: string
@@ -35,47 +36,6 @@ interface ClientSummaryData {
   activeDispatches: number
   species: SpeciesItem[]
   recentDocs: RecentDoc[]
-}
-
-const FRUIT_ICONS: Record<string, string> = {
-  limon: '🍋',
-  limones: '🍋',
-  lemon: '🍋',
-  cereza: '🍒',
-  cerezas: '🍒',
-  cherry: '🍒',
-  uva: '🍇',
-  uvas: '🍇',
-  grape: '🍇',
-  naranja: '🍊',
-  naranjas: '🍊',
-  orange: '🍊',
-  palta: '🥑',
-  paltas: '🥑',
-  avocado: '🥑',
-  manzana: '🍎',
-  manzanas: '🍎',
-  apple: '🍎',
-  durazno: '🍑',
-  nectarin: '🍑',
-  arandano: '🫐',
-  arandanos: '🫐',
-  kiwi: '🥝',
-}
-
-function getFruitIcon(speciesName: string): string {
-  const normalized = speciesName.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().trim()
-  if (normalized.includes('limon')) return '🍋'
-  if (normalized.includes('manzana')) return '🍎'
-  if (normalized.includes('cereza')) return '🍒'
-  if (normalized.includes('uva')) return '🍇'
-  if (normalized.includes('naranja')) return '🍊'
-  if (normalized.includes('palta')) return '🥑'
-  if (normalized.includes('kiwi')) return '🥝'
-  if (normalized.includes('durazno') || normalized.includes('nectarin')) return '🍑'
-  if (normalized.includes('arandano')) return '🫐'
-  if (normalized.includes('pera')) return '🍐'
-  return '🍋'
 }
 
 export default function ClientSidebarWidget() {
