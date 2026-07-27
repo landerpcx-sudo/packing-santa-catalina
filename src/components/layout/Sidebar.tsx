@@ -25,6 +25,8 @@ import {
   Moon,
 } from 'lucide-react'
 
+import { getClientLogoUrl } from '@/lib/client-logos'
+
 const NAV_ITEMS = [
   { href: '/dashboard', label: 'Dashboard', icon: LayoutDashboard, roles: ['admin', 'jefe_frio', 'calidad', 'cuadratura', 'sag', 'despacho', 'gerencia', 'agronomo'] },
   { href: '/lotes', label: 'Lotes / Recepción', icon: Package, roles: ['admin', 'jefe_frio', 'calidad', 'cuadratura', 'gerencia', 'agronomo', 'cliente'] },
@@ -84,37 +86,53 @@ export default function Sidebar() {
       <div className="sidebar-divider" />
 
       {/* User info */}
-      <div className="px-4 py-3.5">
-        <div className="flex items-center gap-3">
-          <div className="relative flex-shrink-0">
-            <div
-              className="w-9 h-9 rounded-full flex items-center justify-center shadow-lg shadow-emerald-500/10"
-              style={{
-                background: 'linear-gradient(135deg, var(--nav-active-text) 0%, #0284c7 100%)',
-                border: '1px solid rgba(255, 255, 255, 0.1)'
-              }}
-            >
-              <span className="font-bold text-sm text-white drop-shadow-sm">
-                {user?.displayName?.charAt(0).toUpperCase()}
-              </span>
+      {(() => {
+        const clientLogo = getClientLogoUrl(user?.displayName, user?.clientName)
+        return (
+          <div className="px-4 py-3.5">
+            <div className="flex items-center gap-3">
+              <div className="relative flex-shrink-0">
+                {clientLogo ? (
+                  <div className="w-10 h-10 rounded-xl overflow-hidden bg-white p-1 shadow-md border border-emerald-500/20 dark:border-white/10 flex items-center justify-center shrink-0 transition-transform hover:scale-105">
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img
+                      src={clientLogo}
+                      alt={user?.displayName || 'Logo Cliente'}
+                      className="w-full h-full object-contain"
+                    />
+                  </div>
+                ) : (
+                  <div
+                    className="w-9 h-9 rounded-full flex items-center justify-center shadow-lg shadow-emerald-500/10"
+                    style={{
+                      background: 'linear-gradient(135deg, var(--nav-active-text) 0%, #0284c7 100%)',
+                      border: '1px solid rgba(255, 255, 255, 0.1)'
+                    }}
+                  >
+                    <span className="font-bold text-sm text-white drop-shadow-sm">
+                      {user?.displayName?.charAt(0).toUpperCase()}
+                    </span>
+                  </div>
+                )}
+                <span
+                  className={`absolute -bottom-0.5 -right-0.5 block w-3 h-3 rounded-full border-2 border-[#090e1a] ${
+                    isOnline ? 'indicator-online' : 'indicator-offline'
+                  }`}
+                  title={isOnline ? 'Conexión activa' : 'Sin conexión'}
+                />
+              </div>
+              <div className="min-w-0">
+                <p className="font-semibold text-sm truncate" style={{ color: 'var(--text-primary)' }}>
+                  {user?.displayName}
+                </p>
+                <p className="text-[11px] font-medium truncate" style={{ color: 'var(--text-muted)' }}>
+                  {user?.role ? ROLE_DISPLAY_NAMES[user.role as Role] : ''}
+                </p>
+              </div>
             </div>
-            <span
-              className={`absolute bottom-0 right-0 block w-2.5 h-2.5 rounded-full border-2 border-[#090e1a] ${
-                isOnline ? 'indicator-online' : 'indicator-offline'
-              }`}
-              title={isOnline ? 'Conexión activa' : 'Sin conexión'}
-            />
           </div>
-          <div className="min-w-0">
-            <p className="font-semibold text-sm truncate" style={{ color: 'var(--text-primary)' }}>
-              {user?.displayName}
-            </p>
-            <p className="text-[11px] font-medium truncate" style={{ color: 'var(--text-muted)' }}>
-              {user?.role ? ROLE_DISPLAY_NAMES[user.role as Role] : ''}
-            </p>
-          </div>
-        </div>
-      </div>
+        )
+      })()}
 
       <div className="sidebar-divider" />
 
