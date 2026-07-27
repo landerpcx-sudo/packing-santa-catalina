@@ -882,7 +882,7 @@ export async function construirInformeFinancieroPDF(
 
     doc.y = yCardDic + 10
 
-    // ── V. MATRIZ GERENCIAL DE DECISIONES DE COSECHA & COMERCIALIZACIÓN (EXACT LAYOUT CON ÍCONOS) ──
+    // ── V. MATRIZ GERENCIAL DE DECISIONES DE COSECHA & COMERCIALIZACIÓN (DISENO VECTORIAL NATIVO) ──
     nuevaPagina()
     marcador('V. Matriz gerencial 2x2')
     
@@ -897,29 +897,59 @@ export async function construirInformeFinancieroPDF(
     doc.moveTo(L, doc.y).lineTo(R, doc.y).lineWidth(0.5).strokeColor(COLOR.lineaSuave).stroke()
     doc.y += 12
 
+    // Helper gráfico para dibujar estrellas vectoriales nítidas en PDFKit
+    const dibujarEstrella = (cx: number, cy: number, r: number, color: string) => {
+      doc.save()
+      const pts = 5
+      const step = Math.PI / pts
+      let rot = (Math.PI / 2) * 3
+      let x = cx
+      let y = cy
+      const rIn = r * 0.42
+      doc.moveTo(cx, cy - r)
+      for (let i = 0; i < pts; i++) {
+        x = cx + Math.cos(rot) * r
+        y = cy + Math.sin(rot) * r
+        doc.lineTo(x, y)
+        rot += step
+
+        x = cx + Math.cos(rot) * rIn
+        y = cy + Math.sin(rot) * rIn
+        doc.lineTo(x, y)
+        rot += step
+      }
+      doc.lineTo(cx, cy - r)
+      doc.fill(color)
+      doc.restore()
+    }
+
     const cuadrantes = [
       {
-        titulo: '★ ★  ESTRELLAS DE EXPORTACIÓN', sub: 'ALTO VOLUMEN + ALTO MARGEN',
+        id: 'ESTRELLA',
+        titulo: 'ESTRELLAS DE EXPORTACIÓN', sub: 'ALTO VOLUMEN + ALTO MARGEN',
         desc: 'Motor principal de ganancias del despacho. Se recomienda priorizar la selección y envío masivo de estos calibres a EU.',
-        bg: COLOR.verdeFondo, borde: COLOR.verdeBorde, texto: COLOR.verde, iconColor: '#d97706',
+        bg: COLOR.verdeFondo, borde: COLOR.verdeBorde, texto: COLOR.verde,
         items: analisis.filter((a: any) => a.cuadrante === 'ESTRELLA'),
       },
       {
-        titulo: '★  NICHOS DE ALTO MARGEN', sub: 'BAJO VOLUMEN + ALTO MARGEN',
+        id: 'NICHO',
+        titulo: 'NICHOS DE ALTO MARGEN', sub: 'BAJO VOLUMEN + ALTO MARGEN',
         desc: 'Excelente margen unitario pero poco volumen en el contenedor. Oportunidad para aumentar el embalaje de este calibre en futuras cosechas.',
-        bg: COLOR.tealFondo, borde: COLOR.tealBorde, texto: COLOR.teal, iconColor: COLOR.teal,
+        bg: COLOR.tealFondo, borde: COLOR.tealBorde, texto: COLOR.teal,
         items: analisis.filter((a: any) => a.cuadrante === 'NICHO'),
       },
       {
-        titulo: '●  VOLUMEN COMMODITY', sub: 'ALTO VOLUMEN + MARGEN ESTÁNDAR',
+        id: 'COMMODITY',
+        titulo: 'VOLUMEN COMMODITY', sub: 'ALTO VOLUMEN + MARGEN ESTÁNDAR',
         desc: 'Mucha carga enviada con margen ajustado. Se recomienda renegociar comisiones y tarifas flete marítimo para mejorar su rentabilidad global.',
-        bg: COLOR.fondo, borde: COLOR.linea, texto: COLOR.texto, iconColor: COLOR.suave,
+        bg: COLOR.fondo, borde: COLOR.linea, texto: COLOR.texto,
         items: analisis.filter((a: any) => a.cuadrante === 'COMMODITY'),
       },
       {
-        titulo: '●  CALIBRES CRÍTICOS / PÉRDIDA NETA', sub: 'PÉRDIDA POR CAJA',
+        id: 'PERDIDA',
+        titulo: 'CALIBRES CRÍTICOS / PÉRDIDA NETA', sub: 'PÉRDIDA POR CAJA',
         desc: 'Restan valor a la exportación. Se sugiere renegociar precio mínimo en destino o desviar estas categorías a mercado interno / industria de jugo.',
-        bg: COLOR.rojoFondo, borde: COLOR.rojoBorde, texto: COLOR.rojo, iconColor: COLOR.rojo,
+        bg: COLOR.rojoFondo, borde: COLOR.rojoBorde, texto: COLOR.rojo,
         items: analisis.filter((a: any) => a.cuadrante === 'PERDIDA'),
       },
     ]
@@ -939,9 +969,26 @@ export async function construirInformeFinancieroPDF(
       doc.roundedRect(L, yCard, W, altoCard, 6).fill(c.bg)
       doc.roundedRect(L, yCard, W, altoCard, 6).lineWidth(0.8).strokeColor(c.borde).stroke()
 
-      // Título Izquierda con ícono distintivo
+      // Dibujar Íconos Vectoriales Nativos (evita cajas vacías de fuente Unicode)
+      let xOffsetTitulo = L + 14
+      if (c.id === 'ESTRELLA') {
+        dibujarEstrella(L + 18, yCard + 12, 4.5, '#d97706')
+        dibujarEstrella(L + 28, yCard + 12, 4.5, '#d97706')
+        xOffsetTitulo = L + 37
+      } else if (c.id === 'NICHO') {
+        dibujarEstrella(L + 18, yCard + 12, 4.5, '#0f766e')
+        xOffsetTitulo = L + 27
+      } else if (c.id === 'COMMODITY') {
+        doc.circle(L + 18, yCard + 12, 3.5).fill('#64748b')
+        xOffsetTitulo = L + 27
+      } else if (c.id === 'PERDIDA') {
+        doc.circle(L + 18, yCard + 12, 3.5).fill('#b91c1c')
+        xOffsetTitulo = L + 27
+      }
+
+      // Título Izquierda con posición ajustada tras el ícono vectorial
       doc.fillColor(c.texto).font('B').fontSize(8.5)
-        .text(c.titulo, L + 14, yCard + 9, { lineBreak: false })
+        .text(c.titulo, xOffsetTitulo, yCard + 9, { lineBreak: false })
 
       // Subtítulo Derecha (Categoría de Volumen y Margen)
       doc.fillColor(c.texto).font('B').fontSize(7.5)
