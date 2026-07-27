@@ -38,7 +38,7 @@ export default function RootLayout({
         {/* Anti-flash: aplica el tema antes de que React hidrate */}
         <script
           dangerouslySetInnerHTML={{
-            __html: `(function(){try{var t=localStorage.getItem('sc-theme');document.documentElement.setAttribute('data-theme',t||'dark')}catch(e){}})()`,
+            __html: `(function(){try{var t=localStorage.getItem('sc-theme')||'dark';document.documentElement.setAttribute('data-theme',t);if(t==='dark'){document.documentElement.classList.add('dark')}else{document.documentElement.classList.remove('dark')}}catch(e){}})()`,
           }}
         />
         <script

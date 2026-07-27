@@ -35,20 +35,20 @@ export default function LiquidationModal({
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-md p-4 sm:p-6 overflow-y-auto animate-in fade-in duration-200">
       <div 
-        className="relative w-full max-w-5xl bg-[#0b1329] border border-white/10 rounded-3xl shadow-2xl overflow-hidden my-auto max-h-[92vh] flex flex-col"
+        className="relative w-full max-w-5xl bg-slate-50 dark:bg-[#0b1329] border border-slate-200 dark:border-white/10 rounded-3xl shadow-2xl overflow-hidden my-auto max-h-[92vh] flex flex-col"
         onClick={(e) => e.stopPropagation()}
       >
         {/* Top Header Bar */}
-        <div className="flex items-center justify-between px-6 py-4 border-b border-white/10 bg-slate-900/90 dark:bg-gray-950/90 shrink-0">
+        <div className="flex items-center justify-between px-6 py-4 border-b border-slate-200 dark:border-white/10 bg-white dark:bg-gray-950/90 shrink-0">
           <div className="flex items-center gap-3">
-            <div className="p-2 bg-emerald-500/10 border border-emerald-500/20 rounded-xl text-emerald-400">
+            <div className="p-2 bg-emerald-500/10 border border-emerald-500/20 rounded-xl text-emerald-600 dark:text-emerald-400">
               <Calculator className="w-5 h-5" />
             </div>
             <div>
-              <h2 className="text-lg font-bold text-white tracking-tight">
+              <h2 className="text-lg font-bold text-slate-900 dark:text-white tracking-tight">
                 Módulo Financiero - Despacho {dispatchCode}
               </h2>
-              <p className="text-xs text-gray-400">
+              <p className="text-xs text-slate-500 dark:text-gray-400">
                 Ingreso de precios por caja, liquidación de contenedor y conversión de divisas
               </p>
             </div>
@@ -59,7 +59,7 @@ export default function LiquidationModal({
               if (onSuccess) onSuccess()
               onClose()
             }}
-            className="p-2 rounded-xl text-gray-400 hover:text-white hover:bg-white/10 transition-colors border border-white/5"
+            className="p-2 rounded-xl text-slate-500 dark:text-gray-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-200/50 dark:hover:bg-white/10 transition-colors border border-slate-200 dark:border-white/5"
             title="Cerrar (ESC)"
           >
             <X className="w-5 h-5" />

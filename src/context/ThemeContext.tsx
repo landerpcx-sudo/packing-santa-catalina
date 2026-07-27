@@ -19,12 +19,19 @@ const ThemeContext = createContext<ThemeContextType>({
 export function ThemeProvider({ children }: { children: ReactNode }) {
   const [theme, setTheme] = useState<Theme>('dark')
 
-  useEffect(() => {
-    const saved = localStorage.getItem('sc-theme') as Theme | null
-    if (saved) {
-      setTheme(saved)
-      document.documentElement.setAttribute('data-theme', saved)
+  const applyTheme = (t: Theme) => {
+    document.documentElement.setAttribute('data-theme', t)
+    if (t === 'dark') {
+      document.documentElement.classList.add('dark')
+    } else {
+      document.documentElement.classList.remove('dark')
     }
+  }
+
+  useEffect(() => {
+    const saved = (localStorage.getItem('sc-theme') as Theme | null) || 'dark'
+    setTheme(saved)
+    applyTheme(saved)
   }, [])
 
   const toggleTheme = (e?: MouseEvent<any>) => {
@@ -34,7 +41,7 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
     if (typeof document === 'undefined' || !document.startViewTransition || !e || !e.clientX) {
       setTheme(next)
       localStorage.setItem('sc-theme', next)
-      document.documentElement.setAttribute('data-theme', next)
+      applyTheme(next)
       return
     }
 
@@ -48,7 +55,7 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
     const transition = document.startViewTransition(() => {
       setTheme(next)
       localStorage.setItem('sc-theme', next)
-      document.documentElement.setAttribute('data-theme', next)
+      applyTheme(next)
     })
 
     transition.ready.then(() => {
