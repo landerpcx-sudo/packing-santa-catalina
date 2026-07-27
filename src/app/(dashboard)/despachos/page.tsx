@@ -475,9 +475,8 @@ export default function DespachosPage() {
                         <p className="text-white font-semibold text-sm group-hover:text-indigo-400 transition-colors">
                           Despacho {dispatch.dispatch_code}
                         </p>
-                        <span className="px-2 py-0.5 rounded-full text-[11px] font-bold bg-white/5 text-slate-200 border border-white/10 flex items-center gap-1 shadow-sm" title={`Especie: ${fruit.label}`}>
-                          <span>{fruit.icon}</span>
-                          <span className="hidden sm:inline">{fruit.label}</span>
+                        <span className="text-xl leading-none inline-block transition-transform duration-200 group-hover:scale-125" title={`Especie: ${fruit.label}`}>
+                          {fruit.icon}
                         </span>
                         <PaymentBadge status={dispatch.payment_status || 'pending'} />
                       </div>
@@ -496,8 +495,16 @@ export default function DespachosPage() {
 
                 {/* Destino con Bandera */}
                 <div className="col-span-2 hidden lg:block">
-                  <div className="flex items-center gap-1.5" title={country.label}>
-                    <span className="text-base leading-none drop-shadow-sm">{country.flag}</span>
+                  <div className="flex items-center gap-2" title={`Destino: ${country.label}`}>
+                    {country.flagUrl ? (
+                      <img 
+                        src={country.flagUrl} 
+                        alt={country.label} 
+                        className="h-3.5 w-5 rounded-xs inline-block object-cover border border-white/20 shadow-xs" 
+                      />
+                    ) : (
+                      <span className="text-base leading-none">{country.flag}</span>
+                    )}
                     <p className="text-gray-300 text-sm truncate">{dispatch.destination || '—'}</p>
                   </div>
                 </div>

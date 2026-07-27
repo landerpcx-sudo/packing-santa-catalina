@@ -410,8 +410,20 @@ export default function DispatchDetailPage({ params }: { params: Promise<{ id: s
 
         <div className="flex flex-col lg:flex-row lg:items-start justify-between gap-4">
           <div className="flex items-center gap-4 min-w-0">
-            <div className="w-12 h-12 bg-indigo-500/10 border border-indigo-500/20 rounded-2xl flex items-center justify-center shrink-0">
-              <Truck className="w-6 h-6 text-indigo-400" />
+            <div className="w-16 h-16 sm:w-20 sm:h-20 bg-gradient-to-b from-white/10 to-white/5 border border-white/15 rounded-2xl flex flex-col items-center justify-center shrink-0 shadow-xl gap-1 p-1" title={`Especie: ${fruit.label} | Destino: ${country.label}`}>
+              <span className="text-3xl sm:text-4xl leading-none filter drop-shadow-md">
+                {fruit.icon}
+              </span>
+              {country.flagUrl ? (
+                <img 
+                  src={country.flagUrl} 
+                  alt={country.label} 
+                  title={`Destino: ${country.label}`} 
+                  className="h-3.5 w-5 rounded-xs object-cover border border-white/20 shadow-xs" 
+                />
+              ) : (
+                <span className="text-xs leading-none" title={`Destino: ${country.label}`}>{country.flag}</span>
+              )}
             </div>
             <div className="min-w-0">
               <h1 className="text-2xl font-bold text-white truncate">Despacho {dispatch.dispatch_code}</h1>
@@ -423,9 +435,15 @@ export default function DispatchDetailPage({ params }: { params: Promise<{ id: s
                 <span className="text-gray-600">|</span>
                 <span><strong>Cliente:</strong> {dispatch.client || '—'}</span>
                 <span className="text-gray-600">|</span>
-                <span><strong>Especie:</strong> {fruit.icon} {fruit.label}</span>
-                <span className="text-gray-600">|</span>
-                <span><strong>Destino:</strong> {country.flag} {dispatch.destination || '—'}</span>
+                <span className="inline-flex items-center gap-1.5">
+                  <strong>Destino:</strong> 
+                  {country.flagUrl ? (
+                    <img src={country.flagUrl} alt={country.label} className="h-3.5 w-5 rounded-xs inline-block object-cover border border-white/20 shadow-xs" />
+                  ) : (
+                    <span>{country.flag}</span>
+                  )}
+                  {dispatch.destination || '—'}
+                </span>
                 {dispatch.container_number && (
                   <>
                     <span className="text-gray-600">|</span>
@@ -576,18 +594,21 @@ export default function DispatchDetailPage({ params }: { params: Promise<{ id: s
       )}
 
       {/* ── DATOS RESUMEN ────────────────────────────────────────────────── */}
-      <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-6 gap-3">
+      <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-3">
         <div className="bg-white/3 border border-white/8 rounded-xl p-4">
           <p className="text-gray-500 text-xs mb-1 flex items-center gap-1"><Building2 className="w-3 h-3" />Cliente</p>
           <p className="text-white font-medium text-sm truncate">{dispatch.client || '—'}</p>
         </div>
         <div className="bg-white/3 border border-white/8 rounded-xl p-4">
-          <p className="text-gray-500 text-xs mb-1 flex items-center gap-1"><span>{fruit.icon}</span>Especie</p>
-          <p className="text-white font-semibold text-sm truncate flex items-center gap-1.5">{fruit.icon} {fruit.label}</p>
-        </div>
-        <div className="bg-white/3 border border-white/8 rounded-xl p-4">
           <p className="text-gray-500 text-xs mb-1 flex items-center gap-1"><MapPin className="w-3 h-3" />Destino</p>
-          <p className="text-white font-medium text-sm truncate flex items-center gap-1.5"><span className="text-base">{country.flag}</span>{dispatch.destination || '—'}</p>
+          <p className="text-white font-medium text-sm truncate flex items-center gap-2">
+            {country.flagUrl ? (
+              <img src={country.flagUrl} alt={country.label} className="h-3.5 w-5 rounded-xs inline-block object-cover border border-white/20 shadow-xs" />
+            ) : (
+              <span className="text-base leading-none">{country.flag}</span>
+            )}
+            <span>{dispatch.destination || '—'}</span>
+          </p>
         </div>
         <div className="bg-white/3 border border-white/8 rounded-xl p-4">
           <p className="text-gray-500 text-xs mb-1 flex items-center gap-1"><Package className="w-3 h-3" />Pallets</p>
