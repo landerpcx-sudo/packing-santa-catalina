@@ -89,19 +89,39 @@ export default function Sidebar() {
       {(() => {
         const clientLogo = getClientLogoUrl(user?.displayName, user?.clientName)
         return (
-          <div className="px-4 py-3.5">
-            <div className="flex items-center gap-3">
-              <div className="relative flex-shrink-0">
-                {clientLogo ? (
-                  <div className="w-10 h-10 rounded-xl overflow-hidden bg-white p-1 shadow-md border border-emerald-500/20 dark:border-white/10 flex items-center justify-center shrink-0 transition-transform hover:scale-105">
+          <div className="px-3 py-2.5">
+            {clientLogo ? (
+              <div className="flex flex-col gap-2 p-2.5 bg-slate-100/60 dark:bg-white/5 border border-slate-200/80 dark:border-white/10 rounded-2xl shadow-sm">
+                <div className="flex items-center justify-between gap-2">
+                  <div className="h-12 px-3 py-1.5 bg-white rounded-xl shadow-sm border border-slate-200/80 flex items-center justify-center flex-1 overflow-hidden">
                     {/* eslint-disable-next-line @next/next/no-img-element */}
                     <img
                       src={clientLogo}
                       alt={user?.displayName || 'Logo Cliente'}
-                      className="w-full h-full object-contain"
+                      className="h-9 w-auto max-w-full object-contain"
                     />
                   </div>
-                ) : (
+                  <div className="relative shrink-0 flex items-center pr-1">
+                    <span
+                      className={`block w-3 h-3 rounded-full border-2 border-white dark:border-[#090e1a] ${
+                        isOnline ? 'indicator-online' : 'indicator-offline'
+                      }`}
+                      title={isOnline ? 'Conexión activa' : 'Sin conexión'}
+                    />
+                  </div>
+                </div>
+                <div className="min-w-0 px-1 flex items-center justify-between">
+                  <p className="font-semibold text-xs truncate" style={{ color: 'var(--text-primary)' }}>
+                    {user?.displayName}
+                  </p>
+                  <p className="text-[10px] font-medium truncate" style={{ color: 'var(--text-muted)' }}>
+                    {user?.role ? ROLE_DISPLAY_NAMES[user.role as Role] : ''}
+                  </p>
+                </div>
+              </div>
+            ) : (
+              <div className="flex items-center gap-3 px-1">
+                <div className="relative flex-shrink-0">
                   <div
                     className="w-9 h-9 rounded-full flex items-center justify-center shadow-lg shadow-emerald-500/10"
                     style={{
@@ -113,23 +133,23 @@ export default function Sidebar() {
                       {user?.displayName?.charAt(0).toUpperCase()}
                     </span>
                   </div>
-                )}
-                <span
-                  className={`absolute -bottom-0.5 -right-0.5 block w-3 h-3 rounded-full border-2 border-[#090e1a] ${
-                    isOnline ? 'indicator-online' : 'indicator-offline'
-                  }`}
-                  title={isOnline ? 'Conexión activa' : 'Sin conexión'}
-                />
+                  <span
+                    className={`absolute bottom-0 right-0 block w-2.5 h-2.5 rounded-full border-2 border-[#090e1a] ${
+                      isOnline ? 'indicator-online' : 'indicator-offline'
+                    }`}
+                    title={isOnline ? 'Conexión activa' : 'Sin conexión'}
+                  />
+                </div>
+                <div className="min-w-0">
+                  <p className="font-semibold text-sm truncate" style={{ color: 'var(--text-primary)' }}>
+                    {user?.displayName}
+                  </p>
+                  <p className="text-[11px] font-medium truncate" style={{ color: 'var(--text-muted)' }}>
+                    {user?.role ? ROLE_DISPLAY_NAMES[user.role as Role] : ''}
+                  </p>
+                </div>
               </div>
-              <div className="min-w-0">
-                <p className="font-semibold text-sm truncate" style={{ color: 'var(--text-primary)' }}>
-                  {user?.displayName}
-                </p>
-                <p className="text-[11px] font-medium truncate" style={{ color: 'var(--text-muted)' }}>
-                  {user?.role ? ROLE_DISPLAY_NAMES[user.role as Role] : ''}
-                </p>
-              </div>
-            </div>
+            )}
           </div>
         )
       })()}
