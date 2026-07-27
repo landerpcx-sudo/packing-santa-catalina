@@ -17,6 +17,61 @@ function cleanVariedad(raw: string): string {
   return s.toUpperCase() || 'EUREKA'
 }
 
+function parsePalletBlocksFromText(fullText: string, especieGeneral: string, variedadGeneral: string): ParsedPacklistItem[] {
+  const lines = fullText.split(/\r?\n/)
+  const blocks: string[] = []
+  let currentBlock: string[] = []
+
+  for (const line of lines) {
+    const isPalletHeader = /^\s*\d{3,5}\s+\d{2}\/\d{2}\/\d{4}/.test(line)
+    if (isPalletHeader) {
+      if (currentBlock.length > 0) {
+        blocks.push(currentBlock.join(' '))
+      }
+      currentBlock = [line]
+    } else if (currentBlock.length > 0) {
+      if (/Total\b|Variedad\b|REGIÓN|PACKING LIST|Especie\b/i.test(line)) {
+        blocks.push(currentBlock.join(' '))
+        currentBlock = []
+      } else {
+        currentBlock.push(line)
+      }
+    }
+  }
+  if (currentBlock.length > 0) {
+    blocks.push(currentBlock.join(' '))
+  }
+
+  const items: ParsedPacklistItem[] = []
+  const palletLineRegex = /(\d{2,3}|PC)\s+(?:S\s+)?(\d{1,4})\s+(\d{1,4})\s+(.+?)\s+(EUREKA|ROYAL GALA|BROOKFIELD|CRIPPS PINK|FUJI|GRANNY|ST|PATAGONIA|NECTARINE|PEAR|APPLE)\s+(LIMONES?|MANZANAS?|PERAS?|CEREZAS?|NECTARINES?|FRUTA)\s+(\d+[,.]?\d*)/gim
+
+  for (const block of blocks) {
+    let match: RegExpExecArray | null
+    while ((match = palletLineRegex.exec(block)) !== null) {
+      const calibre = match[1].trim().toUpperCase()
+      const cajas = parseInt(match[2], 10)
+      const envase = cleanEnvase(match[4])
+      const variedad = cleanVariedad(match[5]) || variedadGeneral
+      const especie = match[6].trim().toUpperCase() || especieGeneral
+      const peso = parseFloat(match[7].replace(',', '.'))
+
+      if (calibre && !isNaN(cajas) && cajas > 0 && cajas <= 1000) {
+        items.push({
+          especie,
+          variedad,
+          envase,
+          calibre,
+          cajas,
+          peso_neto_unitario: peso || 15,
+          peso_neto_total: cajas * (peso || 15)
+        })
+      }
+    }
+  }
+
+  return items
+}
+
 /**
  * Parsea el buffer de un archivo PDF de Packing List y retorna los ítems agrupados por embalaje y calibre.
  */
@@ -38,7 +93,6 @@ export async function parsePacklistPdf(pdfBuffer: Buffer): Promise<PacklistParse
       fullText = data.text || ''
     }
 
-    const items: ParsedPacklistItem[] = []
     let especieGeneral = 'LIMONES'
     let variedadGeneral = 'EUREKA'
 
@@ -54,63 +108,16 @@ export async function parsePacklistPdf(pdfBuffer: Buffer): Promise<PacklistParse
       if (rawVar && rawVar.length < 20) variedadGeneral = rawVar.toUpperCase()
     }
 
-    // --- ESTRATEGIA 1: PARSEAR LÍNEAS DE DETALLE DE PALLET EN EL TEXTO COMPLETO ---
-    // Estructura: [PalletNo] [Fecha] [Empresa/Planta] [Cat] [Productor] [Calibre] (S)? [Cajas1] [CajasTotal] [Envase] [Variedad] [Especie] [Peso]
-    const lineRegex = /^\s*\d{3,5}\s+\d{2}\/\d{2}\/\d{4}.*?\s+([A-Z0-9]{1,4})\s+(?:S\s*)?(\d{1,4})\s+(\d{1,4})\s+(.+?)\s+([A-Z0-9\s-]+?)\s+(LIMONES|MANZANAS?|PERAS?|CEREZAS?|NECTARINES?|FRUTA)\s+(\d+[,.]?\d*)/gim
+    // 1. Extraer Total Oficial de Cajas declarado al pie del PDF
+    const totalMatch = fullText.match(/TOTAL\s+DESPACHO\s*:\s*([\d.]+)\s*CAJAS/i) 
+      || fullText.match(/Total\s+Despacho\s+([\d.]+)/i)
+      || fullText.match(/Total\s+General\s+([\d.]+)/i)
+    const expectedTotal = totalMatch ? parseInt(totalMatch[1].replace(/\./g, ''), 10) : null
 
-    let match: RegExpExecArray | null
-    while ((match = lineRegex.exec(fullText)) !== null) {
-      const calibre = match[1].trim().toUpperCase()
-      const cajas = parseInt(match[2], 10)
-      const envase = cleanEnvase(match[4])
-      const variedad = cleanVariedad(match[5]) || variedadGeneral
-      const especie = match[6].trim().toUpperCase() || especieGeneral
-      const peso = parseFloat(match[7].replace(',', '.'))
+    // 2. Parsear por bloques de pallet
+    let items = parsePalletBlocksFromText(fullText, especieGeneral, variedadGeneral)
 
-      if (calibre && !isNaN(cajas) && cajas > 0 && envase && calibre !== '2026' && calibre !== '2025') {
-        items.push({
-          especie,
-          variedad,
-          envase,
-          calibre,
-          cajas,
-          peso_neto_unitario: peso || 15,
-          peso_neto_total: cajas * (peso || 15)
-        })
-      }
-    }
-
-    // --- ESTRATEGIA 2: LÍNEAS INDIVIDUALES SI NO COINCIDIÓ LA ANTERIOR ---
-    if (items.length === 0) {
-      const lines = fullText.split(/\r?\n/)
-      for (let line of lines) {
-        line = line.trim()
-        if (!/\d{2}\/\d{2}\/\d{4}/.test(line)) continue
-        const m = line.match(/(?:S\s*)?([A-Z0-9]{1,4})\s+(?:S\s*)?(\d{1,4})\s+(\d{1,4})\s+([A-Z0-9\s()/-]+?)\s+(EUREKA|BROOKFIELD|ROYAL GALA|CRIPPS PINK|FUJI|GRANNY|ST|PATAGONIA|NECTARINE|PEAR|APPLE|LIMONES)\s+(LIMONES|MANZANAS?|PERAS?|FRUTA)?\s*(\d+[,.]?\d*)?/i)
-        if (m) {
-          const calibre = m[1].trim().toUpperCase()
-          const cajas = parseInt(m[2], 10)
-          const envase = cleanEnvase(m[3])
-          const variedad = m[4] ? m[4].trim().toUpperCase() : variedadGeneral
-          const especie = m[5] ? m[5].trim().toUpperCase() : especieGeneral
-          const peso = m[6] ? parseFloat(m[6].replace(',', '.')) : 15
-
-          if (calibre && !isNaN(cajas) && cajas > 0 && envase && calibre !== '2026' && calibre !== '2025') {
-            items.push({
-              especie,
-              variedad,
-              envase,
-              calibre,
-              cajas,
-              peso_neto_unitario: peso,
-              peso_neto_total: cajas * peso
-            })
-          }
-        }
-      }
-    }
-
-    // --- ESTRATEGIA 3: TABLA RESUMEN SI LAS ANTERIORES NO RETORNARON RESULTADOS ---
+    // 3. Estrategia Fallback: Si no hubo líneas de detalle de pallet, parsear tabla resumen
     if (items.length === 0) {
       const summaryHeaderMatch = fullText.match(/Variedad\s+Envase\s+Categor[íi]a\s+([A-Z0-9\s]+?)\s+TOTAL/i)
       if (summaryHeaderMatch) {
@@ -147,6 +154,19 @@ export async function parsePacklistPdf(pdfBuffer: Buffer): Promise<PacklistParse
     const groupedItems = groupPacklistItems(items)
     const totalCajas = groupedItems.reduce((acc, curr) => acc + curr.cajas, 0)
 
+    // Validación estricta contra el Total Oficial si fue detectado
+    if (expectedTotal !== null && expectedTotal > 0 && totalCajas !== expectedTotal) {
+      console.error(`Mismatch de cajas: parseadas=${totalCajas}, esperadas=${expectedTotal}`)
+      return {
+        success: false,
+        especie: especieGeneral,
+        variedad: variedadGeneral,
+        totalCajas: totalCajas,
+        items: groupedItems,
+        error: `Error de lectura en Packlist PDF: El total parseado (${totalCajas} cajas) no coincide con el TOTAL DESPACHO oficial (${expectedTotal} cajas).`
+      }
+    }
+
     return {
       success: groupedItems.length > 0,
       especie: especieGeneral,
@@ -167,4 +187,3 @@ export async function parsePacklistPdf(pdfBuffer: Buffer): Promise<PacklistParse
     }
   }
 }
-
