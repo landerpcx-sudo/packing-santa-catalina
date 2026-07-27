@@ -143,9 +143,7 @@ function LotesContent() {
   const searchRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   useEffect(() => {
-    if (speciesFilterFromUrl) {
-      setFilterSpecies(speciesFilterFromUrl)
-    }
+    setFilterSpecies(speciesFilterFromUrl)
   }, [speciesFilterFromUrl])
 
   const fetchLots = useCallback(async (
@@ -162,7 +160,7 @@ function LotesContent() {
     const f = statusValue !== undefined ? statusValue : filterStatus
     const c = clientValue !== undefined ? clientValue : filterClient
     const p = producerValue !== undefined ? producerValue : filterProducer
-    const sp = speciesValue !== undefined ? speciesValue : (filterSpecies || speciesFilterFromUrl)
+    const sp = speciesValue !== undefined ? speciesValue : filterSpecies
     const v = varietyValue !== undefined ? varietyValue : filterVariety
 
     if (s) params.set('search', s)
@@ -181,7 +179,7 @@ function LotesContent() {
       setTotal(json.total || 0)
     }
     setLoading(false)
-  }, [search, filterStatus, filterClient, filterProducer, filterSpecies, speciesFilterFromUrl, filterVariety, dateFrom, dateTo])
+  }, [search, filterStatus, filterClient, filterProducer, filterSpecies, filterVariety, dateFrom, dateTo])
 
   // Debounce para el campo de búsqueda (Mejora #11)
   const handleSearchChange = (value: string) => {
@@ -311,7 +309,11 @@ function LotesContent() {
             onChange={(e) => {
               const val = e.target.value
               setFilterSpecies(val)
-              fetchLots(search, filterStatus, filterClient, filterProducer, val, filterVariety)
+              if (val) {
+                router.push(`/lotes?species=${encodeURIComponent(val)}`)
+              } else {
+                router.push('/lotes')
+              }
             }}
             className="w-full bg-white/5 border border-white/10 rounded-xl px-3 py-2 text-white text-xs focus:outline-none focus:border-green-400/50 transition-all appearance-none cursor-pointer"
           >
@@ -366,6 +368,9 @@ function LotesContent() {
               setFilterProducer('');
               setFilterSpecies('');
               setFilterVariety('');
+              if (speciesFilterFromUrl) {
+                router.push('/lotes')
+              }
               fetchLots(search, filterStatus, '', '', '', '');
             }}
             className="px-3 py-2 text-xs text-gray-400 hover:text-red-400 border border-white/10 rounded-xl transition-all font-bold uppercase tracking-wider"
