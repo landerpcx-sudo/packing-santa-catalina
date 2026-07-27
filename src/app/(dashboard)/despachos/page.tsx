@@ -10,7 +10,7 @@ import dynamic from 'next/dynamic'
 import Link from 'next/link'
 
 const NewDispatchModal = dynamic(() => import('@/components/despachos/NewDispatchModal'), { ssr: false })
-import { useRouter } from 'next/navigation'
+import { useRouter, useSearchParams } from 'next/navigation'
 import { getCountryFlag, getFruitInfo } from '@/lib/flags-and-fruits'
 
 interface Dispatch {
@@ -76,6 +76,9 @@ export default function DespachosPage() {
   const [loading, setLoading] = useState(true)
   const [showModal, setShowModal] = useState(false)
   const router = useRouter()
+  const searchParams = useSearchParams()
+  const speciesFilter = searchParams.get('species') || ''
+
   const [search, setSearch] = useState('')
   const [filterStatus, setFilterStatus] = useState('')
   const [dateFrom, setDateFrom] = useState('')
@@ -109,6 +112,7 @@ export default function DespachosPage() {
     if (c) params.set('client', c)
     if (m) params.set('market', m)
     if (co) params.set('container', co)
+    if (speciesFilter) params.set('species', speciesFilter)
  
     try {
       const res = await fetch(`/api/despachos?${params}`)
@@ -126,7 +130,7 @@ export default function DespachosPage() {
         setLoading(false)
       }
     }
-  }, [search, filterStatus, dateFrom, dateTo, filterClient, filterMarket, filterContainer])
+  }, [search, filterStatus, dateFrom, dateTo, filterClient, filterMarket, filterContainer, speciesFilter])
 
   useEffect(() => {
     fetchDispatches()

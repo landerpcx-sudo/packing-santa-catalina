@@ -24,7 +24,7 @@ export async function GET(request: Request) {
 
     const cleanClient = (clientName || '').trim()
 
-    // 1. Lotes (consultar usando la columna 'client')
+    // 1. Lotes
     let lotsQuery = supabaseAdmin
       .from('lots')
       .select('id, species, overall_status, created_at, client')
@@ -33,17 +33,13 @@ export async function GET(request: Request) {
       lotsQuery = lotsQuery.ilike('client', `%${cleanClient}%`)
     }
 
-    const { data: lotsData, error: lotsError } = await lotsQuery
-    if (lotsError) {
-      console.error('Error al obtener lotes en resumen cliente:', lotsError)
-    }
-
+    const { data: lotsData } = await lotsQuery
     const allLots = lotsData || []
     const openLotsCount = allLots.filter(l => l.overall_status !== 'closed').length
     const closedLotsCount = allLots.filter(l => l.overall_status === 'closed').length
     const totalLotsCount = allLots.length
 
-    // 2. Despachos (todos los despachos creados para el cliente)
+    // 2. Despachos
     let despachosQuery = supabaseAdmin
       .from('dispatches')
       .select('id, species, client, overall_status, created_at, drive_folder_id')
@@ -52,58 +48,50 @@ export async function GET(request: Request) {
       despachosQuery = despachosQuery.ilike('client', `%${cleanClient}%`)
     }
 
-    const { data: despachosData, error: despachosError } = await despachosQuery
-    if (despachosError) {
-      console.error('Error al obtener despachos en resumen cliente:', despachosError)
-    }
-
+    const { data: despachosData } = await despachosQuery
     const allDispatches = despachosData || []
     const activeDispatchesCount = allDispatches.length
 
-    // 3. Conteo por Especie de Fruta
-    const speciesMap: Record<string, number> = {}
-
+    // 3. Normalizar especies sin duplicados (Limón y Limones se agrupan en Limones)
     const normalizeSpecies = (rawName?: string | null) => {
       if (!rawName) return null
-      const clean = rawName.trim()
-      if (clean.toLowerCase().includes('limon')) return 'Limones'
-      if (clean.toLowerCase().includes('manzana')) return 'Manzanas'
-      if (clean.toLowerCase().includes('cereza')) return 'Cerezas'
-      if (clean.toLowerCase().includes('uva')) return 'Uvas'
-      if (clean.toLowerCase().includes('naranja')) return 'Naranjas'
-      if (clean.toLowerCase().includes('palta')) return 'Paltas'
-      if (clean.toLowerCase().includes('kiwi')) return 'Kiwis'
-      if (clean.toLowerCase().includes('arandano')) return 'Arándanos'
-      return clean
+      const clean = rawName.trim().normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase()
+      if (clean.includes('limon')) return 'Limones'
+      if (clean.includes('manzana')) return 'Manzanas'
+      if (clean.includes('cereza')) return 'Cerezas'
+      if (clean.includes('uva')) return 'Uvas'
+      if (clean.includes('naranja')) return 'Naranjas'
+      if (clean.includes('palta')) return 'Paltas'
+      if (clean.includes('kiwi')) return 'Kiwis'
+      if (clean.includes('durazno') || clean.includes('nectarin')) return 'Duraznos'
+      if (clean.includes('arandano')) return 'Arándanos'
+      if (clean.includes('pera')) return 'Peras'
+      return rawName.trim()
     }
 
-    // De Lotes
+    const speciesSet = new Set<string>()
+
     allLots.forEach(l => {
       const spec = normalizeSpecies(l.species)
-      if (spec) {
-        speciesMap[spec] = (speciesMap[spec] || 0) + 1
-      }
+      if (spec) speciesSet.add(spec)
     })
 
-    // De Despachos
     allDispatches.forEach(d => {
-      let spec = normalizeSpecies(d.species)
-      if (!spec && d.client && d.client.toUpperCase().includes('GROWERS')) {
-        spec = 'Limones'
-      }
-      if (spec) {
-        speciesMap[spec] = (speciesMap[spec] || 0) + 1
-      }
+      const spec = normalizeSpecies(d.species)
+      if (spec) speciesSet.add(spec)
     })
 
-    if (Object.keys(speciesMap).length === 0 && cleanClient.toUpperCase().includes('GROWERS')) {
-      speciesMap['Limones'] = allDispatches.length || 1
+    if (speciesSet.size === 0 && cleanClient.toUpperCase().includes('GROWERS')) {
+      speciesSet.add('Limones')
     }
 
-    const speciesList = Object.entries(speciesMap).map(([name, count]) => ({
-      name,
-      count
-    }))
+    const speciesList = Array.from(speciesSet).map(name => {
+      const normName = normalizeSpecies(name)
+      const countDispatches = allDispatches.filter(d => normalizeSpecies(d.species) === normName).length
+      const countLots = allLots.filter(l => normalizeSpecies(l.species) === normName).length
+      const count = countDispatches || countLots || 1
+      return { name, count }
+    })
 
     // 4. Últimos 3 documentos PDF del cliente
     let docsQuery = supabaseAdmin

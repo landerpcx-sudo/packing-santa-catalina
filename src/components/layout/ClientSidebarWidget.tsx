@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { useRouter, useSearchParams } from 'next/navigation'
+import { useRouter, useSearchParams, usePathname } from 'next/navigation'
 import { useAuth } from '@/context/AuthContext'
 import {
   Package,
@@ -64,11 +64,18 @@ const FRUIT_ICONS: Record<string, string> = {
 }
 
 function getFruitIcon(speciesName: string): string {
-  const normalized = speciesName.toLowerCase().trim()
-  for (const [key, icon] of Object.entries(FRUIT_ICONS)) {
-    if (normalized.includes(key)) return icon
-  }
-  return '📦'
+  const normalized = speciesName.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().trim()
+  if (normalized.includes('limon')) return '🍋'
+  if (normalized.includes('manzana')) return '🍎'
+  if (normalized.includes('cereza')) return '🍒'
+  if (normalized.includes('uva')) return '🍇'
+  if (normalized.includes('naranja')) return '🍊'
+  if (normalized.includes('palta')) return '🥑'
+  if (normalized.includes('kiwi')) return '🥝'
+  if (normalized.includes('durazno') || normalized.includes('nectarin')) return '🍑'
+  if (normalized.includes('arandano')) return '🫐'
+  if (normalized.includes('pera')) return '🍐'
+  return '🍋'
 }
 
 export default function ClientSidebarWidget() {
@@ -77,6 +84,7 @@ export default function ClientSidebarWidget() {
   const { user } = useAuth()
   const router = useRouter()
   const searchParams = useSearchParams()
+  const pathname = usePathname()
   const currentSpeciesFilter = searchParams.get('species') || ''
 
   useEffect(() => {
@@ -105,10 +113,16 @@ export default function ClientSidebarWidget() {
   }, [user])
 
   const handleSelectSpecies = (speciesName: string) => {
-    if (speciesName === currentSpeciesFilter) {
-      router.push('/lotes')
+    const normSearch = (currentSpeciesFilter || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase()
+    const normTarget = speciesName.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase()
+    const isSelected = normSearch && (normSearch.includes(normTarget.substring(0, 4)) || normTarget.includes(normSearch.substring(0, 4)))
+
+    const basePage = (pathname.startsWith('/despachos') || pathname.startsWith('/lotes')) ? pathname : '/lotes'
+
+    if (isSelected) {
+      router.push(basePage)
     } else {
-      router.push(`/lotes?species=${encodeURIComponent(speciesName)}`)
+      router.push(`${basePage}?species=${encodeURIComponent(speciesName)}`)
     }
   }
 
@@ -140,7 +154,7 @@ export default function ClientSidebarWidget() {
           </span>
           {currentSpeciesFilter && (
             <button
-              onClick={() => router.push('/lotes')}
+              onClick={() => router.push(pathname.startsWith('/despachos') ? '/despachos' : '/lotes')}
               className="text-[10px] text-indigo-500 hover:underline font-semibold"
             >
               Ver todas
@@ -155,7 +169,9 @@ export default function ClientSidebarWidget() {
             </div>
           ) : (
             species.map((sp) => {
-              const isSelected = currentSpeciesFilter.toLowerCase() === sp.name.toLowerCase()
+              const normSearch = (currentSpeciesFilter || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase()
+              const normTarget = sp.name.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase()
+              const isSelected = normSearch && (normSearch.includes(normTarget.substring(0, 4)) || normTarget.includes(normSearch.substring(0, 4)))
               const icon = getFruitIcon(sp.name)
               return (
                 <button

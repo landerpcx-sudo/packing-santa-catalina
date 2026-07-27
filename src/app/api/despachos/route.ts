@@ -31,6 +31,7 @@ export async function GET(request: Request) {
   const client = searchParams.get('client') || ''
   const market = searchParams.get('market') || ''
   const container = searchParams.get('container') || ''
+  const species = searchParams.get('species') || ''
   
   const offset = (page - 1) * limit
 
@@ -54,6 +55,11 @@ export async function GET(request: Request) {
   if (search) query = query.or(`internal_code.ilike.%${search}%,client.ilike.%${search}%,destination.ilike.%${search}%,container_number.ilike.%${search}%`)
   if (market) query = query.ilike('destination', `%${market}%`)
   if (container) query = query.ilike('container_number', `%${container}%`)
+  if (species) {
+    const cleanSpec = species.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().trim()
+    const matchStr = cleanSpec.includes('limon') ? 'Limon' : species.trim()
+    query = query.ilike('species', `%${matchStr}%`)
+  }
   
   if (dateFrom) query = query.gte('created_at', `${dateFrom}T00:00:00Z`)
   if (dateTo) query = query.lte('created_at', `${dateTo}T23:59:59Z`)
