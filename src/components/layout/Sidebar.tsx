@@ -26,6 +26,7 @@ import {
 } from 'lucide-react'
 
 import { getClientLogoUrl } from '@/lib/client-logos'
+import ClientSidebarWidget from './ClientSidebarWidget'
 
 const NAV_ITEMS = [
   { href: '/dashboard', label: 'Dashboard', icon: LayoutDashboard, roles: ['admin', 'jefe_frio', 'calidad', 'cuadratura', 'sag', 'despacho', 'gerencia', 'agronomo'] },
@@ -197,6 +198,12 @@ export default function Sidebar() {
             </Link>
           )
         })}
+
+        {user?.role === 'cliente' && (
+          <div className="pt-2 border-t border-slate-200/50 dark:border-white/5">
+            <ClientSidebarWidget />
+          </div>
+        )}
       </nav>
 
       {/* Footer: Theme toggle + Logout */}
