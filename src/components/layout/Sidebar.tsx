@@ -93,12 +93,12 @@ export default function Sidebar() {
             {clientLogo ? (
               <div className="flex flex-col gap-2 p-2.5 bg-slate-100/60 dark:bg-white/5 border border-slate-200/80 dark:border-white/10 rounded-2xl shadow-sm">
                 <div className="flex items-center justify-between gap-2">
-                  <div className="h-12 px-3 py-1.5 bg-white rounded-xl shadow-sm border border-slate-200/80 flex items-center justify-center flex-1 overflow-hidden">
+                  <div className="h-14 px-3 py-1.5 bg-white rounded-xl shadow-md border border-slate-200/80 flex items-center justify-center flex-1 overflow-hidden">
                     {/* eslint-disable-next-line @next/next/no-img-element */}
                     <img
                       src={clientLogo}
                       alt={user?.displayName || 'Logo Cliente'}
-                      className="h-9 w-auto max-w-full object-contain"
+                      className="h-11 w-auto max-w-full object-contain transition-transform hover:scale-105"
                     />
                   </div>
                   <div className="relative shrink-0 flex items-center pr-1">
