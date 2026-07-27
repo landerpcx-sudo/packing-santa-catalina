@@ -68,7 +68,7 @@ export async function POST(request: Request) {
     const headersList = await headers()
     const userId = headersList.get('x-user-id')
     const body = await request.json()
-    const { dispatch_code, client, destination, expected_pallets, dispatch_date, container_number, invoice_amount, advance_amount } = body
+    const { dispatch_code, client, destination, expected_pallets, dispatch_date, container_number, invoice_amount, advance_amount, species } = body
 
     if (!dispatch_code) {
       return NextResponse.json({ error: 'El código de despacho es requerido.' }, { status: 400 })
@@ -94,6 +94,11 @@ export async function POST(request: Request) {
     }
 
     const clientUpper = client ? client.trim().toUpperCase() : null
+    let speciesValue = species ? species.trim() : null
+    if (!speciesValue && clientUpper) {
+      if (clientUpper.includes('GROWERS')) speciesValue = 'Limones'
+      else if (clientUpper.includes('AGROCOMERCIAL')) speciesValue = 'Manzanas'
+    }
 
     let targetParentFolderId = process.env.ROOT_DRIVE_FOLDER_ID!
     
@@ -150,6 +155,7 @@ export async function POST(request: Request) {
         internal_code,
         dispatch_code,
         client: clientUpper || null,
+        species: speciesValue || null,
         destination: destination || null,
         expected_pallets: expected_pallets ? parseInt(expected_pallets) : null,
         dispatch_date: dispatch_date || new Date().toISOString().split('T')[0],

@@ -102,6 +102,7 @@ export interface Dispatch {
   internal_code: string   // DES-2026-0089
   dispatch_code: string   // DES-089
   client: string | null
+  species?: string | null
   dispatch_date: string | null
   destination: string | null
   expected_pallets: number | null

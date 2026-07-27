@@ -25,6 +25,7 @@ export default function NewDispatchModal({ onClose, onSuccess, initialData }: Pr
   const [formData, setFormData] = useState({
     dispatch_code: initialData?.dispatch_code || '',
     client: initialData?.client || '',
+    species: initialData?.species || '',
     destination: initialData?.destination || '',
     expected_pallets: initialData?.expected_pallets?.toString() || '',
     dispatch_date: initialData?.dispatch_date ? initialData.dispatch_date.split('T')[0] : getLocalDateString(),
@@ -193,6 +194,33 @@ export default function NewDispatchModal({ onClose, onSuccess, initialData }: Pr
                   {clients.map(c => (
                     <option key={c} value={c} className="bg-[#1a1f2e]">{c}</option>
                   ))}
+                </select>
+              </div>
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-gray-300 mb-1.5">
+                Especie de Fruta
+              </label>
+              <div className="relative">
+                <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-sm">
+                  {formData.species ? (formData.species.toLowerCase().includes('limon') ? '🍋' : formData.species.toLowerCase().includes('manzana') ? '🍎' : formData.species.toLowerCase().includes('cereza') ? '🍒' : formData.species.toLowerCase().includes('uva') ? '🍇' : '📦') : '🍎'}
+                </span>
+                <select
+                  value={formData.species}
+                  onChange={(e) => setFormData({ ...formData, species: e.target.value })}
+                  className="w-full bg-white/5 border border-white/10 rounded-xl pl-10 pr-4 py-2.5 text-white placeholder-gray-500 text-sm focus:outline-none focus:border-indigo-400/50 transition-all appearance-none cursor-pointer"
+                >
+                  <option value="" className="bg-[#1a1f2e]">Autodetectar por cliente (Default)</option>
+                  <option value="Limones" className="bg-[#1a1f2e]">🍋 Limones</option>
+                  <option value="Manzanas" className="bg-[#1a1f2e]">🍎 Manzanas</option>
+                  <option value="Cerezas" className="bg-[#1a1f2e]">🍒 Cerezas</option>
+                  <option value="Uvas" className="bg-[#1a1f2e]">🍇 Uvas</option>
+                  <option value="Naranjas" className="bg-[#1a1f2e]">🍊 Naranjas</option>
+                  <option value="Paltas" className="bg-[#1a1f2e]">🥑 Paltas</option>
+                  <option value="Kiwis" className="bg-[#1a1f2e]">🥝 Kiwis</option>
+                  <option value="Duraznos" className="bg-[#1a1f2e]">🍑 Duraznos</option>
+                  <option value="Arándanos" className="bg-[#1a1f2e]">🫐 Arándanos</option>
                 </select>
               </div>
             </div>

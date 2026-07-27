@@ -11,12 +11,14 @@ import Link from 'next/link'
 
 const NewDispatchModal = dynamic(() => import('@/components/despachos/NewDispatchModal'), { ssr: false })
 import { useRouter } from 'next/navigation'
+import { getCountryFlag, getFruitInfo } from '@/lib/flags-and-fruits'
 
 interface Dispatch {
   id: string
   internal_code: string
   dispatch_code: string
   client: string | null
+  species?: string | null
   destination: string | null
   dispatch_date: string | null
   expected_pallets: number | null
@@ -456,28 +458,33 @@ export default function DespachosPage() {
           </div>
         ) : (
           dispatches.map((dispatch) => {
+            const fruit = getFruitInfo(dispatch.species, dispatch.client)
+            const country = getCountryFlag(dispatch.destination)
             return (
               <div
                 key={dispatch.id}
                 onClick={() => router.push(`/despachos/${dispatch.id}`)}
                 className="grid grid-cols-12 px-5 py-4 border-b border-white/5 hover:bg-white/3 transition-all group items-center cursor-pointer"
               >
-                {/* Código + Nombre */}
+                {/* Código + Nombre + Especie */}
                 <div className="col-span-5 sm:col-span-4 md:col-span-3 lg:col-span-3">
                   <div className="flex items-center gap-2">
                     <div className={`w-1.5 h-8 rounded-full flex-shrink-0 bg-indigo-500/40`} />
                     <div>
-                      <div className="flex items-center gap-2">
+                      <div className="flex items-center gap-2 flex-wrap">
                         <p className="text-white font-semibold text-sm group-hover:text-indigo-400 transition-colors">
                           Despacho {dispatch.dispatch_code}
                         </p>
+                        <span className="px-2 py-0.5 rounded-full text-[11px] font-bold bg-white/5 text-slate-200 border border-white/10 flex items-center gap-1 shadow-sm" title={`Especie: ${fruit.label}`}>
+                          <span>{fruit.icon}</span>
+                          <span className="hidden sm:inline">{fruit.label}</span>
+                        </span>
                         <PaymentBadge status={dispatch.payment_status || 'pending'} />
                       </div>
                       <p className="text-gray-500 text-xs">
                         {formatDate(dispatch.dispatch_date)}
                         {dispatch.container_number && ` • Cont: ${dispatch.container_number}`}
                       </p>
-                      {/* Información financiera removida de la lista principal para vista limpia */}
                     </div>
                   </div>
                 </div>
@@ -487,9 +494,12 @@ export default function DespachosPage() {
                   <p className="text-gray-300 text-sm truncate">{dispatch.client || '—'}</p>
                 </div>
 
-                {/* Destino */}
+                {/* Destino con Bandera */}
                 <div className="col-span-2 hidden lg:block">
-                  <p className="text-gray-300 text-sm truncate">{dispatch.destination || '—'}</p>
+                  <div className="flex items-center gap-1.5" title={country.label}>
+                    <span className="text-base leading-none drop-shadow-sm">{country.flag}</span>
+                    <p className="text-gray-300 text-sm truncate">{dispatch.destination || '—'}</p>
+                  </div>
                 </div>
 
                 {/* Semáforo */}

@@ -19,6 +19,7 @@ import { useConfirm } from '@/components/layout/ConfirmDialog'
 import { puedeGestionarDespacho, esSoloLectura, esAdmin } from '@/lib/permissions'
 import { useRouter } from 'next/navigation'
 import dynamic from 'next/dynamic'
+import { getCountryFlag, getFruitInfo } from '@/lib/flags-and-fruits'
 
 const NewDispatchModal = dynamic(() => import('@/components/despachos/NewDispatchModal'), { ssr: false })
 const FilePreviewModal = dynamic(() => import('@/components/layout/FilePreviewModal'), { ssr: false })
@@ -34,6 +35,7 @@ interface Dispatch {
   internal_code: string
   dispatch_code: string
   client: string | null
+  species?: string | null
   destination: string | null
   dispatch_date: string | null
   expected_pallets: number | null
@@ -384,6 +386,9 @@ export default function DispatchDetailPage({ params }: { params: Promise<{ id: s
   const minFotos = Math.ceil((dispatch.expected_pallets || 0) / 2)
   const saldo = Number(dispatch.invoice_amount || 0) - Number(dispatch.advance_amount || 0)
 
+  const fruit = getFruitInfo(dispatch.species, dispatch.client)
+  const country = getCountryFlag(dispatch.destination)
+
   const PESTANAS: { id: Pestana; etiqueta: string; icono: React.ReactNode }[] = [
     { id: 'documentos', etiqueta: 'Documentos y fotos', icono: <FileText className="w-4 h-4" /> },
     { id: 'financiero', etiqueta: 'Financiero', icono: <Wallet className="w-4 h-4" /> },
@@ -418,7 +423,9 @@ export default function DispatchDetailPage({ params }: { params: Promise<{ id: s
                 <span className="text-gray-600">|</span>
                 <span><strong>Cliente:</strong> {dispatch.client || '—'}</span>
                 <span className="text-gray-600">|</span>
-                <span><strong>Destino:</strong> {dispatch.destination || '—'}</span>
+                <span><strong>Especie:</strong> {fruit.icon} {fruit.label}</span>
+                <span className="text-gray-600">|</span>
+                <span><strong>Destino:</strong> {country.flag} {dispatch.destination || '—'}</span>
                 {dispatch.container_number && (
                   <>
                     <span className="text-gray-600">|</span>
@@ -569,14 +576,18 @@ export default function DispatchDetailPage({ params }: { params: Promise<{ id: s
       )}
 
       {/* ── DATOS RESUMEN ────────────────────────────────────────────────── */}
-      <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-3">
+      <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-6 gap-3">
         <div className="bg-white/3 border border-white/8 rounded-xl p-4">
           <p className="text-gray-500 text-xs mb-1 flex items-center gap-1"><Building2 className="w-3 h-3" />Cliente</p>
           <p className="text-white font-medium text-sm truncate">{dispatch.client || '—'}</p>
         </div>
         <div className="bg-white/3 border border-white/8 rounded-xl p-4">
+          <p className="text-gray-500 text-xs mb-1 flex items-center gap-1"><span>{fruit.icon}</span>Especie</p>
+          <p className="text-white font-semibold text-sm truncate flex items-center gap-1.5">{fruit.icon} {fruit.label}</p>
+        </div>
+        <div className="bg-white/3 border border-white/8 rounded-xl p-4">
           <p className="text-gray-500 text-xs mb-1 flex items-center gap-1"><MapPin className="w-3 h-3" />Destino</p>
-          <p className="text-white font-medium text-sm truncate">{dispatch.destination || '—'}</p>
+          <p className="text-white font-medium text-sm truncate flex items-center gap-1.5"><span className="text-base">{country.flag}</span>{dispatch.destination || '—'}</p>
         </div>
         <div className="bg-white/3 border border-white/8 rounded-xl p-4">
           <p className="text-gray-500 text-xs mb-1 flex items-center gap-1"><Package className="w-3 h-3" />Pallets</p>
