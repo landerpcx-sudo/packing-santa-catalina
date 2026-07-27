@@ -882,34 +882,44 @@ export async function construirInformeFinancieroPDF(
 
     doc.y = yCardDic + 10
 
-    // ── V. MATRIZ GERENCIAL DE DECISIONES DE COSECHA & COMERCIALIZACIÓN (DISENO EXECUTIVE CAPSULES) ──
+    // ── V. MATRIZ GERENCIAL DE DECISIONES DE COSECHA & COMERCIALIZACIÓN (EXACT LAYOUT CON ÍCONOS) ──
     nuevaPagina()
     marcador('V. Matriz gerencial 2x2')
-    tituloSeccion('V. Matriz gerencial 2x2 de decisiones de cosecha & comercialización')
+    
+    // Título con Ícono de Diana / Target en el encabezado
+    const yTituloSec = doc.y
+    doc.circle(L + 6, yTituloSec + 6, 5.5).lineWidth(1.2).strokeColor(COLOR.indigo).stroke()
+    doc.circle(L + 6, yTituloSec + 6, 2.5).fill(COLOR.indigo)
+    
+    doc.fillColor(COLOR.tinta).font('B').fontSize(9)
+      .text('V. MATRIZ GERENCIAL 2X2 DE DECISIONES DE COSECHA & COMERCIALIZACIÓN', L + 16, yTituloSec + 2)
+    doc.y = yTituloSec + 18
+    doc.moveTo(L, doc.y).lineTo(R, doc.y).lineWidth(0.5).strokeColor(COLOR.lineaSuave).stroke()
+    doc.y += 12
 
     const cuadrantes = [
       {
-        titulo: 'ESTRELLAS DE EXPORTACIÓN', sub: 'ALTO VOLUMEN + ALTO MARGEN',
+        titulo: '★ ★  ESTRELLAS DE EXPORTACIÓN', sub: 'ALTO VOLUMEN + ALTO MARGEN',
         desc: 'Motor principal de ganancias del despacho. Se recomienda priorizar la selección y envío masivo de estos calibres a EU.',
-        bg: COLOR.verdeFondo, borde: COLOR.verdeBorde, texto: COLOR.verde,
+        bg: COLOR.verdeFondo, borde: COLOR.verdeBorde, texto: COLOR.verde, iconColor: '#d97706',
         items: analisis.filter((a: any) => a.cuadrante === 'ESTRELLA'),
       },
       {
-        titulo: 'NICHOS DE ALTO MARGEN', sub: 'BAJO VOLUMEN + ALTO MARGEN',
+        titulo: '★  NICHOS DE ALTO MARGEN', sub: 'BAJO VOLUMEN + ALTO MARGEN',
         desc: 'Excelente margen unitario pero poco volumen en el contenedor. Oportunidad para aumentar el embalaje de este calibre en futuras cosechas.',
-        bg: COLOR.tealFondo, borde: COLOR.tealBorde, texto: COLOR.teal,
+        bg: COLOR.tealFondo, borde: COLOR.tealBorde, texto: COLOR.teal, iconColor: COLOR.teal,
         items: analisis.filter((a: any) => a.cuadrante === 'NICHO'),
       },
       {
-        titulo: 'VOLUMEN COMMODITY', sub: 'ALTO VOLUMEN + MARGEN ESTÁNDAR',
+        titulo: '●  VOLUMEN COMMODITY', sub: 'ALTO VOLUMEN + MARGEN ESTÁNDAR',
         desc: 'Mucha carga enviada con margen ajustado. Se recomienda renegociar comisiones y tarifas flete marítimo para mejorar su rentabilidad global.',
-        bg: COLOR.fondo, borde: COLOR.linea, texto: COLOR.texto,
+        bg: COLOR.fondo, borde: COLOR.linea, texto: COLOR.texto, iconColor: COLOR.suave,
         items: analisis.filter((a: any) => a.cuadrante === 'COMMODITY'),
       },
       {
-        titulo: 'CALIBRES CRÍTICOS / PÉRDIDA NETA', sub: 'PÉRDIDA POR CAJA',
+        titulo: '●  CALIBRES CRÍTICOS / PÉRDIDA NETA', sub: 'PÉRDIDA POR CAJA',
         desc: 'Restan valor a la exportación. Se sugiere renegociar precio mínimo en destino o desviar estas categorías a mercado interno / industria de jugo.',
-        bg: COLOR.rojoFondo, borde: COLOR.rojoBorde, texto: COLOR.rojo,
+        bg: COLOR.rojoFondo, borde: COLOR.rojoBorde, texto: COLOR.rojo, iconColor: COLOR.rojo,
         items: analisis.filter((a: any) => a.cuadrante === 'PERDIDA'),
       },
     ]
@@ -929,7 +939,7 @@ export async function construirInformeFinancieroPDF(
       doc.roundedRect(L, yCard, W, altoCard, 6).fill(c.bg)
       doc.roundedRect(L, yCard, W, altoCard, 6).lineWidth(0.8).strokeColor(c.borde).stroke()
 
-      // Título Izquierda
+      // Título Izquierda con ícono distintivo
       doc.fillColor(c.texto).font('B').fontSize(8.5)
         .text(c.titulo, L + 14, yCard + 9, { lineBreak: false })
 
