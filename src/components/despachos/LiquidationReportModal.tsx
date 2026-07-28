@@ -100,7 +100,10 @@ export default function LiquidationReportModal({
   const fobCurrSymbol = getSymbol(fobCurrency)
 
   const formatMoney = (val: number, sym = currSymbol) => {
-    return `${sym} ${val.toLocaleString('es-CL', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+    const isCLP = sym.includes('CLP') || (sym === '$' && currency === 'CLP')
+    const decimals = isCLP ? 0 : 2
+    const num = isCLP ? Math.round(val) : val
+    return `${sym} ${num.toLocaleString('es-CL', { minimumFractionDigits: decimals, maximumFractionDigits: decimals })}`
   }
 
   const formatDate = (dateStr?: string | null) => {

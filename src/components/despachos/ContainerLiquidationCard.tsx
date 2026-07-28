@@ -380,11 +380,6 @@ export default function ContainerLiquidationCard({
   }
 
   // Abre el informe financiero como PDF de verdad, en una pestaña nueva.
-  //
-  // El PDF lo dibuja el servidor a partir de la liquidación GUARDADA, así que
-  // primero se guarda el borrador en silencio; si no, se imprimirían las cifras
-  // anteriores. La pestaña se abre de inmediato (antes del await) porque si se
-  // abriera después, el navegador la bloquearía por considerarla un pop-up.
   const handleOpenFinancialPDF = async () => {
     if (rows.length === 0) {
       setMessage({ type: 'error', text: 'Primero carga el Packlist: no hay calibres que informar.' })
@@ -563,11 +558,11 @@ export default function ContainerLiquidationCard({
                 <span className="font-bold text-slate-700 dark:text-gray-300 text-xs px-2 py-1 bg-slate-200/60 dark:bg-gray-800 rounded-lg">CLP ($)</span>
                 <input
                   type="number"
-                  step="0.01"
+                  step="1"
                   value={advanceAmount || ''}
                   onChange={(e) => setAdvanceAmount(parseFloat(e.target.value) || 0)}
                   disabled={isClosed}
-                  placeholder="0.00"
+                  placeholder="0"
                   className="w-36 bg-white dark:bg-gray-900 border border-slate-300 dark:border-gray-700 rounded-lg px-2.5 py-1 text-right font-mono font-bold text-slate-900 dark:text-white outline-none focus:border-indigo-500 text-xs"
                 />
               </div>
@@ -601,11 +596,11 @@ export default function ContainerLiquidationCard({
               <label className="text-slate-700 dark:text-gray-300 font-medium">Flete Terrestre (Planta a Puerto) ($ CLP)</label>
               <input
                 type="number"
-                step="0.01"
+                step="1"
                 value={inlandFreight || ''}
                 onChange={(e) => setInlandFreight(parseFloat(e.target.value) || 0)}
                 disabled={isClosed}
-                placeholder="0.00"
+                placeholder="0"
                 className="w-32 bg-white dark:bg-gray-900 border border-slate-300 dark:border-gray-700 rounded-lg px-2 py-1 text-right font-mono text-slate-900 dark:text-white outline-none focus:border-indigo-500 text-xs"
               />
             </div>
@@ -614,11 +609,11 @@ export default function ContainerLiquidationCard({
               <label className="text-slate-700 dark:text-gray-300 font-medium">Agente de Aduana / Tramitación ($ CLP)</label>
               <input
                 type="number"
-                step="0.01"
+                step="1"
                 value={customsBrokerage || ''}
                 onChange={(e) => setCustomsBrokerage(parseFloat(e.target.value) || 0)}
                 disabled={isClosed}
-                placeholder="0.00"
+                placeholder="0"
                 className="w-32 bg-white dark:bg-gray-900 border border-slate-300 dark:border-gray-700 rounded-lg px-2 py-1 text-right font-mono text-slate-900 dark:text-white outline-none focus:border-indigo-500 text-xs"
               />
             </div>
@@ -627,11 +622,11 @@ export default function ContainerLiquidationCard({
               <label className="text-slate-700 dark:text-gray-300 font-medium">Inspección / Certificados SAG ($ CLP)</label>
               <input
                 type="number"
-                step="0.01"
+                step="1"
                 value={phytosanitarySag || ''}
                 onChange={(e) => setPhytosanitarySag(parseFloat(e.target.value) || 0)}
                 disabled={isClosed}
-                placeholder="0.00"
+                placeholder="0"
                 className="w-32 bg-white dark:bg-gray-900 border border-slate-300 dark:border-gray-700 rounded-lg px-2 py-1 text-right font-mono text-slate-900 dark:text-white outline-none focus:border-indigo-500 text-xs"
               />
             </div>
@@ -640,11 +635,11 @@ export default function ContainerLiquidationCard({
               <label className="text-slate-700 dark:text-gray-300 font-medium">Gastos Portuarios Origen / THC ($ CLP)</label>
               <input
                 type="number"
-                step="0.01"
+                step="1"
                 value={portExpensesOrigin || ''}
                 onChange={(e) => setPortExpensesOrigin(parseFloat(e.target.value) || 0)}
                 disabled={isClosed}
-                placeholder="0.00"
+                placeholder="0"
                 className="w-32 bg-white dark:bg-gray-900 border border-slate-300 dark:border-gray-700 rounded-lg px-2 py-1 text-right font-mono text-slate-900 dark:text-white outline-none focus:border-indigo-500 text-xs"
               />
             </div>
@@ -653,11 +648,11 @@ export default function ContainerLiquidationCard({
               <label className="text-slate-700 dark:text-gray-300 font-medium">Seguro Terrestre Local ($ CLP)</label>
               <input
                 type="number"
-                step="0.01"
+                step="1"
                 value={inlandInsurance || ''}
                 onChange={(e) => setInlandInsurance(parseFloat(e.target.value) || 0)}
                 disabled={isClosed}
-                placeholder="0.00"
+                placeholder="0"
                 className="w-32 bg-white dark:bg-gray-900 border border-slate-300 dark:border-gray-700 rounded-lg px-2 py-1 text-right font-mono text-slate-900 dark:text-white outline-none focus:border-indigo-500 text-xs"
               />
             </div>
@@ -666,11 +661,11 @@ export default function ContainerLiquidationCard({
               <label className="text-slate-700 dark:text-gray-300 font-medium">Otros Gastos de Origen ($ CLP)</label>
               <input
                 type="number"
-                step="0.01"
+                step="1"
                 value={otherOriginExpenses || ''}
                 onChange={(e) => setOtherOriginExpenses(parseFloat(e.target.value) || 0)}
                 disabled={isClosed}
-                placeholder="0.00"
+                placeholder="0"
                 className="w-32 bg-white dark:bg-gray-900 border border-slate-300 dark:border-gray-700 rounded-lg px-2 py-1 text-right font-mono text-slate-900 dark:text-white outline-none focus:border-indigo-500 text-xs"
               />
             </div>

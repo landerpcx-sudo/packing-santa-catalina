@@ -228,8 +228,12 @@ export async function construirInformeFinancieroPDF(
     const pct = (v: number, decimales = 1) =>
       `${v.toLocaleString('es-CL', { minimumFractionDigits: decimales, maximumFractionDigits: decimales })}%`
 
-    const dinero = (v: number, s = simb) =>
-      `${s} ${v.toLocaleString('es-CL', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+    const dinero = (v: number, s = simb) => {
+      const isCLP = s.includes('CLP') || (s === '$' && currency === 'CLP')
+      const decimals = isCLP ? 0 : 2
+      const num = isCLP ? Math.round(v) : v
+      return `${s} ${num.toLocaleString('es-CL', { minimumFractionDigits: decimals, maximumFractionDigits: decimals })}`
+    }
 
     const clp = (v: number) =>
       `$ ${Math.round(v).toLocaleString('es-CL')} CLP`
