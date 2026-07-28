@@ -57,12 +57,9 @@ export async function GET(
       )
     }
 
-    // Saneamiento estricto de tasas en la API (descarta el valor antiguo 1000 guardado en BD)
-    if (!liq.fob_exchange_rate || Math.abs(Number(liq.fob_exchange_rate) - 1000) < 0.01) {
-      liq.fob_exchange_rate = 1075.0248
-    }
-    if (!liq.exchange_rate || Number(liq.exchange_rate) > 5) {
-      liq.exchange_rate = 1.1377
+    // Asegurar que la tasa de cambio exista (por defecto tasa de CLP en ~1050 si no está definida)
+    if (!liq.exchange_rate || Number(liq.exchange_rate) <= 1) {
+      liq.exchange_rate = liq.currency === 'CLP' ? 1 : 1050
     }
 
     const pdf = await construirInformeFinancieroPDF(dispatch, liq)

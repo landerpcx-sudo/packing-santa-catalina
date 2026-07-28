@@ -55,11 +55,8 @@ export async function GET(
 
     if (liq) {
       try {
-        if (!liq.fob_exchange_rate || Math.abs(Number(liq.fob_exchange_rate) - 1000) < 0.01) {
-          liq.fob_exchange_rate = 1075.0248
-        }
-        if (!liq.exchange_rate || Number(liq.exchange_rate) > 5) {
-          liq.exchange_rate = 1.1377
+        if (!liq.exchange_rate || Number(liq.exchange_rate) <= 1) {
+          liq.exchange_rate = liq.currency === 'CLP' ? 1 : 1050
         }
         const finPdf = await construirInformeFinancieroPDF(dispatch, liq)
         filesToZip.push({

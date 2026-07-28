@@ -340,35 +340,31 @@ export async function construirInformeFinancieroPDF(
     marcador('Resumen ejecutivo')
     tituloSeccion('Resumen ejecutivo del contenedor', COLOR.verde)
 
-    // Saneamiento de Tasas de Cambio Inmutables (Evita bugs donde 1 EUR -> USD tomaba la tasa de CLP)
-    const tasaSaleToTarget = (targetCurrency === 'USD' && exchangeRate > 5) ? 1.1377 : (exchangeRate || 1)
-    const finalBalanceTargetUSD = currency === targetCurrency ? finalBalance : finalBalance * tasaSaleToTarget
-    const utilidadTotalCLPEst = finalBalance * tasaCLPOtorgada
-    const ingresoNetoPromedioCLP = (netAmount * tasaCLPOtorgada) / safeCajas
-
+    // Resumen Ejecutivo Multimoneda
+    const finalBalanceCLP = netAmountCLP - realFobCLP
     const saldoFob = Math.max(advanceAmount - abonosAmount, 0)
     const facturaPagada = saldoFob <= 0 && advanceAmount > 0
-    const rentable = finalBalance >= 0
+    const rentable = finalBalanceCLP >= 0
     const margenPct = grossSales > 0 ? (finalBalance / grossSales) * 100 : 0
 
     const tarjetas: Array<{ etiqueta: string; cifra: string; pie: string; color: string; fondo: string }> = [
       {
         etiqueta: 'VENTA BRUTA DESTINO',
-        cifra: dinero(grossSales),
-        pie: `${totalCajas.toLocaleString('es-CL')} cajas · ${dinero(grossSales * tasaSaleToTarget, simbTarget)} ${targetCurrency}`,
+        cifra: dinero(grossSales, simb),
+        pie: `${totalCajas.toLocaleString('es-CL')} cajas · ${clp(grossSales * tasaCLPOtorgada)}`,
         color: COLOR.indigo, fondo: COLOR.fondo,
       },
       {
         etiqueta: rentable ? 'UTILIDAD EXPORTADOR' : 'PÉRDIDA DEL NEGOCIO',
-        cifra: `${simbTarget} ${finalBalanceTargetUSD.toLocaleString('es-CL', { maximumFractionDigits: 0 })} ${targetCurrency}`,
-        pie: `Tot. CLP: ${clp(utilidadTotalCLPEst)}`,
+        cifra: clp(finalBalanceCLP),
+        pie: `(${dinero(finalBalance, simb)} ${currency})`,
         color: rentable ? COLOR.verde : COLOR.rojo,
         fondo: rentable ? COLOR.verdeFondo : COLOR.rojoFondo,
       },
       {
         etiqueta: 'UTILIDAD PROMEDIO / CAJA',
-        cifra: `${dinero(finalBalance / safeCajas)} / cj`,
-        pie: `Margen: ${pct(margenPct)} · ${clp(utilidadTotalCLPEst / safeCajas)}/cj`,
+        cifra: `${clp(finalBalanceCLP / safeCajas)} / cj`,
+        pie: `Margen: ${pct(margenPct)} · ${dinero(finalBalance / safeCajas, simb)}/cj`,
         color: rentable ? COLOR.teal : COLOR.rojo,
         fondo: rentable ? COLOR.tealFondo : COLOR.rojoFondo,
       },
@@ -642,11 +638,11 @@ export async function construirInformeFinancieroPDF(
     marcador('III. Resumen financiero')
     tituloSeccion('III. Resumen financiero y tabla maestra multi-moneda', COLOR.verde)
 
-    const esVentaUSD = currency === 'USD'
-    const anchosMulti = esVentaUSD ? [215, 150, 150] : [170, 115, 115, 115]
-    const cabeceraMulti = esVentaUSD 
-      ? ['Concepto Financiero', 'Dólares (USD $)', 'Pesos Chilenos (CLP $)']
-      : ['Concepto Financiero', `Venta Destino (${currency} ${simb})`, 'Dólares (USD $)', 'Pesos Chilenos (CLP $)']
+    const esSoloCLP = currency === 'CLP'
+    const anchosMulti = esSoloCLP ? [315, 200] : [255, 130, 130]
+    const cabeceraMulti = esSoloCLP 
+      ? ['Concepto Financiero', 'Pesos Chilenos (CLP $)']
+      : ['Concepto Financiero', `Venta Destino (${currency} ${simb})`, 'Pesos Chilenos (CLP $)']
 
     const filaMulti = (
       valores: string[],
@@ -681,69 +677,59 @@ export async function construirInformeFinancieroPDF(
     filaMulti(cabeceraMulti, { cabecera: true, fondo: COLOR.fondoCabecera, alto: 18 })
 
     // Venta Bruta
-    const vB_Dest = dinero(grossSales)
-    const vB_USD = `${simbTarget} ${(grossSales * tasaSaleToTarget).toLocaleString('es-CL', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+    const vB_Dest = dinero(grossSales, simb)
     const vB_CLP = clp(grossSales * tasaCLPOtorgada)
-    filaMulti(esVentaUSD ? ['Venta Bruta Destino', vB_USD, vB_CLP] : ['Venta Bruta Destino', vB_Dest, vB_USD, vB_CLP])
+    filaMulti(esSoloCLP ? ['Venta Bruta Destino', vB_CLP] : ['Venta Bruta Destino', vB_Dest, vB_CLP])
 
     // Deducciones
-    const ded_Dest = `-${dinero(totalExpenses)}`
-    const ded_USD = `-${simbTarget} ${(totalExpenses * tasaSaleToTarget).toLocaleString('es-CL', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+    const ded_Dest = `-${dinero(totalExpenses, simb)}`
     const ded_CLP = `-${clp(totalExpenses * tasaCLPOtorgada)}`
-    filaMulti(esVentaUSD ? ['(-) Deducciones en Destino', ded_USD, ded_CLP] : ['(-) Deducciones en Destino', ded_Dest, ded_USD, ded_CLP], { color: COLOR.rojo })
+    filaMulti(esSoloCLP ? ['(-) Deducciones en Destino', ded_CLP] : ['(-) Deducciones en Destino', ded_Dest, ded_CLP], { color: COLOR.rojo })
 
     // Importe Neto
-    const net_Dest = dinero(netAmount)
-    const net_USD = `${simbTarget} ${(netAmount * tasaSaleToTarget).toLocaleString('es-CL', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
-    const net_CLP = clp(netAmount * tasaCLPOtorgada)
-    filaMulti(esVentaUSD ? ['(=) Importe Neto a Favor', net_USD, net_CLP] : ['(=) Importe Neto a Favor', net_Dest, net_USD, net_CLP], { negrita: true, color: COLOR.verde, fondo: COLOR.fondo })
+    const net_Dest = dinero(netAmount, simb)
+    const net_CLP = clp(netAmountCLP)
+    filaMulti(esSoloCLP ? ['(=) Importe Neto a Favor', net_CLP] : ['(=) Importe Neto a Favor', net_Dest, net_CLP], { negrita: true, color: COLOR.verde, fondo: COLOR.fondo })
 
     // Ingreso Neto / Caja
-    const netCj_Dest = `${dinero(netAmount / safeCajas)} / cj`
-    const netCj_USD = `${simbTarget} ${(netAmount * tasaSaleToTarget / safeCajas).toLocaleString('es-CL', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} / cj`
-    const netCj_CLP = `${clp((netAmount * tasaCLPOtorgada) / safeCajas)} / cj`
-    filaMulti(esVentaUSD ? ['    Ingreso Neto / Caja', netCj_USD, netCj_CLP] : ['    Ingreso Neto / Caja', netCj_Dest, netCj_USD, netCj_CLP], { color: COLOR.teal, alto: 15 })
+    const netCj_Dest = `${dinero(netAmount / safeCajas, simb)} / cj`
+    const netCj_CLP = `${clp(netAmountCLP / safeCajas)} / cj`
+    filaMulti(esSoloCLP ? ['    Ingreso Neto / Caja', netCj_CLP] : ['    Ingreso Neto / Caja', netCj_Dest, netCj_CLP], { color: COLOR.teal, alto: 15 })
 
     // Costo Fruta EXW Facturado (En Planta)
-    const exw_Dest = `-${dinero(exwEnMonedaVenta)}`
-    const exw_USD = `-${simbTarget} ${(exwEnMonedaVenta * tasaSaleToTarget).toLocaleString('es-CL', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+    const exw_Dest = `-${dinero(exwEnMonedaVenta, simb)}`
     const exw_CLP = `-${clp(advanceAmount)}`
-    filaMulti(esVentaUSD ? ['(-) Costo Fruta EXW Facturado (Planta)', exw_USD, exw_CLP] : ['(-) Costo Fruta EXW Facturado (Planta)', exw_Dest, exw_USD, exw_CLP], { color: COLOR.rojo })
+    filaMulti(esSoloCLP ? ['(-) Costo Fruta EXW Facturado (Planta)', exw_CLP] : ['(-) Costo Fruta EXW Facturado (Planta)', exw_Dest, exw_CLP], { color: COLOR.rojo })
 
     // Costos de Planta a Puerto (Gastos Origen)
-    const orig_Dest = `-${dinero(origenEnMonedaVenta)}`
-    const orig_USD = `-${simbTarget} ${(origenEnMonedaVenta * tasaSaleToTarget).toLocaleString('es-CL', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+    const orig_Dest = `-${dinero(origenEnMonedaVenta, simb)}`
     const orig_CLP = `-${clp(originExpensesTotal)}`
-    filaMulti(esVentaUSD ? ['(-) Costos de Planta a Puerto (Origen)', orig_USD, orig_CLP] : ['(-) Costos de Planta a Puerto (Origen)', orig_Dest, orig_USD, orig_CLP], { color: COLOR.indigo })
+    filaMulti(esSoloCLP ? ['(-) Costos de Planta a Puerto (Origen)', orig_CLP] : ['(-) Costos de Planta a Puerto (Origen)', orig_Dest, orig_CLP], { color: COLOR.indigo })
 
     // Costo FOB Real en Puerto (EXW + Origen)
-    const fob_Dest = `-${dinero(fobEnMonedaVenta)}`
-    const fob_USD = `-${simbTarget} ${(fobEnMonedaVenta * tasaSaleToTarget).toLocaleString('es-CL', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
-    const fob_CLP = `-${clp(advanceAmount + originExpensesTotal)}`
-    filaMulti(esVentaUSD ? ['(=) Costo FOB Real en Puerto', fob_USD, fob_CLP] : ['(=) Costo FOB Real en Puerto', fob_Dest, fob_USD, fob_CLP], { negrita: true, color: COLOR.rojo, fondo: COLOR.fondoCabecera })
+    const fob_Dest = `-${dinero(fobEnMonedaVenta, simb)}`
+    const fob_CLP = `-${clp(realFobCLP)}`
+    filaMulti(esSoloCLP ? ['(=) Costo FOB Real en Puerto', fob_CLP] : ['(=) Costo FOB Real en Puerto', fob_Dest, fob_CLP], { negrita: true, color: COLOR.rojo, fondo: COLOR.fondoCabecera })
 
     // FOB Real / Caja (Puerto)
-    const fobCj_Dest = `${dinero(fobEnMonedaVenta / safeCajas)} / cj`
-    const fobCj_USD = `${simbTarget} ${(fobEnMonedaVenta * tasaSaleToTarget / safeCajas).toLocaleString('es-CL', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} / cj`
-    const fobCj_CLP = `${clp((advanceAmount + originExpensesTotal) / safeCajas)} / cj`
-    filaMulti(esVentaUSD ? ['    FOB Real Fruta / Caja (Puerto)', fobCj_USD, fobCj_CLP] : ['    FOB Real Fruta / Caja (Puerto)', fobCj_Dest, fobCj_USD, fobCj_CLP], { color: COLOR.suave, alto: 15 })
+    const fobCj_Dest = `${dinero(fobEnMonedaVenta / safeCajas, simb)} / cj`
+    const fobCj_CLP = `${clp(realFobCLP / safeCajas)} / cj`
+    filaMulti(esSoloCLP ? ['    FOB Real Fruta / Caja (Puerto)', fobCj_CLP] : ['    FOB Real Fruta / Caja (Puerto)', fobCj_Dest, fobCj_CLP], { color: COLOR.suave, alto: 15 })
 
     // UTILIDAD FINAL NEGOCIO
-    const ut_Dest = dinero(finalBalance)
-    const ut_USD = `${simbTarget} ${finalBalanceTargetUSD.toLocaleString('es-CL', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
-    const ut_CLP = clp(utilidadTotalCLPEst)
+    const ut_Dest = dinero(finalBalance, simb)
+    const ut_CLP = clp(finalBalanceCLP)
     filaMulti(
-      esVentaUSD ? ['(=) UTILIDAD FINAL DEL NEGOCIO', ut_USD, ut_CLP] : ['(=) UTILIDAD FINAL DEL NEGOCIO', ut_Dest, ut_USD, ut_CLP],
-      { negrita: true, color: finalBalance >= 0 ? COLOR.verde : COLOR.rojo, destaca: true, alto: 20 }
+      esSoloCLP ? ['(=) UTILIDAD FINAL DEL NEGOCIO', ut_CLP] : ['(=) UTILIDAD FINAL DEL NEGOCIO', ut_Dest, ut_CLP],
+      { negrita: true, color: finalBalanceCLP >= 0 ? COLOR.verde : COLOR.rojo, destaca: true, alto: 20 }
     )
 
     // Utilidad / Caja
-    const utCj_Dest = `${dinero(finalBalance / safeCajas)} / cj`
-    const utCj_USD = `${simbTarget} ${(finalBalanceTargetUSD / safeCajas).toLocaleString('es-CL', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} / cj`
-    const utCj_CLP = `${clp(utilidadTotalCLPEst / safeCajas)} / cj`
+    const utCj_Dest = `${dinero(finalBalance / safeCajas, simb)} / cj`
+    const utCj_CLP = `${clp(finalBalanceCLP / safeCajas)} / cj`
     filaMulti(
-      esVentaUSD ? ['    Utilidad Promedio / Caja', utCj_USD, utCj_CLP] : ['    Utilidad Promedio / Caja', utCj_Dest, utCj_USD, utCj_CLP],
-      { negrita: true, color: finalBalance >= 0 ? COLOR.verde : COLOR.rojo, alto: 16 }
+      esSoloCLP ? ['    Utilidad Promedio / Caja', utCj_CLP] : ['    Utilidad Promedio / Caja', utCj_Dest, utCj_CLP],
+      { negrita: true, color: finalBalanceCLP >= 0 ? COLOR.verde : COLOR.rojo, alto: 16 }
     )
 
     doc.y += 10
@@ -754,30 +740,30 @@ export async function construirInformeFinancieroPDF(
     doc.rect(L, yAbonos, W, 16).fill(COLOR.fondo)
     doc.fillColor(COLOR.suave).font('R').fontSize(7)
       .text(`Abonos recibidos a factura EXW: `, L + 8, yAbonos + 5, { continued: true })
-      .fillColor(COLOR.verde).font('B').text(dinero(abonosAmount, simbFob))
+      .fillColor(COLOR.verde).font('B').text(clp(abonosAmount))
     doc.fillColor(COLOR.suave).font('R').fontSize(7)
       .text(`Saldo pendiente de factura EXW: `, L + W / 2, yAbonos + 5, { continued: true })
-      .fillColor(COLOR.ambar).font('B').text(dinero(Math.max(advanceAmount - abonosAmount, 0), simbFob))
+      .fillColor(COLOR.ambar).font('B').text(clp(Math.max(advanceAmount - abonosAmount, 0)))
     doc.y = yAbonos + 20
 
-    // Tasa de cambio oficial Dólar (USD) -> Pesos Chilenos (CLP) y fecha
+    // Tasa de cambio oficial de Venta -> Pesos Chilenos (CLP)
     asegurar(22)
     const fechaTasaStr = liq.rate_date ? fecha(liq.rate_date) : (dispatch.dispatch_date ? fecha(dispatch.dispatch_date) : fecha(new Date().toISOString()))
-    const tasaUSDCLP = tasaSaleToTarget > 0 ? (tasaCLPOtorgada / tasaSaleToTarget) : 910.29
 
-    doc.fillColor(COLOR.suave).font('R').fontSize(6.8)
-      .text(
-        `T/C Dólar Observado (USD -> CLP): 1 USD = $ ${tasaUSDCLP.toLocaleString('es-CL', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} CLP (Fecha T/C: ${fechaTasaStr})` +
-        `  ·  Tasa Venta (${currency} -> USD): 1 ${currency} = ${tasaSaleToTarget} USD` +
-        (liq.rate_provider_info ? `  ·  ${liq.rate_provider_info}` : ''),
-        L, doc.y, { width: W }
-      )
-    doc.y += 18
+    if (!esSoloCLP) {
+      doc.fillColor(COLOR.suave).font('R').fontSize(6.8)
+        .text(
+          `Tasa de Cambio Oficial (${currency} -> CLP): 1 ${currency} = $ ${tasaCLPOtorgada.toLocaleString('es-CL')} CLP (Fecha T/C: ${fechaTasaStr})` +
+          (liq.rate_provider_info ? `  ·  ${liq.rate_provider_info}` : ''),
+          L, doc.y, { width: W }
+        )
+      doc.y += 18
+    }
 
-    // Cuadro destacado con el resultado final del negocio en Doble Moneda (USD & CLP) SANEADO Y LIMPIO
+    // Cuadro destacado con el resultado final del negocio en Doble Moneda (Destino & CLP)
     asegurar(60)
     const yDetalle = doc.y
-    const positivo = finalBalance >= 0
+    const positivo = finalBalanceCLP >= 0
     doc.rect(L, yDetalle, W, 52).fill(positivo ? COLOR.verdeFondo : COLOR.ambarFondo)
     doc.rect(L, yDetalle, W, 52).lineWidth(1).strokeColor(positivo ? COLOR.verde : COLOR.ambar).stroke()
     doc.fillColor(positivo ? COLOR.verde : COLOR.ambar).font('B').fontSize(7.5)
@@ -788,16 +774,18 @@ export async function construirInformeFinancieroPDF(
         L + 12, yDetalle + 7, { width: W - 24 }
       )
 
-    // Cifra en Moneda Objetivo (ej. USD)
-    doc.fillColor(positivo ? COLOR.verde : COLOR.ambar).font('B').fontSize(15)
-      .text(`${simbTarget} ${finalBalanceTargetUSD.toLocaleString('es-CL', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} ${targetCurrency}`, L + 12, yDetalle + 18, { lineBreak: false })
+    // Cifra en Pesos Chilenos (CLP)
+    doc.fillColor(positivo ? COLOR.verde : COLOR.rojo).font('B').fontSize(15)
+      .text(clp(finalBalanceCLP), L + 12, yDetalle + 18, { lineBreak: false })
     
-    // Cifra equivalente en Pesos Chilenos (CLP)
-    doc.fillColor(COLOR.tinta).font('B').fontSize(14)
-      .text(`${clp(utilidadTotalCLPEst)}`, R - 210, yDetalle + 18, { width: 198, align: 'right', lineBreak: false })
+    // Cifra equivalente en Moneda Destino
+    if (!esSoloCLP) {
+      doc.fillColor(COLOR.tinta).font('B').fontSize(14)
+        .text(`(${dinero(finalBalance, simb)} ${currency})`, R - 210, yDetalle + 18, { width: 198, align: 'right', lineBreak: false })
+    }
 
     doc.fillColor(COLOR.suave).font('R').fontSize(6.5)
-      .text(`Equivalente Moneda Venta: ${dinero(finalBalance)}  ·  T/C Dólar: 1 USD = $ ${tasaUSDCLP.toLocaleString('es-CL', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} CLP (${fechaTasaStr})  ·  Tasa FOB: 1 ${currency} = $ ${tasaCLPOtorgada.toLocaleString('es-CL')} CLP`, L + 12, yDetalle + 38, { width: W - 24 })
+      .text(`Utilidad Promedio por Caja: ${clp(finalBalanceCLP / safeCajas)} / cj  ·  Tasa de Cambio: 1 ${currency} = $ ${tasaCLPOtorgada.toLocaleString('es-CL')} CLP (${fechaTasaStr})`, L + 12, yDetalle + 38, { width: W - 24 })
 
     doc.y = yDetalle + 60
 

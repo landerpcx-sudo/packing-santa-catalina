@@ -133,8 +133,12 @@ export default function ContainerLiquidationCard({
           setSurveyor(existingLiq.surveyor_amount ?? 0)
           setTransport(existingLiq.transport_amount ?? 0)
           setOtherExpenses(existingLiq.other_expenses ?? 0)
-          setAdvanceAmount(existingLiq.advance_amount || Number(data.dispatch?.invoice_amount || 0))
-          setExchangeRate(existingLiq.exchange_rate ?? 1000)
+          const loadedRate = Number(existingLiq.exchange_rate)
+          if (existingLiq.currency !== 'CLP' && (!loadedRate || loadedRate <= 5)) {
+            setExchangeRate(1050)
+          } else {
+            setExchangeRate(loadedRate || 1000)
+          }
 
           // Costos de Planta a Puerto (Gastos de Origen en CLP)
           if (existingLiq.inland_freight !== undefined) setInlandFreight(Number(existingLiq.inland_freight) || 0)
