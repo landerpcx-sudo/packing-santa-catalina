@@ -1045,36 +1045,8 @@ export default function ContainerLiquidationCard({
         </div>
       </div>
 
-      {/* Aviso de PDF desactualizado: el informe abierto en otra pestaña es una
-          foto fija y no se actualiza solo al cambiar cifras aquí. */}
-      {pdfDesactualizado && (
-        <div className="flex items-start gap-2.5 px-4 py-3 rounded-xl border border-amber-400/40 bg-amber-50 dark:bg-amber-500/10 text-amber-800 dark:text-amber-300">
-          <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" />
-          <p className="text-xs font-medium leading-relaxed">
-            Cambiaste cifras después de generar el informe en PDF. El que tienes abierto en la otra
-            pestaña muestra los números <strong>anteriores</strong>: vuelve a pulsar
-            &laquo;Ver Informe Financiero (PDF)&raquo; antes de enviarlo o imprimirlo.
-          </p>
-        </div>
-      )}
-
       {/* BOTONES DE ACCIÓN */}
       <div className="flex flex-wrap items-center justify-end gap-3 pt-4 border-t border-slate-200 dark:border-gray-800">
-        <button
-          onClick={handleOpenFinancialPDF}
-          disabled={generatingPdf}
-          title="Abre el informe en PDF en una pestaña nueva: ahí puedes verlo, imprimirlo o descargarlo para enviarlo"
-          className={`flex items-center gap-2 px-4 py-2 text-xs font-bold text-white rounded-xl transition shadow-lg disabled:opacity-50 ${
-            pdfDesactualizado
-              ? 'bg-amber-600 hover:bg-amber-500 shadow-amber-900/20 ring-2 ring-amber-400/50'
-              : 'bg-indigo-600 hover:bg-indigo-500 shadow-indigo-900/20'
-          }`}
-        >
-          {generatingPdf ? <RefreshCw className="w-4 h-4 animate-spin" /> : <FileText className="w-4 h-4" />}
-          {generatingPdf
-            ? 'Preparando informe...'
-            : pdfDesactualizado ? 'Regenerar Informe (PDF)' : 'Ver Informe Financiero (PDF)'}
-        </button>
 
         <button
           onClick={() => setShowReportModal(true)}
