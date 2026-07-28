@@ -341,7 +341,7 @@ export default function ContainerLiquidationCard({
         exchange_rate: exchangeRate,
         final_balance: finalBalanceInCurrency,
         status: statusToSave,
-        user_id: userId,
+        user_id: null,
         items: rows,
         target_currency: targetCurrency,
         fob_currency: fobCurrency,

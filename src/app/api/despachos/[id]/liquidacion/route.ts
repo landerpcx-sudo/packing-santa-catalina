@@ -126,7 +126,7 @@ export async function POST(
       inland_insurance,
       other_origin_expenses,
       origin_expenses_total,
-      created_by: user_id,
+      created_by: (user_id && typeof user_id === 'string' && user_id.length > 20) ? user_id : null,
       updated_at: new Date().toISOString()
     }
 
@@ -139,7 +139,7 @@ export async function POST(
     if (saveErr || !savedLiquidation) {
       console.error('Error guardando dispatch_liquidations:', saveErr)
       return NextResponse.json(
-        { error: 'Error al guardar el encabezado de la liquidación.' },
+        { error: `Error al guardar el encabezado de la liquidación: ${saveErr?.message || saveErr?.details || 'Error en base de datos.'}` },
         { status: 500 }
       )
     }
