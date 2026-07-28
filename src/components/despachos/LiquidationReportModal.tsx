@@ -112,12 +112,10 @@ export default function LiquidationReportModal({
   // CÁLCULOS AVANZADOS DE INTELIGENCIA COMERCIAL POR CALIBRE
   const safeTotalCajas = totalCajas > 0 ? totalCajas : 1
   const expensePerBox = totalExpenses / safeTotalCajas
-  const tasaCLPOtorgada = (fobCurrency === 'CLP' && fobExchangeRate > 100 && Math.abs(fobExchangeRate - 1000) > 0.01)
-    ? fobExchangeRate
-    : (exchangeRate > 100 ? exchangeRate : 1075.0248)
-  const fobInSalesCurrency = fobCurrency === currency 
+  const tasaCLPOtorgada = currency === 'CLP' ? 1 : (exchangeRate || 1)
+  const fobInSalesCurrency = currency === 'CLP' 
     ? advanceAmount 
-    : (advanceAmount / tasaCLPOtorgada)
+    : (advanceAmount / (tasaCLPOtorgada || 1))
   const fobPerBox = fobInSalesCurrency / safeTotalCajas
   const avgProfitPerBox = finalBalanceInCurrency / safeTotalCajas
   const avgBoxesPerCalibre = safeTotalCajas / (rows.length || 1)
@@ -406,14 +404,16 @@ export default function LiquidationReportModal({
               </div>
 
               {/* Tasa de Cambio */}
-              <div className="flex flex-wrap items-center justify-between text-xs bg-slate-50 p-2.5 rounded-xl border border-slate-200 gap-2">
-                <span className="text-slate-600 font-medium">
-                  Tasa de Cambio Oficial ({currency} → {targetCurrency}): <strong className="font-mono text-indigo-700">1 {currency} = {exchangeRate} {targetCurrency}</strong>
-                </span>
-                <span className="text-slate-600 font-medium">
-                  T/C Dólar Observado (USD → CLP): <strong className="font-mono text-emerald-700">1 USD = $ {(tasaCLPOtorgada / (exchangeRate || 1)).toLocaleString('es-CL', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} CLP</strong> {rateProviderInfo ? `[${rateProviderInfo}]` : ''}
-                </span>
-              </div>
+              {currency !== 'CLP' && (
+                <div className="flex flex-wrap items-center justify-between text-xs bg-indigo-50/60 p-2.5 rounded-xl border border-indigo-100 gap-2">
+                  <span className="text-slate-600 font-medium">
+                    Tasa de Cambio Oficial ({currency} → CLP): <strong className="font-mono text-indigo-700">1 {currency} = $ {exchangeRate.toLocaleString('es-CL')} CLP</strong>
+                  </span>
+                  {rateProviderInfo && (
+                    <span className="text-indigo-600 text-[11px] font-medium">[{rateProviderInfo}]</span>
+                  )}
+                </div>
+              )}
 
               {/* CUADRO DESTACADO DE UTILIDAD DEL NEGOCIO */}
               <div className={`p-5 rounded-2xl border-2 space-y-1 ${

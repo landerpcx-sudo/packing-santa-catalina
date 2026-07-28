@@ -99,28 +99,23 @@ export async function construirInformeFinancieroPDF(
   )
 
   // ----------------------------------------------------
-  // RECÁLCULO DINÁMICO (Plan Solución PDF Multimoneda)
+  // RECÁLCULO DINÁMICO MULTIMONEDA (Origen CLP / Destino Moneda Venta)
   // ----------------------------------------------------
-  // 1. Tasa CLP/Origen real otorgada (descarta 1000 si hay tasa real disponible)
-  const tasaCLPOtorgada = (fobExchangeRate > 100 && Math.abs(fobExchangeRate - 1000) > 0.01) 
-    ? fobExchangeRate 
-    : (exchangeRate > 100 ? exchangeRate : 1075.0248)
+  // 1. Tasa de Cambio (Moneda Destino -> CLP)
+  const tasaCLPOtorgada = currency === 'CLP' ? 1 : (exchangeRate > 0 ? exchangeRate : 1000)
 
-  // 2. Costo EXW Fruta en Moneda de Venta
-  const exwEnMonedaVenta = fobCurrency === currency 
-    ? advanceAmount 
-    : (advanceAmount / tasaCLPOtorgada)
+  // 2. Costos de Origen en CLP
+  const realFobCLP = advanceAmount + originExpensesTotal
 
-  // 3. Costos de Planta a Puerto (Origen) en Moneda de Venta
-  const origenEnMonedaVenta = fobCurrency === currency
-    ? originExpensesTotal
-    : (originExpensesTotal / tasaCLPOtorgada)
-
-  // 4. Costo FOB Real en Puerto (EXW + Planta a Puerto)
+  // 3. Costo EXW Fruta y Origen expresados en Moneda de Venta
+  const exwEnMonedaVenta = currency === 'CLP' ? advanceAmount : (advanceAmount / tasaCLPOtorgada)
+  const origenEnMonedaVenta = currency === 'CLP' ? originExpensesTotal : (originExpensesTotal / tasaCLPOtorgada)
   const fobEnMonedaVenta = exwEnMonedaVenta + origenEnMonedaVenta
 
-  // 5. Utilidad Final Real del Negocio - Anula final_balance estático de la BD
-  const finalBalance = netAmount - fobEnMonedaVenta
+  // 4. Utilidad Real del Negocio (en Moneda Destino y en CLP)
+  const netAmountCLP = currency === 'CLP' ? netAmount : (netAmount * tasaCLPOtorgada)
+  const finalBalanceCLP = netAmountCLP - realFobCLP
+  const finalBalance = currency === 'CLP' ? finalBalanceCLP : (finalBalanceCLP / tasaCLPOtorgada)
 
   const freight = Number(liq.freight_amount) || 0
   const transport = Number(liq.transport_amount) || 0
