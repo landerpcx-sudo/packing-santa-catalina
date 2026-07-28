@@ -133,6 +133,11 @@ export default function ContainerLiquidationCard({
           setSurveyor(existingLiq.surveyor_amount ?? 0)
           setTransport(existingLiq.transport_amount ?? 0)
           setOtherExpenses(existingLiq.other_expenses ?? 0)
+          const initialAdvance = (existingLiq.advance_amount && Number(existingLiq.advance_amount) > 0)
+            ? Number(existingLiq.advance_amount)
+            : Number(data.dispatch?.invoice_amount || 0)
+          setAdvanceAmount(initialAdvance)
+
           const loadedRate = Number(existingLiq.exchange_rate)
           if (existingLiq.currency !== 'CLP' && (!loadedRate || loadedRate <= 5)) {
             setExchangeRate(1050)
