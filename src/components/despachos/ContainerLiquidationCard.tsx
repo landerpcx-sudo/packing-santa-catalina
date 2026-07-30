@@ -13,6 +13,8 @@ interface ContainerLiquidationCardProps {
   dispatchCode: string
   isClosed?: boolean
   userId?: string
+  refreshKey?: number
+  onLiquidationSaved?: () => void
 }
 
 export const CURRENCIES = [
@@ -29,7 +31,9 @@ export default function ContainerLiquidationCard({
   dispatchId,
   dispatchCode,
   isClosed = false,
-  userId
+  userId,
+  refreshKey,
+  onLiquidationSaved
 }: ContainerLiquidationCardProps) {
   const [loading, setLoading] = useState(true)
   const [parsingPacklist, setParsingPacklist] = useState(false)
@@ -158,7 +162,11 @@ export default function ContainerLiquidationCard({
           if (liq.target_currency) setTargetCurrency(liq.target_currency)
           setFobCurrency('CLP')
           if (liq.fob_exchange_rate) setFobExchangeRate(Number(liq.fob_exchange_rate))
-          if (liq.abonos_amount) setAbonosAmount(Number(liq.abonos_amount))
+          if (liq.abonos_amount !== undefined && liq.abonos_amount !== null) {
+            setAbonosAmount(Number(liq.abonos_amount))
+          } else if (data.dispatch?.advance_amount) {
+            setAbonosAmount(Number(data.dispatch.advance_amount))
+          }
           if (liq.rate_provider_info) setRateProviderInfo(liq.rate_provider_info)
           if (liq.rate_date) setRateDate(String(liq.rate_date).split('T')[0])
 
@@ -185,6 +193,9 @@ export default function ContainerLiquidationCard({
           if (data.dispatch?.invoice_amount) {
             setAdvanceAmount(Number(data.dispatch.invoice_amount))
           }
+          if (data.dispatch?.advance_amount) {
+            setAbonosAmount(Number(data.dispatch.advance_amount))
+          }
           setRows(fetchedPacklist.map(pk => ({
             packlist_item_id: pk.id,
             envase: pk.envase,
@@ -204,7 +215,7 @@ export default function ContainerLiquidationCard({
 
   useEffect(() => {
     fetchLiquidationData()
-  }, [fetchLiquidationData])
+  }, [fetchLiquidationData, refreshKey])
 
   // Consultar API Tipo de Cambio Oficial (Moneda Destino -> CLP Pesos Chilenos)
   const handleFetchExchangeRate = async () => {
@@ -373,6 +384,7 @@ export default function ContainerLiquidationCard({
             ? '¡Liquidación de contenedor finalizada y guardada exitosamente!'
             : 'Borrador de liquidación guardado correctamente.'
         })
+        onLiquidationSaved?.()
       } else {
         const data = await res.json()
         setMessage({ type: 'error', text: data.error || 'Error al guardar la liquidación.' })
@@ -561,19 +573,37 @@ export default function ContainerLiquidationCard({
               </p>
             </div>
 
-            <div className="flex flex-wrap items-center justify-between gap-2 text-xs">
-              <label className="text-slate-700 dark:text-gray-300 font-semibold">Monto Factura EXW:</label>
-              <div className="flex items-center gap-2">
-                <span className="font-bold text-slate-700 dark:text-gray-300 text-xs px-2 py-1 bg-slate-200/60 dark:bg-gray-800 rounded-lg">CLP ($)</span>
-                <input
-                  type="number"
-                  step="1"
-                  value={advanceAmount || ''}
-                  onChange={(e) => setAdvanceAmount(parseFloat(e.target.value) || 0)}
-                  disabled={isClosed}
-                  placeholder="0"
-                  className="w-36 bg-white dark:bg-gray-900 border border-slate-300 dark:border-gray-700 rounded-lg px-2.5 py-1 text-right font-mono font-bold text-slate-900 dark:text-white outline-none focus:border-indigo-500 text-xs"
-                />
+            <div className="space-y-3">
+              <div className="flex flex-wrap items-center justify-between gap-2 text-xs">
+                <label className="text-slate-700 dark:text-gray-300 font-semibold">Monto Factura EXW:</label>
+                <div className="flex items-center gap-2">
+                  <span className="font-bold text-slate-700 dark:text-gray-300 text-xs px-2 py-1 bg-slate-200/60 dark:bg-gray-800 rounded-lg">CLP ($)</span>
+                  <input
+                    type="number"
+                    step="1"
+                    value={advanceAmount || ''}
+                    onChange={(e) => setAdvanceAmount(parseFloat(e.target.value) || 0)}
+                    disabled={isClosed}
+                    placeholder="0"
+                    className="w-36 bg-white dark:bg-gray-900 border border-slate-300 dark:border-gray-700 rounded-lg px-2.5 py-1 text-right font-mono font-bold text-slate-900 dark:text-white outline-none focus:border-indigo-500 text-xs"
+                  />
+                </div>
+              </div>
+
+              <div className="flex flex-wrap items-center justify-between gap-2 text-xs">
+                <label className="text-slate-700 dark:text-gray-300 font-semibold">Abonos / Adelantos:</label>
+                <div className="flex items-center gap-2">
+                  <span className="font-bold text-slate-700 dark:text-gray-300 text-xs px-2 py-1 bg-slate-200/60 dark:bg-gray-800 rounded-lg">CLP ($)</span>
+                  <input
+                    type="number"
+                    step="1"
+                    value={abonosAmount || ''}
+                    onChange={(e) => setAbonosAmount(parseFloat(e.target.value) || 0)}
+                    disabled={isClosed}
+                    placeholder="0"
+                    className="w-36 bg-white dark:bg-gray-900 border border-slate-300 dark:border-gray-700 rounded-lg px-2.5 py-1 text-right font-mono font-bold text-slate-900 dark:text-white outline-none focus:border-indigo-500 text-xs"
+                  />
+                </div>
               </div>
             </div>
 

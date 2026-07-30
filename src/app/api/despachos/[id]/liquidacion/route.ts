@@ -173,17 +173,18 @@ export async function POST(
       }
     }
 
-    // 3. Si la liquidación es finalizada, actualizar los montos financieros en el despacho
-    if (status === 'finalized') {
-      await supabaseAdmin
-        .from('dispatches')
-        .update({
-          invoice_amount: gross_sales,
-          advance_amount: advance_amount,
-          payment_status: final_balance <= 0 ? 'paid' : 'pending'
-        })
-        .eq('id', dispatchId)
+    // 3. Actualizar los montos financieros en el despacho (para mantener sincronizados dispatches y dispatch_liquidations)
+    const dispatchUpdate: any = {
+      invoice_amount: advance_amount,
+      advance_amount: abonos_amount,
     }
+    if (status === 'finalized') {
+      dispatchUpdate.payment_status = final_balance <= 0 ? 'paid' : 'pending'
+    }
+    await supabaseAdmin
+      .from('dispatches')
+      .update(dispatchUpdate)
+      .eq('id', dispatchId)
 
     // 4. Auditoría — la tabla es 'audit_log' (singular). Estaba escrita como
     // 'audit_logs' y, al no comprobarse el error, ninguna liquidación quedaba

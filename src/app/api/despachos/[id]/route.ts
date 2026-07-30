@@ -64,6 +64,23 @@ export async function PATCH(
 
     if (error) return NextResponse.json({ error: error.message }, { status: 500 })
 
+    // Sincronizar montos con dispatch_liquidations si se actualizaron invoice_amount o advance_amount
+    if ('invoice_amount' in updateData || 'advance_amount' in updateData) {
+      const liqUpdate: any = {}
+      if ('invoice_amount' in updateData) {
+        liqUpdate.advance_amount = updateData.invoice_amount
+      }
+      if ('advance_amount' in updateData) {
+        liqUpdate.abonos_amount = updateData.advance_amount
+      }
+      if (Object.keys(liqUpdate).length > 0) {
+        await supabaseAdmin
+          .from('dispatch_liquidations')
+          .update(liqUpdate)
+          .eq('dispatch_id', id)
+      }
+    }
+
     // Recalcular Estado General (por si cambió expected_pallets)
     const minPata = Math.ceil((updated.expected_pallets || 0) / 2)
     const isComplete = updated.pack_list_status !== 'pending' && 

@@ -82,6 +82,7 @@ export default function DispatchDetailPage({ params }: { params: Promise<{ id: s
   const [editingInvoiceAmount, setEditingInvoiceAmount] = useState<string>('')
   const [editingAdvanceAmount, setEditingAdvanceAmount] = useState<string>('')
   const [savingAmounts, setSavingAmounts] = useState(false)
+  const [liquidationRefreshKey, setLiquidationRefreshKey] = useState(0)
   const [menuAbierto, setMenuAbierto] = useState(false)
   const menuRef = useRef<HTMLDivElement>(null)
 
@@ -151,6 +152,7 @@ export default function DispatchDetailPage({ params }: { params: Promise<{ id: s
       })
       if (res.ok) {
         await fetchDispatch(true)
+        setLiquidationRefreshKey(k => k + 1)
         toast.success('Montos guardados.')
       } else {
         const data = await res.json()
@@ -822,6 +824,8 @@ export default function DispatchDetailPage({ params }: { params: Promise<{ id: s
             dispatchCode={dispatch.dispatch_code}
             isClosed={cerrado}
             userId={user?.userId}
+            refreshKey={liquidationRefreshKey}
+            onLiquidationSaved={() => fetchDispatch(true)}
           />
 
           {/* Documentos de respaldo financiero */}
