@@ -81,7 +81,11 @@ export async function construirInformeFinancieroPDF(
   const safeCajas = totalCajas > 0 ? totalCajas : 1
   const totalExpenses = Number(liq.total_expenses) || 0
   const grossSales = Number(liq.gross_sales) || 0
-  const netAmount = Number(liq.net_amount) || 0
+  const creditNotes: Array<{ id?: string; amount: number; date?: string; note?: string }> =
+    Array.isArray(liq.credit_notes) ? liq.credit_notes : []
+  const totalCreditNotes = creditNotes.reduce((a, c) => a + (Number(c.amount) || 0), 0)
+  const effectiveGrossSales = Math.max(0, grossSales - totalCreditNotes)
+  const netAmount = Number(liq.net_amount) || Math.max(0, effectiveGrossSales - totalExpenses)
   const advanceAmount = Number(liq.advance_amount) || 0 // Factura EXW Fruta
   const abonosAmount = Number(liq.abonos_amount) || 0
   const exchangeRate = Number(liq.exchange_rate) || 1
@@ -438,7 +442,8 @@ export async function construirInformeFinancieroPDF(
 
     const pasos = [
       { etiqueta: 'Venta Bruta', desde: 0, hasta: grossSales, color: COLOR.indigo, total: true },
-      { etiqueta: 'Deducciones', desde: netAmount, hasta: grossSales, color: COLOR.rojo, total: false },
+      ...(totalCreditNotes > 0 ? [{ etiqueta: 'Notas Crédito', desde: effectiveGrossSales, hasta: grossSales, color: COLOR.rojo, total: false }] : []),
+      { etiqueta: 'Deducciones', desde: netAmount, hasta: effectiveGrossSales, color: COLOR.rojo, total: false },
       { etiqueta: 'Costo FOB', desde: finalBalance, hasta: netAmount, color: COLOR.ambar, total: false },
       {
         etiqueta: 'Utilidad Final', desde: 0, hasta: finalBalance,
@@ -676,10 +681,20 @@ export async function construirInformeFinancieroPDF(
 
     filaMulti(cabeceraMulti, { cabecera: true, fondo: COLOR.fondoCabecera, alto: 18 })
 
-    // Venta Bruta
+    // Venta Bruta Cajas
     const vB_Dest = dinero(grossSales, simb)
     const vB_CLP = clp(grossSales * tasaCLPOtorgada)
-    filaMulti(esSoloCLP ? ['Venta Bruta Destino', vB_CLP] : ['Venta Bruta Destino', vB_Dest, vB_CLP])
+    filaMulti(esSoloCLP ? ['Venta Bruta Cajas', vB_CLP] : ['Venta Bruta Cajas', vB_Dest, vB_CLP])
+
+    if (totalCreditNotes > 0) {
+      const nc_Dest = `-${dinero(totalCreditNotes, simb)}`
+      const nc_CLP = `-${clp(totalCreditNotes * tasaCLPOtorgada)}`
+      filaMulti(esSoloCLP ? ['(-) Notas de Crédito / Calidad', nc_CLP] : ['(-) Notas de Crédito / Calidad', nc_Dest, nc_CLP], { color: COLOR.rojo })
+
+      const vR_Dest = dinero(effectiveGrossSales, simb)
+      const vR_CLP = clp(effectiveGrossSales * tasaCLPOtorgada)
+      filaMulti(esSoloCLP ? ['(=) Venta Real Efectiva Lograda', vR_CLP] : ['(=) Venta Real Efectiva Lograda', vR_Dest, vR_CLP], { negrita: true, color: COLOR.verde, fondo: COLOR.fondoCabecera })
+    }
 
     // Deducciones
     const ded_Dest = `-${dinero(totalExpenses, simb)}`
@@ -1056,11 +1071,8 @@ export async function construirInformeFinancieroPDF(
     marcador('Estado bilateral de cuentas')
     tituloSeccion('Estado bilateral de cuentas & control de cobranza', COLOR.indigo)
 
-    // Variables de cuentas bilaterales
-    const creditNotes: Array<{ id?: string; amount: number; date?: string; note?: string }> =
-      Array.isArray(liq.credit_notes) ? liq.credit_notes : []
-    const totalCreditNotes = creditNotes.reduce((a, c) => a + (Number(c.amount) || 0), 0)
-    const grossSalesAdjusted = Math.max(0, grossSales - totalCreditNotes)
+    // Variables de cuentas bilaterales (ya calculadas al inicio)
+    const grossSalesAdjusted = effectiveGrossSales
 
     const destinationPayments: Array<{ id?: string; amount: number; date?: string; reference?: string; note?: string }> =
       Array.isArray(liq.destination_payments) ? liq.destination_payments : []

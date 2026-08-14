@@ -15,6 +15,9 @@ interface LiquidationReportModalProps {
   exchangeRate: number
   rateProviderInfo?: string
   grossSales: number
+  creditNotes?: any[]
+  totalCreditNotes?: number
+  effectiveGrossSales?: number
   commissionPct: number
   commissionAmount: number
   freight: number
@@ -56,6 +59,9 @@ export default function LiquidationReportModal({
   exchangeRate,
   rateProviderInfo,
   grossSales,
+  creditNotes = [],
+  totalCreditNotes,
+  effectiveGrossSales,
   commissionPct,
   commissionAmount,
   freight,
@@ -78,6 +84,14 @@ export default function LiquidationReportModal({
   onClose,
   onOpenPdf
 }: LiquidationReportModalProps) {
+  // Notas de crédito calculadas
+  const calculatedTotalNC = totalCreditNotes !== undefined
+    ? totalCreditNotes
+    : (Array.isArray(creditNotes) ? creditNotes.reduce((acc, c) => acc + (Number(c.amount) || 0), 0) : 0)
+  const realGrossSales = effectiveGrossSales !== undefined
+    ? effectiveGrossSales
+    : Math.max(0, grossSales - calculatedTotalNC)
+
   // Estado interactivo de ordenamiento
   const [sortBy, setSortBy] = useState<'profitPerBox' | 'boxes' | 'totalContribution'>('profitPerBox')
 
@@ -312,11 +326,23 @@ export default function LiquidationReportModal({
               </tbody>
               <tfoot>
                 <tr className="bg-slate-100 font-bold text-slate-900 border-t-2 border-slate-400">
-                  <td colSpan={2} className="border border-slate-300 py-2.5 px-3 uppercase text-[10px]">Total Venta Bruta Contenedor ({currency})</td>
+                  <td colSpan={2} className="border border-slate-300 py-2.5 px-3 uppercase text-[10px]">Total Venta Bruta Cajas ({currency})</td>
                   <td className="border border-slate-300 py-2.5 px-3 text-right font-mono">{totalCajas.toLocaleString()} cajas</td>
                   <td className="border border-slate-300 py-2.5 px-3"></td>
-                  <td className="border border-slate-300 py-2.5 px-3 text-right font-mono text-sm text-emerald-800">{formatMoney(grossSales)}</td>
+                  <td className="border border-slate-300 py-2.5 px-3 text-right font-mono text-sm text-slate-900">{formatMoney(grossSales)}</td>
                 </tr>
+                {calculatedTotalNC > 0 && (
+                  <>
+                    <tr className="bg-red-50/70 font-bold text-red-700 border-t border-slate-300">
+                      <td colSpan={4} className="border border-slate-300 py-1.5 px-3 uppercase text-[10px]">(-) Notas de Crédito / Calidad en Destino</td>
+                      <td className="border border-slate-300 py-1.5 px-3 text-right font-mono text-xs text-red-600">-{formatMoney(calculatedTotalNC)}</td>
+                    </tr>
+                    <tr className="bg-emerald-50/80 font-bold text-emerald-900 border-t border-slate-300">
+                      <td colSpan={4} className="border border-slate-300 py-2 px-3 uppercase text-[10px]">(=) Venta Real Efectiva Lograda ({currency})</td>
+                      <td className="border border-slate-300 py-2 px-3 text-right font-mono text-sm text-emerald-700">{formatMoney(realGrossSales)}</td>
+                    </tr>
+                  </>
+                )}
               </tfoot>
             </table>
           </div>
@@ -372,25 +398,26 @@ export default function LiquidationReportModal({
             </h3>
 
             <div className="border border-slate-300 rounded-2xl p-5 space-y-3 bg-white">
-              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-xs border-b border-slate-200 pb-3">
+              <div className="grid grid-cols-2 sm:grid-cols-5 gap-3 text-xs border-b border-slate-200 pb-3">
                 <div>
-                  <span className="text-slate-400 text-[10px] block uppercase font-bold">Venta Bruta Total</span>
+                  <span className="text-slate-400 text-[10px] block uppercase font-bold">Venta Bruta Cajas</span>
                   <span className="font-mono font-bold text-slate-800 text-sm">{formatMoney(grossSales)}</span>
+                </div>
+                <div>
+                  <span className="text-red-500 text-[10px] block uppercase font-bold">(-) Notas Crédito</span>
+                  <span className="font-mono font-bold text-red-600 text-sm">-{formatMoney(calculatedTotalNC)}</span>
+                </div>
+                <div>
+                  <span className="text-emerald-600 text-[10px] block uppercase font-bold">(=) Venta Real Lograda</span>
+                  <span className="font-mono font-bold text-emerald-800 text-sm">{formatMoney(realGrossSales)}</span>
                 </div>
                 <div>
                   <span className="text-slate-400 text-[10px] block uppercase font-bold">(-) Deducciones Destino</span>
                   <span className="font-mono font-bold text-red-700 text-sm">-{formatMoney(totalExpenses)}</span>
                 </div>
                 <div>
-                  <span className="text-slate-400 text-[10px] block uppercase font-bold">(=) Importe Neto A Favor</span>
+                  <span className="text-emerald-700 text-[10px] block uppercase font-bold">(=) Importe Neto A Favor</span>
                   <span className="font-mono font-bold text-emerald-700 text-sm">{formatMoney(netAmount)}</span>
-                </div>
-                <div>
-                  <span className="text-slate-400 text-[10px] block uppercase font-bold">(-) Valor FOB Facturado</span>
-                  <span className="font-mono font-bold text-slate-900 text-sm">{formatMoney(advanceAmount, fobCurrSymbol)}</span>
-                  {fobCurrency !== currency && (
-                    <span className="block text-[10px] text-slate-500 font-mono">({formatMoney(fobInSalesCurrency, currSymbol)})</span>
-                  )}
                 </div>
               </div>
 

@@ -303,11 +303,13 @@ export default function ContainerLiquidationCard({
   // Cálculos Financieros: Origen 100% en Pesos Chilenos (CLP) y Destino en Moneda de Venta
   const totalCajas = rows.reduce((acc, r) => acc + r.cajas, 0)
   const grossSales = rows.reduce((acc, r) => acc + r.subtotal, 0)
-  const commissionAmount = Math.round((grossSales * (commissionPct / 100)) * 100) / 100
+  const totalCreditNotes = creditNotes.reduce((acc, c) => acc + (Number(c.amount) || 0), 0)
+  const effectiveGrossSales = Math.max(0, grossSales - totalCreditNotes)
+  const commissionAmount = Math.round((effectiveGrossSales * (commissionPct / 100)) * 100) / 100
   const totalExpenses = Math.round((
     commissionAmount + freight + handling + coldStorage + surveyor + transport + otherExpenses
   ) * 100) / 100
-  const netAmount = Math.round((grossSales - totalExpenses) * 100) / 100
+  const netAmount = Math.round((effectiveGrossSales - totalExpenses) * 100) / 100
 
   // Costos de Planta a Puerto (Gastos Origen en CLP)
   const originExpensesTotal = Math.round((
@@ -330,10 +332,11 @@ export default function ContainerLiquidationCard({
   // Huella de las cifras que salen impresas en el informe.
   const huellaCifras = JSON.stringify([
     currency, targetCurrency, fobCurrency, exchangeRate, fobExchangeRate,
-    grossSales, commissionPct, freight, handling, coldStorage, surveyor,
+    grossSales, totalCreditNotes, effectiveGrossSales, commissionPct, freight, handling, coldStorage, surveyor,
     transport, otherExpenses, advanceAmount, abonosAmount,
     inlandFreight, customsBrokerage, phytosanitarySag, portExpensesOrigin, inlandInsurance, otherOriginExpenses,
     rows.map(r => [r.envase, r.calibre, r.cajas, r.price_per_box]),
+    creditNotes, destinationPayments
   ])
   const pdfDesactualizado = huellaPdf !== null && huellaPdf !== huellaCifras
 
@@ -1099,18 +1102,28 @@ export default function ContainerLiquidationCard({
         )}
 
         <div className="bg-slate-50/80 dark:bg-gray-950/60 border border-slate-200 dark:border-gray-800 rounded-xl p-5 space-y-4">
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 border-b border-slate-200 dark:border-gray-800 pb-4 text-xs">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 border-b border-slate-200 dark:border-gray-800 pb-4 text-xs">
             <div className="bg-white dark:bg-gray-900 p-3 rounded-lg border border-slate-200 dark:border-gray-800">
-              <span className="text-slate-500 dark:text-gray-400 block text-[11px]">Venta Bruta Total ({currency}):</span>
-              <span className="font-mono font-bold text-slate-900 dark:text-white text-base block mt-0.5">{formatMoney(grossSales, currSymbol)}</span>
+              <span className="text-slate-500 dark:text-gray-400 block text-[11px]">Venta Bruta Cajas ({currency}):</span>
+              <span className="font-mono font-bold text-slate-900 dark:text-white text-sm block mt-0.5">{formatMoney(grossSales, currSymbol)}</span>
               {currency !== 'CLP' && (
                 <span className="text-[10px] text-slate-400 block mt-0.5 font-mono">(= {formatMoney(grossSales * tasaCLP, '$ CLP')})</span>
               )}
             </div>
 
+            <div className={`p-3 rounded-lg border ${totalCreditNotes > 0 ? 'bg-red-500/10 border-red-500/30 dark:bg-red-950/30 dark:border-red-900/40' : 'bg-white dark:bg-gray-900 border-slate-200 dark:border-gray-800'}`}>
+              <span className={`block text-[11px] font-medium ${totalCreditNotes > 0 ? 'text-red-700 dark:text-red-300' : 'text-slate-500 dark:text-gray-400'}`}>(-) Notas de Crédito ({currency}):</span>
+              <span className={`font-mono font-bold text-sm block mt-0.5 ${totalCreditNotes > 0 ? 'text-red-600 dark:text-red-400' : 'text-slate-500'}`}>-{formatMoney(totalCreditNotes, currSymbol)}</span>
+              {totalCreditNotes > 0 && (
+                <span className="text-[10px] text-emerald-700 dark:text-emerald-400 font-semibold block mt-0.5 font-mono">
+                  Venta Real: {formatMoney(effectiveGrossSales, currSymbol)}
+                </span>
+              )}
+            </div>
+
             <div className="bg-white dark:bg-gray-900 p-3 rounded-lg border border-slate-200 dark:border-gray-800">
               <span className="text-slate-500 dark:text-gray-400 block text-[11px]">Total Deducciones Destino ({currency}):</span>
-              <span className="font-mono font-bold text-red-600 dark:text-red-400 text-base block mt-0.5">-{formatMoney(totalExpenses, currSymbol)}</span>
+              <span className="font-mono font-bold text-red-600 dark:text-red-400 text-sm block mt-0.5">-{formatMoney(totalExpenses, currSymbol)}</span>
               {currency !== 'CLP' && (
                 <span className="text-[10px] text-slate-400 block mt-0.5 font-mono">(= -{formatMoney(totalExpenses * tasaCLP, '$ CLP')})</span>
               )}
@@ -1229,6 +1242,9 @@ export default function ContainerLiquidationCard({
           exchangeRate={exchangeRate}
           rateProviderInfo={rateProviderInfo}
           grossSales={grossSales}
+          creditNotes={creditNotes}
+          totalCreditNotes={totalCreditNotes}
+          effectiveGrossSales={effectiveGrossSales}
           commissionPct={commissionPct}
           commissionAmount={commissionAmount}
           freight={freight}
