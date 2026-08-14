@@ -273,7 +273,7 @@ async function resolveTemperatureFolder(doc: any): Promise<string | null> {
     const rootFolderId = process.env.ROOT_DRIVE_FOLDER_ID!
     const folderName = report.is_ambient
       ? `TEMP-${report.report_date} - AMBIENTE${report.chamber ? ` - ${report.chamber}` : ''}`
-      : `TEMP-${report.report_date}${report.client ? ` - ${report.client}` : ''}${report.variety ? ` - ${report.variety}` : ''}`
+      : `TEMP-${report.report_date}${report.chamber ? ` - ${report.chamber}` : ''}${report.client ? ` - ${report.client}` : ''}${report.variety ? ` - ${report.variety}` : ''}`
     const driveFolder = await createFolder(folderName, rootFolderId)
     driveFolderId = driveFolder.id || null
     if (driveFolderId) {

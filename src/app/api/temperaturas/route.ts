@@ -43,7 +43,7 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'La fecha del reporte es requerida.' }, { status: 400 })
     }
 
-    // Generar código interno: TEMP-2026-05-16-CLIENTE-VARIEDAD o TEMP-2026-05-16-AMBIENTE-CAMARA o TEMP-2026-05-16-SIN_FRUTA
+    // Generar código interno: TEMP-2026-05-16-CAMARA-CLIENTE-VARIEDAD o TEMP-2026-05-16-AMBIENTE-CAMARA o TEMP-2026-05-16-SIN_FRUTA
     let internal_code = ''
     if (no_fruit) {
       internal_code = `TEMP-${report_date}-SIN_FRUTA`
@@ -51,12 +51,13 @@ export async function POST(request: Request) {
       const chamberSuffix = chamber ? `-${chamber.toUpperCase().replace(/\s+/g, '_')}` : ''
       internal_code = `TEMP-${report_date}-AMBIENTE${chamberSuffix}`
     } else {
+      const chamberSuffix = chamber ? `-${chamber.toUpperCase().replace(/\s+/g, '_')}` : ''
       const clientSuffix = client ? `-${client.toUpperCase().replace(/\s+/g, '_')}` : ''
       const varietySuffix = variety ? `-${variety.toUpperCase().replace(/\s+/g, '_')}` : ''
-      internal_code = `TEMP-${report_date}${clientSuffix}${varietySuffix}`
+      internal_code = `TEMP-${report_date}${chamberSuffix}${clientSuffix}${varietySuffix}`
     }
 
-    // Verificar que no exista reporte para esa fecha Y tipo (ambiente por cámara o cliente + variedad específicos, o sin fruta)
+    // Verificar que no exista reporte para esa fecha Y tipo (ambiente por cámara o cliente + variedad + cámara específicos, o sin fruta)
     const query = supabaseAdmin
       .from('temperature_reports')
       .select('id')
@@ -73,6 +74,12 @@ export async function POST(request: Request) {
       }
     } else {
       query.eq('is_ambient', is_ambient)
+      if (chamber) {
+        query.eq('chamber', chamber)
+      } else {
+        query.is('chamber', null)
+      }
+
       if (client) {
         query.eq('client', client)
       } else {
@@ -99,7 +106,7 @@ export async function POST(request: Request) {
         }, { status: 409 })
       } else {
         return NextResponse.json({ 
-          error: `Ya existe un reporte de temperatura para el ${report_date}${client ? ` del cliente ${client}` : ''}${variety ? ` (variedad ${variety})` : ''}.` 
+          error: `Ya existe un reporte de temperatura para el ${report_date}${chamber ? ` en la ${chamber}` : ''}${client ? ` del cliente ${client}` : ''}${variety ? ` (variedad ${variety})` : ''}.` 
         }, { status: 409 })
       }
     }
@@ -113,7 +120,7 @@ export async function POST(request: Request) {
       try {
         const folderName = is_ambient 
           ? `TEMP-${report_date} - AMBIENTE${chamber ? ` - ${chamber}` : ''}`
-          : `TEMP-${report_date}${client ? ` - ${client}` : ''}${variety ? ` - ${variety}` : ''}`
+          : `TEMP-${report_date}${chamber ? ` - ${chamber}` : ''}${client ? ` - ${client}` : ''}${variety ? ` - ${variety}` : ''}`
         const driveFolder = await createFolder(folderName, rootFolderId)
         driveFolderId = driveFolder.id!
         driveFolderUrl = driveFolder.url!
