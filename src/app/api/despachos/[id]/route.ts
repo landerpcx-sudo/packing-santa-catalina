@@ -44,6 +44,17 @@ export async function PATCH(
     const body = await request.json()
 
     const updateData: any = { ...body }
+
+    if ('advance_payments' in updateData) {
+      if (Array.isArray(updateData.advance_payments)) {
+        const sum = updateData.advance_payments.reduce((acc: number, p: any) => acc + (Number(p?.amount) || 0), 0)
+        updateData.advance_amount = sum
+      } else if (updateData.advance_payments === null) {
+        updateData.advance_payments = []
+        updateData.advance_amount = 0
+      }
+    }
+
     const numericFields = ['invoice_amount', 'advance_amount', 'expected_pallets']
     for (const field of numericFields) {
       if (field in updateData) {

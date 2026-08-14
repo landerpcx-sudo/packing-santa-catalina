@@ -97,6 +97,14 @@ export interface TemperatureDocument {
   uploader?: User
 }
 
+export interface AdvancePayment {
+  id: string
+  amount: number
+  date?: string | null
+  note?: string | null
+  created_at?: string
+}
+
 export interface Dispatch {
   id: string
   internal_code: string   // DES-2026-0089
@@ -119,6 +127,7 @@ export interface Dispatch {
   payment_status: 'pending' | 'paid'
   invoice_amount?: number | null
   advance_amount?: number | null
+  advance_payments?: AdvancePayment[] | null
   drive_folder_finance_id: string | null
   observation: string | null
   created_by: string
