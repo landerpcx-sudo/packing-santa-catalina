@@ -91,7 +91,10 @@ export async function POST(
       port_expenses_origin = 0,
       inland_insurance = 0,
       other_origin_expenses = 0,
-      origin_expenses_total = 0
+      origin_expenses_total = 0,
+      // Cuentas Bilaterales y Destino
+      credit_notes = [],
+      destination_payments = []
     } = body
 
     // 1. Crear o actualizar el encabezado de la liquidación
@@ -126,6 +129,8 @@ export async function POST(
       inland_insurance,
       other_origin_expenses,
       origin_expenses_total,
+      credit_notes: Array.isArray(credit_notes) ? credit_notes : [],
+      destination_payments: Array.isArray(destination_payments) ? destination_payments : [],
       created_by: (user_id && typeof user_id === 'string' && user_id.length > 20) ? user_id : null,
       updated_at: new Date().toISOString()
     }

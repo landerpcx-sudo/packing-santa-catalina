@@ -182,10 +182,32 @@ export interface DispatchLiquidationItem {
   subtotal: number
 }
 
+export interface DestinationCreditNote {
+  id: string
+  amount: number
+  date?: string | null
+  note?: string | null
+  created_at?: string
+}
+
+export interface DestinationPayment {
+  id: string
+  amount: number
+  date?: string | null
+  reference?: string | null
+  note?: string | null
+  created_at?: string
+}
+
 export interface DispatchLiquidation {
   id: string
   dispatch_id: string
   currency: string
+  target_currency?: string
+  fob_currency?: string
+  fob_exchange_rate?: number
+  rate_provider_info?: string
+  rate_date?: string
   gross_sales: number
   commission_percentage: number
   commission_amount: number
@@ -199,6 +221,7 @@ export interface DispatchLiquidation {
   net_amount: number
   advance_amount: number // Representa el Valor Facturado EXW (Planta)
   exw_amount?: number
+  abonos_amount?: number
   // Costos de Planta a Puerto (Gastos Origen)
   inland_freight?: number
   customs_brokerage?: number
@@ -207,6 +230,9 @@ export interface DispatchLiquidation {
   inland_insurance?: number
   other_origin_expenses?: number
   origin_expenses_total?: number
+  // Cuentas Bilaterales y Destino
+  credit_notes?: DestinationCreditNote[] | null
+  destination_payments?: DestinationPayment[] | null
   exchange_rate: number
   final_balance: number
   status: 'draft' | 'finalized'

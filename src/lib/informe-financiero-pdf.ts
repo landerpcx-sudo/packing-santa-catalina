@@ -1046,12 +1046,204 @@ export async function construirInformeFinancieroPDF(
         })
       }
 
-      doc.y = yCard + altoCard + 14
+    doc.y = yCard + altoCard + 14
     })
 
+    // ═════════════════════════════════════════════════════════════════════════
+    // PÁGINA EXTRA: ESTADO BILATERAL DE CUENTAS & CONTROL DE COBRANZA
+    // ═════════════════════════════════════════════════════════════════════════
+    nuevaPagina()
+    marcador('Estado bilateral de cuentas')
+    tituloSeccion('Estado bilateral de cuentas & control de cobranza', COLOR.indigo)
+
+    // Variables de cuentas bilaterales
+    const creditNotes: Array<{ id?: string; amount: number; date?: string; note?: string }> =
+      Array.isArray(liq.credit_notes) ? liq.credit_notes : []
+    const totalCreditNotes = creditNotes.reduce((a, c) => a + (Number(c.amount) || 0), 0)
+    const grossSalesAdjusted = Math.max(0, grossSales - totalCreditNotes)
+
+    const destinationPayments: Array<{ id?: string; amount: number; date?: string; reference?: string; note?: string }> =
+      Array.isArray(liq.destination_payments) ? liq.destination_payments : []
+    const totalDestinationPayments = destinationPayments.reduce((a, p) => a + (Number(p.amount) || 0), 0)
+    const saldoBuyer = Math.max(0, grossSalesAdjusted - totalDestinationPayments)
+    const saldoBuyerCLP = saldoBuyer * tasaCLPOtorgada
+    const totalDestPaymentsCLP = totalDestinationPayments * tasaCLPOtorgada
+
+    // Abonos de Packing
+    const advancePaymentsPacking: Array<{ id?: string; amount: number; date?: string; note?: string }> =
+      Array.isArray((dispatch as any).advance_payments) && (dispatch as any).advance_payments.length > 0
+        ? (dispatch as any).advance_payments
+        : (abonosAmount > 0 ? [{ id: '1', amount: abonosAmount, date: dispatch.dispatch_date, note: 'Abono inicial' }] : [])
+    const totalAbonosPacking = abonosAmount
+    const saldoAdeudadoPacking = Math.max(0, advanceAmount - totalAbonosPacking)
+
+    // Cabecera explicativa
+    const yBanner = doc.y
+    doc.rect(L, yBanner, W, 26).fill(COLOR.fondoCabecera)
+    doc.rect(L, yBanner, W, 26).lineWidth(0.5).strokeColor(COLOR.lineaSuave).stroke()
+    doc.fillColor(COLOR.tinta).font('B').fontSize(7.5)
+      .text('AUDITORÍA DE CUENTAS POR COBRAR (DESTINO) vs. CUENTAS POR PAGAR (PACKING)', L + 10, yBanner + 5, { width: W - 20 })
+    doc.fillColor(COLOR.suave).font('R').fontSize(6.5)
+      .text(`Contenedor ${dispatch.container_number || '—'} · Moneda Destino: ${currency} · Tasa: ${tasaCLPOtorgada.toLocaleString('es-CL')} CLP/${currency}`, L + 10, yBanner + 15, { width: W - 20 })
+
+    doc.y = yBanner + 32
+
+    const colW = (W - 14) / 2
+    const xCol1 = L
+    const xCol2 = L + colW + 14
+    const yColsTop = doc.y
+
+    // ── COLUMNA 1: COMPRADOR EN DESTINO (Cuenta por Cobrar) ──
+    doc.roundedRect(xCol1, yColsTop, colW, 410, 6).fill(COLOR.fondo)
+    doc.roundedRect(xCol1, yColsTop, colW, 410, 6).lineWidth(0.8).strokeColor(COLOR.linea).stroke()
+
+    // Header Col 1
+    doc.roundedRect(xCol1, yColsTop, colW, 24, 6).fill(COLOR.indigo)
+    doc.fillColor('#ffffff').font('B').fontSize(7.5)
+      .text(`1. CUENTA POR COBRAR: COMPRADOR (${currency})`, xCol1 + 10, yColsTop + 7, { width: colW - 20 })
+
+    let y1 = yColsTop + 30
+
+    // Datos Principales Destino
+    doc.fillColor(COLOR.texto).font('R').fontSize(7).text('Venta Bruta Cajas:', xCol1 + 10, y1)
+    doc.fillColor(COLOR.tinta).font('B').fontSize(7.5).text(dinero(grossSales, simb), xCol1 + 10, y1, { width: colW - 20, align: 'right' })
+    y1 += 13
+
+    doc.fillColor(COLOR.rojo).font('R').fontSize(7).text('(-) Notas de Crédito / Calidad:', xCol1 + 10, y1)
+    doc.fillColor(COLOR.rojo).font('B').fontSize(7.5).text(`-${dinero(totalCreditNotes, simb)}`, xCol1 + 10, y1, { width: colW - 20, align: 'right' })
+    y1 += 13
+
+    doc.moveTo(xCol1 + 10, y1).lineTo(xCol1 + colW - 10, y1).lineWidth(0.5).strokeColor(COLOR.lineaSuave).stroke()
+    y1 += 5
+
+    doc.fillColor(COLOR.tinta).font('B').fontSize(7.5).text('(=) Venta Neta Ajustada a Cobrar:', xCol1 + 10, y1)
+    doc.fillColor(COLOR.tinta).font('B').fontSize(7.8).text(dinero(grossSalesAdjusted, simb), xCol1 + 10, y1, { width: colW - 20, align: 'right' })
+    y1 += 16
+
+    // Desglose de Notas de Crédito
+    doc.fillColor(COLOR.tinta).font('B').fontSize(7).text('DESGLOSE NOTAS DE CRÉDITO:', xCol1 + 10, y1)
+    y1 += 9
+    if (creditNotes.length === 0) {
+      doc.fillColor(COLOR.tenue).font('R').fontSize(6.5).text('Sin notas de crédito aplicadas.', xCol1 + 10, y1)
+      y1 += 13
+    } else {
+      creditNotes.slice(0, 3).forEach((cn) => {
+        const desc = cn.note || 'Nota de crédito'
+        doc.fillColor(COLOR.texto).font('R').fontSize(6.5).text(`${fecha(cn.date)} - ${desc.slice(0, 20)}`, xCol1 + 10, y1, { width: colW - 75, lineBreak: false })
+        doc.fillColor(COLOR.rojo).font('B').fontSize(6.5).text(`-${dinero(Number(cn.amount) || 0, simb)}`, xCol1 + 10, y1, { width: colW - 20, align: 'right' })
+        y1 += 11
+      })
+    }
+    y1 += 6
+
+    // Desglose de Abonos de Destino
+    doc.fillColor(COLOR.tinta).font('B').fontSize(7).text('ABONOS RECIBIDOS DEL COMPRADOR:', xCol1 + 10, y1)
+    y1 += 9
+    if (destinationPayments.length === 0) {
+      doc.fillColor(COLOR.tenue).font('R').fontSize(6.5).text('Sin abonos del comprador registrados aún.', xCol1 + 10, y1)
+      y1 += 13
+    } else {
+      destinationPayments.slice(0, 4).forEach((dp) => {
+        const ref = dp.reference ? `[${dp.reference}] ` : ''
+        const desc = `${ref}${dp.note || 'Abono'}`
+        doc.fillColor(COLOR.texto).font('R').fontSize(6.5).text(`${fecha(dp.date)} - ${desc.slice(0, 20)}`, xCol1 + 10, y1, { width: colW - 75, lineBreak: false })
+        doc.fillColor(COLOR.verde).font('B').fontSize(6.5).text(dinero(Number(dp.amount) || 0, simb), xCol1 + 10, y1, { width: colW - 20, align: 'right' })
+        y1 += 11
+      })
+    }
+
+    // Caja de Saldo Comprador
+    const yBoxBuyer = yColsTop + 320
+    const buyerPaid = saldoBuyer <= 0 && grossSalesAdjusted > 0
+    doc.roundedRect(xCol1 + 10, yBoxBuyer, colW - 20, 80, 4).fill(buyerPaid ? COLOR.verdeFondo : COLOR.ambarFondo)
+    doc.roundedRect(xCol1 + 10, yBoxBuyer, colW - 20, 80, 4).lineWidth(0.8).strokeColor(buyerPaid ? COLOR.verdeBorde : COLOR.linea).stroke()
+
+    doc.fillColor(buyerPaid ? COLOR.verde : COLOR.ambar).font('B').fontSize(6.5)
+      .text(buyerPaid ? 'PAGO COMPLETO RECIBIDO ✓' : 'SALDO PENDIENTE POR COBRAR', xCol1 + 16, yBoxBuyer + 7)
+
+    doc.fillColor(COLOR.tinta).font('B').fontSize(11.5)
+      .text(dinero(saldoBuyer, simb), xCol1 + 16, yBoxBuyer + 20)
+
+    if (currency !== 'CLP') {
+      doc.fillColor(COLOR.suave).font('R').fontSize(6.8)
+        .text(`Equivalente: ${clp(saldoBuyerCLP)}`, xCol1 + 16, yBoxBuyer + 38)
+    }
+
+    doc.fillColor(COLOR.tenue).font('R').fontSize(6)
+      .text(`Total abonado: ${dinero(totalDestinationPayments, simb)} de ${dinero(grossSalesAdjusted, simb)}`, xCol1 + 16, yBoxBuyer + 58)
+
+
+    // ── COLUMNA 2: PACKING SANTA CATALINA (Cuenta por Pagar) ──
+    doc.roundedRect(xCol2, yColsTop, colW, 410, 6).fill(COLOR.fondo)
+    doc.roundedRect(xCol2, yColsTop, colW, 410, 6).lineWidth(0.8).strokeColor(COLOR.linea).stroke()
+
+    // Header Col 2
+    doc.roundedRect(xCol2, yColsTop, colW, 24, 6).fill(COLOR.teal)
+    doc.fillColor('#ffffff').font('B').fontSize(7.5)
+      .text('2. CUENTA POR PAGAR: PACKING ($ CLP)', xCol2 + 10, yColsTop + 7, { width: colW - 20 })
+
+    let y2 = yColsTop + 30
+
+    doc.fillColor(COLOR.texto).font('R').fontSize(7).text('Monto Factura Fruta Planta (EXW):', xCol2 + 10, y2)
+    doc.fillColor(COLOR.tinta).font('B').fontSize(7.5).text(clp(advanceAmount), xCol2 + 10, y2, { width: colW - 20, align: 'right' })
+    y2 += 13
+
+    doc.fillColor(COLOR.verde).font('R').fontSize(7).text('(-) Abonos Pagados al Packing:', xCol2 + 10, y2)
+    doc.fillColor(COLOR.verde).font('B').fontSize(7.5).text(`-${clp(totalAbonosPacking)}`, xCol2 + 10, y2, { width: colW - 20, align: 'right' })
+    y2 += 13
+
+    doc.moveTo(xCol2 + 10, y2).lineTo(xCol2 + colW - 10, y2).lineWidth(0.5).strokeColor(COLOR.lineaSuave).stroke()
+    y2 += 11
+
+    // Desglose de Abonos al Packing
+    doc.fillColor(COLOR.tinta).font('B').fontSize(7).text('HISTORIAL DE ABONOS AL PACKING:', xCol2 + 10, y2)
+    y2 += 9
+    if (advancePaymentsPacking.length === 0) {
+      doc.fillColor(COLOR.tenue).font('R').fontSize(6.5).text('Sin abonos registrados al packing.', xCol2 + 10, y2)
+      y2 += 13
+    } else {
+      advancePaymentsPacking.slice(0, 6).forEach((ap, idx) => {
+        const desc = ap.note || `Abono #${idx + 1}`
+        doc.fillColor(COLOR.texto).font('R').fontSize(6.5).text(`${fecha(ap.date)} - ${desc.slice(0, 20)}`, xCol2 + 10, y2, { width: colW - 75, lineBreak: false })
+        doc.fillColor(COLOR.verde).font('B').fontSize(6.5).text(clp(Number(ap.amount) || 0), xCol2 + 10, y2, { width: colW - 20, align: 'right' })
+        y2 += 11
+      })
+    }
+
+    // Caja de Saldo Packing
+    const yBoxPacking = yColsTop + 320
+    const packingPaid = saldoAdeudadoPacking <= 0 && advanceAmount > 0
+    doc.roundedRect(xCol2 + 10, yBoxPacking, colW - 20, 80, 4).fill(packingPaid ? COLOR.verdeFondo : COLOR.ambarFondo)
+    doc.roundedRect(xCol2 + 10, yBoxPacking, colW - 20, 80, 4).lineWidth(0.8).strokeColor(packingPaid ? COLOR.verdeBorde : COLOR.linea).stroke()
+
+    doc.fillColor(packingPaid ? COLOR.verde : COLOR.ambar).font('B').fontSize(6.5)
+      .text(packingPaid ? 'PAGADO AL 100% AL PACKING ✓' : 'SALDO PENDIENTE A PAGAR AL PACKING', xCol2 + 16, yBoxPacking + 7)
+
+    doc.fillColor(COLOR.tinta).font('B').fontSize(11.5)
+      .text(clp(saldoAdeudadoPacking), xCol2 + 16, yBoxPacking + 20)
+
+    doc.fillColor(COLOR.suave).font('R').fontSize(6.8)
+      .text(`Facturado Planta: ${clp(advanceAmount)}`, xCol2 + 16, yBoxPacking + 38)
+
+    doc.fillColor(COLOR.tenue).font('R').fontSize(6)
+      .text(`Total pagado: ${clp(totalAbonosPacking)} (${Math.round(advanceAmount > 0 ? (totalAbonosPacking/advanceAmount)*100 : 0)}% cubierto)`, xCol2 + 16, yBoxPacking + 58)
+
+    // ── RESUMEN CONSOLIDADO DE CAJA Y LIQUIDEZ (Pie) ──
+    const yFooterBox = yColsTop + 420
+    doc.roundedRect(L, yFooterBox, W, 48, 6).fill(COLOR.fondoCabecera)
+    doc.roundedRect(L, yFooterBox, W, 48, 6).lineWidth(0.8).strokeColor(COLOR.lineaSuave).stroke()
+
+    doc.fillColor(COLOR.tinta).font('B').fontSize(7.5)
+      .text('RESUMEN DE LIQUIDEZ Y FLUJO NETO DE LA OPERACIÓN', L + 12, yFooterBox + 7)
+
+    const margenEfectivoCLP = totalDestPaymentsCLP - totalAbonosPacking
+    doc.fillColor(COLOR.texto).font('R').fontSize(6.8)
+      .text(`Recaudado Destino: ${clp(totalDestPaymentsCLP)}  |  Pagado Packing: ${clp(totalAbonosPacking)}  |  Flujo Neto en Caja: ${clp(margenEfectivoCLP)}`, L + 12, yFooterBox + 20)
+    doc.fillColor(COLOR.suave).font('R').fontSize(6.2)
+      .text(`Utilidad Final Proyectada del Contenedor al completar cobranza: ${dinero(finalBalance, simb)} (${clp(finalBalanceCLP)})`, L + 12, yFooterBox + 32)
+
     // ── FIRMAS DE CONFORMIDAD ──
-    // Anclar firmas hacia la parte inferior de la página para equilibrar espacios
-    const yFirma = Math.max(doc.y + 15, 725)
+    const yFirma = Math.max(yFooterBox + 58, 730)
     doc.moveTo(L + 30, yFirma).lineTo(L + 210, yFirma).lineWidth(0.5).strokeColor(COLOR.tenue).stroke()
     doc.moveTo(R - 210, yFirma).lineTo(R - 30, yFirma).lineWidth(0.5).strokeColor(COLOR.tenue).stroke()
     doc.fillColor(COLOR.texto).font('B').fontSize(7.5)

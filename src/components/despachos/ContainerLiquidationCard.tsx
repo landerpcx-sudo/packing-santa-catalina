@@ -3,10 +3,13 @@
 import React, { useState, useEffect, useCallback } from 'react'
 import {
   DollarSign, Calculator, RefreshCw, FileText, CheckCircle2,
-  AlertCircle, Save, Printer, ArrowRight, Package, Percent, FileCheck, Globe, Calendar
+  AlertCircle, Save, Printer, ArrowRight, Package, Percent, FileCheck, Globe, Calendar,
+  Receipt, AlertTriangle
 } from 'lucide-react'
-import { DispatchPacklistItem, DispatchLiquidationItem, DispatchLiquidation } from '@/lib/types'
+import { DispatchPacklistItem, DispatchLiquidationItem, DispatchLiquidation, DestinationCreditNote, DestinationPayment } from '@/lib/types'
 import LiquidationReportModal from './LiquidationReportModal'
+import DestinationCreditNotesModal from './DestinationCreditNotesModal'
+import DestinationPaymentsModal from './DestinationPaymentsModal'
 
 interface ContainerLiquidationCardProps {
   dispatchId: string
@@ -94,6 +97,12 @@ export default function ContainerLiquidationCard({
   const [fobExchangeRate, setFobExchangeRate] = useState<number>(1000) // Tasa por defecto CLP / EUR
   const [exchangeRate, setExchangeRate] = useState<number>(1000) // Tasa Venta (EUR/USD -> CLP)
 
+  // Cuentas Bilaterales en Destino
+  const [creditNotes, setCreditNotes] = useState<DestinationCreditNote[]>([])
+  const [destinationPayments, setDestinationPayments] = useState<DestinationPayment[]>([])
+  const [showCreditNotesModal, setShowCreditNotesModal] = useState(false)
+  const [showDestinationPaymentsModal, setShowDestinationPaymentsModal] = useState(false)
+
   // Obtener símbolo de moneda según código
   const getCurrencySymbol = (code: string) => {
     const found = CURRENCIES.find(c => c.code === code)
@@ -169,6 +178,8 @@ export default function ContainerLiquidationCard({
           }
           if (liq.rate_provider_info) setRateProviderInfo(liq.rate_provider_info)
           if (liq.rate_date) setRateDate(String(liq.rate_date).split('T')[0])
+          if (Array.isArray(liq.credit_notes)) setCreditNotes(liq.credit_notes)
+          if (Array.isArray(liq.destination_payments)) setDestinationPayments(liq.destination_payments)
 
           if (existingLiq.items && existingLiq.items.length > 0) {
             setRows(existingLiq.items.map(it => ({
@@ -368,6 +379,8 @@ export default function ContainerLiquidationCard({
         inland_insurance: inlandInsurance,
         other_origin_expenses: otherOriginExpenses,
         origin_expenses_total: originExpensesTotal,
+        credit_notes: creditNotes,
+        destination_payments: destinationPayments,
       }
 
       const res = await fetch(`/api/despachos/${dispatchId}/liquidacion`, {
@@ -451,6 +464,8 @@ export default function ContainerLiquidationCard({
             inland_insurance: inlandInsurance,
             other_origin_expenses: otherOriginExpenses,
             origin_expenses_total: originExpensesTotal,
+            credit_notes: creditNotes,
+            destination_payments: destinationPayments,
           })
         })
 
@@ -806,11 +821,106 @@ export default function ContainerLiquidationCard({
           </div>
         )}
 
-        {/* 2.2 GASTOS Y DEDUCCIONES EN DESTINO */}
+        {/* 2.2 CONTROL DE COBRANZA AL COMPRADOR EN DESTINO */}
+        {(() => {
+          const totalCreditNotes = creditNotes.reduce((acc, c) => acc + (Number(c.amount) || 0), 0)
+          const grossSalesAdjusted = Math.max(0, grossSales - totalCreditNotes)
+          const totalDestPayments = destinationPayments.reduce((acc, p) => acc + (Number(p.amount) || 0), 0)
+          const saldoBuyer = Math.max(0, grossSalesAdjusted - totalDestPayments)
+          const tasaUsada = currency === 'CLP' ? 1 : (exchangeRate > 0 ? exchangeRate : 1000)
+
+          return (
+            <div className="bg-gradient-to-br from-slate-50 to-indigo-50/30 dark:from-gray-950/80 dark:to-indigo-950/20 border border-indigo-200/60 dark:border-indigo-900/40 rounded-xl p-5 space-y-4 shadow-sm">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-indigo-100 dark:border-indigo-900/40 pb-3">
+                <div>
+                  <h4 className="text-xs font-bold text-indigo-900 dark:text-indigo-300 uppercase tracking-wide flex items-center gap-2">
+                    <Receipt className="w-4 h-4 text-indigo-600 dark:text-indigo-400" />
+                    2.2. Control de Cobranza al Comprador en Destino (Cuenta por Cobrar)
+                  </h4>
+                  <p className="text-[11px] text-slate-500 dark:text-gray-400 mt-0.5">
+                    Gestiona notas de crédito por condición de arribo y abonos recibidos del cliente extranjero en {currency}.
+                  </p>
+                </div>
+
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setShowCreditNotesModal(true)}
+                    disabled={isClosed}
+                    className="px-3 py-1.5 bg-amber-500/10 hover:bg-amber-500/20 text-amber-700 dark:text-amber-300 border border-amber-500/30 rounded-lg text-xs font-semibold transition-all flex items-center gap-1.5 shadow-sm"
+                  >
+                    <AlertTriangle className="w-3.5 h-3.5" />
+                    <span>Notas de Crédito ({creditNotes.length})</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => setShowDestinationPaymentsModal(true)}
+                    disabled={isClosed}
+                    className="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg text-xs font-semibold transition-all flex items-center gap-1.5 shadow-sm"
+                  >
+                    <DollarSign className="w-3.5 h-3.5" />
+                    <span>Abonos en Destino ({destinationPayments.length})</span>
+                  </button>
+                </div>
+              </div>
+
+              {/* Grid de Estado de Cobro */}
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                <div className="bg-white/80 dark:bg-gray-900/80 border border-slate-200 dark:border-gray-800 rounded-lg p-3">
+                  <span className="text-[10px] uppercase font-bold text-slate-500 dark:text-gray-400 block tracking-wider">
+                    Venta Bruta Cajas
+                  </span>
+                  <span className="text-sm font-bold text-slate-900 dark:text-white block mt-0.5 font-mono">
+                    {formatMoney(grossSales)}
+                  </span>
+                </div>
+
+                <div className="bg-white/80 dark:bg-gray-900/80 border border-slate-200 dark:border-gray-800 rounded-lg p-3">
+                  <span className="text-[10px] uppercase font-bold text-red-500 dark:text-red-400 block tracking-wider">
+                    (-) Notas de Crédito
+                  </span>
+                  <span className="text-sm font-bold text-red-600 dark:text-red-400 block mt-0.5 font-mono">
+                    -{formatMoney(totalCreditNotes)}
+                  </span>
+                </div>
+
+                <div className="bg-white/80 dark:bg-gray-900/80 border border-slate-200 dark:border-gray-800 rounded-lg p-3">
+                  <span className="text-[10px] uppercase font-bold text-indigo-600 dark:text-indigo-400 block tracking-wider">
+                    (-) Abonos Recibidos
+                  </span>
+                  <span className="text-sm font-bold text-indigo-600 dark:text-indigo-400 block mt-0.5 font-mono">
+                    {formatMoney(totalDestPayments)}
+                  </span>
+                </div>
+
+                <div className={`border rounded-lg p-3 ${
+                  saldoBuyer <= 0 && grossSalesAdjusted > 0
+                    ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-700 dark:text-emerald-300'
+                    : 'bg-amber-500/10 border-amber-500/30 text-amber-700 dark:text-amber-300'
+                }`}>
+                  <span className="text-[10px] uppercase font-bold block tracking-wider opacity-80">
+                    Saldo Adeudado Comprador
+                  </span>
+                  <span className="text-sm font-black block mt-0.5 font-mono">
+                    {formatMoney(saldoBuyer)} {saldoBuyer <= 0 && grossSalesAdjusted > 0 ? '✓' : ''}
+                  </span>
+                  {currency !== 'CLP' && tasaUsada > 1 && (
+                    <span className="text-[10px] block opacity-70 mt-0.5 font-mono">
+                      ≈ {new Intl.NumberFormat('es-CL', { style: 'currency', currency: 'CLP', maximumFractionDigits: 0 }).format(saldoBuyer * tasaUsada)}
+                    </span>
+                  )}
+                </div>
+              </div>
+            </div>
+          )
+        })()}
+
+        {/* 2.3 GASTOS Y DEDUCCIONES EN DESTINO */}
         <div className="bg-slate-50/80 dark:bg-gray-950/60 border border-slate-200 dark:border-gray-800 rounded-xl p-5 space-y-3">
           <h4 className="text-xs font-bold text-red-900 dark:text-red-300 uppercase tracking-wide flex items-center gap-1.5">
             <Percent className="w-3.5 h-3.5 text-red-500" />
-            2.2. Gastos en Destino y Comisión ({currency})
+            2.3. Gastos en Destino y Comisión ({currency})
           </h4>
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-1">
@@ -1142,6 +1252,35 @@ export default function ContainerLiquidationCard({
           onOpenPdf={handleOpenFinancialPDF}
         />
       )}
+
+      {/* MODAL DE NOTAS DE CRÉDITO */}
+      <DestinationCreditNotesModal
+        isOpen={showCreditNotesModal}
+        onClose={() => setShowCreditNotesModal(false)}
+        currency={currency}
+        currencySymbol={currSymbol}
+        grossSales={grossSales}
+        initialCreditNotes={creditNotes}
+        isClosed={isClosed}
+        onSave={(newNotes) => {
+          setCreditNotes(newNotes)
+        }}
+      />
+
+      {/* MODAL DE ABONOS EN DESTINO */}
+      <DestinationPaymentsModal
+        isOpen={showDestinationPaymentsModal}
+        onClose={() => setShowDestinationPaymentsModal(false)}
+        currency={currency}
+        currencySymbol={currSymbol}
+        exchangeRate={exchangeRate}
+        grossSalesToCollect={Math.max(0, grossSales - creditNotes.reduce((a, c) => a + (Number(c.amount) || 0), 0))}
+        initialPayments={destinationPayments}
+        isClosed={isClosed}
+        onSave={(newPayments) => {
+          setDestinationPayments(newPayments)
+        }}
+      />
     </div>
   )
 }
