@@ -23,7 +23,6 @@ import { getCountryFlag, getFruitInfo } from '@/lib/flags-and-fruits'
 
 const NewDispatchModal = dynamic(() => import('@/components/despachos/NewDispatchModal'), { ssr: false })
 const FilePreviewModal = dynamic(() => import('@/components/layout/FilePreviewModal'), { ssr: false })
-const AdvancePaymentsModal = dynamic(() => import('@/components/despachos/AdvancePaymentsModal'), { ssr: false })
 
 interface DispatchDocument extends DocumentoUI {
   validation_status: string
@@ -734,97 +733,7 @@ export default function DispatchDetailPage({ params }: { params: Promise<{ id: s
       {/* ── PESTAÑA: FINANCIERO ──────────────────────────────────────────── */}
       {pestana === 'financiero' && (
         <div className="space-y-6">
-          {/* Resumen económico: antes estos montos estaban enterrados dentro
-              de las tarjetas de documento "Factura" y "Abonos". */}
-          <div className="bg-white/3 border border-white/8 rounded-2xl p-5 space-y-4">
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-              <h2 className="text-sm font-bold text-white flex items-center gap-2">
-                <Wallet className="w-4 h-4 text-emerald-400" />
-                Resumen económico del contenedor
-              </h2>
-              {['admin', 'gerencia'].includes(user?.role || '') && (
-                <button
-                  onClick={handleTogglePaymentStatus}
-                  disabled={cerrado}
-                  className={`flex items-center gap-2 px-4 py-2 rounded-xl font-semibold text-xs transition-all shadow-md ${
-                    dispatch.payment_status === 'paid'
-                      ? 'bg-emerald-600 hover:bg-emerald-500 text-white'
-                      : 'bg-white/5 border border-white/10 text-gray-300 hover:bg-white/10'
-                  } disabled:opacity-50 disabled:cursor-not-allowed`}
-                  title={cerrado ? 'El despacho está cerrado' : undefined}
-                >
-                  {dispatch.payment_status === 'paid' ? <CheckCircle className="w-4 h-4" /> : <Clock className="w-4 h-4" />}
-                  {dispatch.payment_status === 'paid' ? 'Pagado (marcar pendiente)' : 'Marcar como pagado'}
-                </button>
-              )}
-            </div>
-
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-              <div className="bg-white/5 border border-white/10 rounded-xl p-3.5 space-y-2">
-                <label className="text-gray-400 text-[10px] font-bold uppercase tracking-wider block">Monto Factura ($ CLP)</label>
-                <div className="flex gap-2">
-                  <div className="relative flex-1">
-                    <DollarSign className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-gray-400" />
-                    <input
-                      type="number" min="0" step="1" placeholder="Ej: 10000000"
-                      value={editingInvoiceAmount}
-                      onChange={(e) => setEditingInvoiceAmount(e.target.value)}
-                      disabled={cerrado || savingAmounts}
-                      className="w-full bg-white/5 border border-white/10 rounded-lg pl-8 pr-2 py-1.5 text-sm text-white placeholder-gray-500 focus:outline-none focus:border-emerald-400/50 disabled:opacity-50"
-                    />
-                  </div>
-                  <button
-                    onClick={handleSaveAmounts}
-                    disabled={cerrado || savingAmounts}
-                    className="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg text-xs font-medium transition-colors flex items-center gap-1.5 disabled:opacity-50"
-                  >
-                    <Save className="w-3.5 h-3.5" />
-                  </button>
-                </div>
-                <p className="text-lg font-bold text-white">{formatCLP(dispatch.invoice_amount)}</p>
-              </div>
-
-              <div className="bg-white/5 border border-white/10 rounded-xl p-3.5 space-y-2 flex flex-col justify-between">
-                <div>
-                  <div className="flex items-center justify-between">
-                    <label className="text-gray-400 text-[10px] font-bold uppercase tracking-wider block">
-                      Abonos / Adelantos ($ CLP)
-                    </label>
-                    <span className="text-[10px] px-1.5 py-0.5 rounded bg-indigo-500/20 text-indigo-300 font-semibold">
-                      {(dispatch.advance_payments || []).length > 0
-                        ? `${(dispatch.advance_payments || []).length} ${(dispatch.advance_payments || []).length === 1 ? 'pago' : 'pagos'}`
-                        : (dispatch.advance_amount ? '1 pago' : '0 pagos')}
-                    </span>
-                  </div>
-                  <p className="text-xl font-bold text-indigo-300 mt-1">
-                    {formatCLP(dispatch.advance_amount || 0)}
-                  </p>
-                </div>
-
-                <button
-                  type="button"
-                  onClick={() => setShowPaymentsModal(true)}
-                  className="w-full py-1.5 px-3 bg-indigo-600/20 hover:bg-indigo-600/30 active:bg-indigo-600/40 text-indigo-300 hover:text-white border border-indigo-500/30 rounded-lg text-xs font-semibold transition-all flex items-center justify-center gap-1.5 shadow-sm"
-                >
-                  <DollarSign className="w-3.5 h-3.5" />
-                  <span>Gestionar / Agregar Abonos</span>
-                </button>
-              </div>
-
-              <div className={`border rounded-xl p-3.5 flex flex-col justify-center ${
-                saldo <= 0 ? 'bg-emerald-500/10 border-emerald-500/30' : 'bg-amber-500/10 border-amber-500/30'
-              }`}>
-                <p className={`text-[10px] font-bold uppercase tracking-wider ${saldo <= 0 ? 'text-emerald-400' : 'text-amber-400'}`}>
-                  Saldo adeudado
-                </p>
-                <p className={`text-2xl font-black mt-1 ${saldo <= 0 ? 'text-emerald-300' : 'text-amber-300'}`}>
-                  {formatCLP(saldo)} {saldo <= 0 ? '✓' : ''}
-                </p>
-              </div>
-            </div>
-          </div>
-
-          {/* Liquidación del contenedor */}
+          {/* Liquidación del contenedor y Control Financiero */}
           <ContainerLiquidationCard
             dispatchId={id}
             dispatchCode={dispatch.dispatch_code}
@@ -903,22 +812,6 @@ export default function DispatchDetailPage({ params }: { params: Promise<{ id: s
         onClose={() => setPreviewFile(null)}
         fileUrl={previewFile?.url || ''}
         fileName={previewFile?.name || ''}
-      />
-
-      <AdvancePaymentsModal
-        isOpen={showPaymentsModal}
-        onClose={() => setShowPaymentsModal(false)}
-        dispatchId={id}
-        dispatchCode={dispatch.dispatch_code}
-        containerNumber={dispatch.container_number}
-        invoiceAmount={dispatch.invoice_amount}
-        initialPayments={dispatch.advance_payments}
-        initialAdvanceAmount={dispatch.advance_amount}
-        isClosed={cerrado}
-        onSaved={() => {
-          fetchDispatch(true)
-          setLiquidationRefreshKey(k => k + 1)
-        }}
       />
     </div>
   )

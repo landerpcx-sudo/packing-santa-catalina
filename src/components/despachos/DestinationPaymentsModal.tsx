@@ -33,6 +33,7 @@ export default function DestinationPaymentsModal({
 }: DestinationPaymentsModalProps) {
   const toast = useToast()
   const [payments, setPayments] = useState<DestinationPayment[]>([])
+  const [inputCurrency, setInputCurrency] = useState<string>(currency)
   const [newAmount, setNewAmount] = useState('')
   const [newDate, setNewDate] = useState(() => new Date().toISOString().split('T')[0])
   const [newRef, setNewRef] = useState('')
@@ -41,14 +42,17 @@ export default function DestinationPaymentsModal({
   useEffect(() => {
     if (isOpen) {
       setPayments(initialPayments && initialPayments.length > 0 ? [...initialPayments] : [])
+      setInputCurrency(currency)
       setNewAmount('')
       setNewRef('')
       setNewNote('')
       setNewDate(new Date().toISOString().split('T')[0])
     }
-  }, [isOpen, initialPayments])
+  }, [isOpen, initialPayments, currency])
 
   if (!isOpen) return null
+
+  const tasaCLP = currency === 'CLP' ? 1 : (exchangeRate > 0 ? exchangeRate : 1000)
 
   const formatMoney = (val: number) => {
     return `${currencySymbol} ${val.toLocaleString('es-CL', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
@@ -70,7 +74,9 @@ export default function DestinationPaymentsModal({
   }
 
   const totalAbonado = payments.reduce((acc, p) => acc + (Number(p.amount) || 0), 0)
+  const totalAbonadoCLP = currency === 'CLP' ? totalAbonado : Math.round(totalAbonado * tasaCLP)
   const saldoPendiente = Math.max(0, grossSalesToCollect - totalAbonado)
+  const saldoPendienteCLP = currency === 'CLP' ? saldoPendiente : Math.round(saldoPendiente * tasaCLP)
   const pctPagado = grossSalesToCollect > 0 ? Math.min(100, Math.round((totalAbonado / grossSalesToCollect) * 100)) : 0
 
   const handleAdd = (e?: React.FormEvent) => {
@@ -80,18 +86,32 @@ export default function DestinationPaymentsModal({
       return
     }
 
-    const montoNum = parseFloat(newAmount.replace(/[^0-9.]/g, ''))
-    if (!montoNum || isNaN(montoNum) || montoNum <= 0) {
+    const rawNum = parseFloat(newAmount.replace(/[^0-9.]/g, ''))
+    if (!rawNum || isNaN(rawNum) || rawNum <= 0) {
       toast.error('Por favor ingresa un monto válido mayor a 0.')
       return
     }
 
+    // Si ingresó en CLP y la moneda del contenedor es extranjera (EUR/USD),
+    // convertimos a la moneda de venta:
+    let montoEnMonedaVenta = rawNum
+    let notaAuto = newNote.trim()
+
+    if (inputCurrency === 'CLP' && currency !== 'CLP') {
+      montoEnMonedaVenta = Math.round((rawNum / (tasaCLP || 1)) * 100) / 100
+      if (!notaAuto) {
+        notaAuto = `Abono de ${formatCLP(rawNum)}`
+      }
+    } else if (!notaAuto) {
+      notaAuto = `Abono Destino #${payments.length + 1}`
+    }
+
     const nuevoPago: DestinationPayment = {
       id: crypto.randomUUID ? crypto.randomUUID() : `dest-pago-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`,
-      amount: montoNum,
+      amount: montoEnMonedaVenta,
       date: newDate || new Date().toISOString().split('T')[0],
       reference: newRef.trim() || undefined,
-      note: newNote.trim() || `Abono Destino #${payments.length + 1}`,
+      note: notaAuto,
       created_at: new Date().toISOString()
     }
 
@@ -154,15 +174,25 @@ export default function DestinationPaymentsModal({
               <span className="text-sm font-bold text-white block mt-0.5">
                 {formatMoney(grossSalesToCollect)}
               </span>
+              {currency !== 'CLP' && (
+                <span className="text-[10px] text-gray-400 block mt-0.5 font-mono">
+                  ≈ {formatCLP(grossSalesToCollect * tasaCLP)}
+                </span>
+              )}
             </div>
 
             <div className="bg-indigo-500/10 border border-indigo-500/30 rounded-xl p-3">
               <span className="text-[10px] uppercase font-bold text-indigo-300 block tracking-wider">
-                Total Abonado ({payments.length})
+                Total Recaudado ({payments.length})
               </span>
               <span className="text-sm font-bold text-indigo-300 block mt-0.5">
                 {formatMoney(totalAbonado)}
               </span>
+              {currency !== 'CLP' && (
+                <span className="text-[10px] text-indigo-400/80 block mt-0.5 font-mono">
+                  ≈ {formatCLP(totalAbonadoCLP)}
+                </span>
+              )}
             </div>
 
             <div className={`rounded-xl p-3 border ${
@@ -176,9 +206,9 @@ export default function DestinationPaymentsModal({
               <span className="text-sm font-bold block mt-0.5">
                 {formatMoney(saldoPendiente)}
               </span>
-              {currency !== 'CLP' && exchangeRate > 1 && (
+              {currency !== 'CLP' && (
                 <span className="text-[10px] block opacity-70 mt-0.5 font-mono">
-                  ≈ {formatCLP(saldoPendiente * exchangeRate)}
+                  ≈ {formatCLP(saldoPendienteCLP)}
                 </span>
               )}
             </div>
@@ -209,24 +239,65 @@ export default function DestinationPaymentsModal({
           {/* Formulario */}
           {!isClosed && (
             <form onSubmit={handleAdd} className="bg-white/5 border border-white/10 rounded-xl p-4 space-y-3">
-              <div className="flex items-center gap-1.5 text-xs font-bold text-white uppercase tracking-wider">
-                <Plus className="w-3.5 h-3.5 text-emerald-400" />
-                <span>Registrar Abono del Comprador</span>
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-1.5 text-xs font-bold text-white uppercase tracking-wider">
+                  <Plus className="w-3.5 h-3.5 text-emerald-400" />
+                  <span>Registrar Abono del Comprador</span>
+                </div>
+
+                {/* Selector de moneda si el contenedor no es CLP */}
+                {currency !== 'CLP' && (
+                  <div className="flex items-center gap-1 bg-black/40 p-1 rounded-lg border border-white/10 text-xs">
+                    <span className="text-[10px] text-gray-400 px-1.5">Moneda del abono:</span>
+                    <button
+                      type="button"
+                      onClick={() => setInputCurrency(currency)}
+                      className={`px-2 py-0.5 rounded text-[11px] font-bold transition-all ${
+                        inputCurrency === currency
+                          ? 'bg-emerald-600 text-white shadow-xs'
+                          : 'text-gray-400 hover:text-white'
+                      }`}
+                    >
+                      {currency}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setInputCurrency('CLP')}
+                      className={`px-2 py-0.5 rounded text-[11px] font-bold transition-all ${
+                        inputCurrency === 'CLP'
+                          ? 'bg-emerald-600 text-white shadow-xs'
+                          : 'text-gray-400 hover:text-white'
+                      }`}
+                    >
+                      $ CLP
+                    </button>
+                  </div>
+                )}
               </div>
 
               <div className="grid grid-cols-1 sm:grid-cols-12 gap-2.5">
                 {/* Monto */}
                 <div className="sm:col-span-4">
-                  <label className="text-[10px] font-semibold text-gray-400 mb-1 block">Monto ({currencySymbol})</label>
+                  <label className="text-[10px] font-semibold text-gray-400 mb-1 block">
+                    Monto a ingresar ({inputCurrency === 'CLP' ? '$ CLP' : currencySymbol})
+                  </label>
                   <input
                     type="number"
-                    step="0.01"
-                    min="0.01"
-                    placeholder="Ej: 8000.00"
+                    step={inputCurrency === 'CLP' ? '1' : '0.01'}
+                    min={inputCurrency === 'CLP' ? '1' : '0.01'}
+                    placeholder={inputCurrency === 'CLP' ? 'Ej: 18201458' : 'Ej: 8000.00'}
                     value={newAmount}
                     onChange={(e) => setNewAmount(e.target.value)}
                     className="w-full bg-slate-800 border border-white/10 rounded-lg px-2.5 py-1.5 text-xs text-white placeholder-gray-500 focus:outline-none focus:border-emerald-400/50"
                   />
+                  {/* Vista previa de conversión */}
+                  {newAmount && Number(newAmount) > 0 && currency !== 'CLP' && (
+                    <span className="text-[10px] text-emerald-400 mt-1 block font-mono">
+                      {inputCurrency === 'CLP'
+                        ? `≈ ${currencySymbol} ${(Number(newAmount) / (tasaCLP || 1)).toLocaleString('es-CL', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} ${currency} (T/C: $${tasaCLP.toLocaleString('es-CL')})`
+                        : `≈ ${formatCLP(Number(newAmount) * tasaCLP)} (T/C: $${tasaCLP.toLocaleString('es-CL')})`}
+                    </span>
+                  )}
                 </div>
 
                 {/* Fecha */}
@@ -287,46 +358,57 @@ export default function DestinationPaymentsModal({
             {payments.length === 0 ? (
               <div className="text-center py-6 border border-dashed border-white/10 rounded-xl bg-white/[0.01]">
                 <p className="text-xs text-gray-400">No hay abonos del cliente en destino registrados aún.</p>
-                <p className="text-[11px] text-gray-500 mt-0.5">Ingresa los pagos en la moneda de venta ({currency}).</p>
+                <p className="text-[11px] text-gray-500 mt-0.5">Ingresa los pagos en {currency} o en $ CLP.</p>
               </div>
             ) : (
               <div className="border border-white/10 rounded-xl overflow-hidden divide-y divide-white/5 bg-white/[0.01]">
-                {payments.map((p, index) => (
-                  <div
-                    key={p.id || index}
-                    className="p-3 flex items-center justify-between hover:bg-white/[0.02] transition-colors gap-3"
-                  >
-                    <div className="min-w-0">
-                      <div className="text-xs font-semibold text-white truncate">
-                        {p.note || `Abono #${index + 1}`}
-                        {p.reference && (
-                          <span className="ml-2 text-[10px] px-1.5 py-0.5 rounded bg-white/10 text-gray-300 font-mono">
-                            {p.reference}
-                          </span>
+                {payments.map((p, index) => {
+                  const montoCLP = currency === 'CLP' ? Number(p.amount) : Math.round(Number(p.amount) * tasaCLP)
+                  return (
+                    <div
+                      key={p.id || index}
+                      className="p-3 flex items-center justify-between hover:bg-white/[0.02] transition-colors gap-3"
+                    >
+                      <div className="min-w-0">
+                        <div className="text-xs font-semibold text-white truncate">
+                          {p.note || `Abono #${index + 1}`}
+                          {p.reference && (
+                            <span className="ml-2 text-[10px] px-1.5 py-0.5 rounded bg-white/10 text-gray-300 font-mono">
+                              {p.reference}
+                            </span>
+                          )}
+                        </div>
+                        <div className="flex items-center gap-2 text-[11px] text-gray-400 mt-0.5">
+                          <Calendar className="w-3 h-3 text-gray-500" />
+                          <span>{formatDate(p.date)}</span>
+                          {currency !== 'CLP' && (
+                            <>
+                              <span>·</span>
+                              <span className="text-gray-400 font-mono">
+                                Equivalente: {formatCLP(montoCLP)}
+                              </span>
+                            </>
+                          )}
+                        </div>
+                      </div>
+
+                      <div className="flex items-center gap-3 shrink-0">
+                        <span className="text-xs font-bold font-mono text-emerald-400">
+                          {formatMoney(p.amount)}
+                        </span>
+                        {!isClosed && (
+                          <button
+                            type="button"
+                            onClick={() => handleRemove(p.id)}
+                            className="p-1.5 text-gray-500 hover:text-red-400 hover:bg-red-500/10 rounded-lg transition-colors"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </button>
                         )}
                       </div>
-                      <div className="flex items-center gap-2 text-[11px] text-gray-400 mt-0.5">
-                        <Calendar className="w-3 h-3 text-gray-500" />
-                        <span>{formatDate(p.date)}</span>
-                      </div>
                     </div>
-
-                    <div className="flex items-center gap-3 shrink-0">
-                      <span className="text-xs font-bold font-mono text-emerald-400">
-                        {formatMoney(p.amount)}
-                      </span>
-                      {!isClosed && (
-                        <button
-                          type="button"
-                          onClick={() => handleRemove(p.id)}
-                          className="p-1.5 text-gray-500 hover:text-red-400 hover:bg-red-500/10 rounded-lg transition-colors"
-                        >
-                          <Trash2 className="w-3.5 h-3.5" />
-                        </button>
-                      )}
-                    </div>
-                  </div>
-                ))}
+                  )
+                })}
               </div>
             )}
           </div>
