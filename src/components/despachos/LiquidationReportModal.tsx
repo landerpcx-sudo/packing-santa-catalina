@@ -29,7 +29,9 @@ interface LiquidationReportModalProps {
   totalExpenses: number
   netAmount: number
   advanceAmount: number // Costo FOB Facturado (Monto Factura)
-  abonosAmount?: number // Abonos recibidos contra la factura
+  abonosAmount?: number // Abonos recibidos del cliente
+  totalDestPaymentsCLP?: number
+  saldoFacturaPackingCLP?: number
   fobCurrency?: string
   fobExchangeRate?: number
   finalBalanceInCurrency: number
@@ -81,6 +83,8 @@ export default function LiquidationReportModal({
   liquidationStatus,
   totalCajas,
   rows,
+  totalDestPaymentsCLP,
+  saldoFacturaPackingCLP,
   onClose,
   onOpenPdf
 }: LiquidationReportModalProps) {
@@ -91,6 +95,12 @@ export default function LiquidationReportModal({
   const realGrossSales = effectiveGrossSales !== undefined
     ? effectiveGrossSales
     : Math.max(0, grossSales - calculatedTotalNC)
+
+  // Abonos reales del comprador y extinción automática de la Factura del Packing
+  const totalAbonosComprador = totalDestPaymentsCLP !== undefined ? totalDestPaymentsCLP : (abonosAmount || 0)
+  const saldoFacturaPacking = saldoFacturaPackingCLP !== undefined 
+    ? saldoFacturaPackingCLP 
+    : Math.max(0, advanceAmount - totalAbonosComprador)
 
   // Estado interactivo de ordenamiento
   const [sortBy, setSortBy] = useState<'profitPerBox' | 'boxes' | 'totalContribution'>('profitPerBox')
@@ -421,15 +431,25 @@ export default function LiquidationReportModal({
                 </div>
               </div>
 
-              {/* Detalle de Abonos a Factura FOB */}
-              <div className="flex flex-wrap items-center justify-between text-xs bg-slate-50 p-2.5 rounded-xl border border-slate-200 text-slate-700 gap-2">
+              {/* Detalle de Liquidación de Factura Packing (Piso Principal) con Abonos del Comprador */}
+              <div className={`flex flex-wrap items-center justify-between text-xs p-3 rounded-xl border gap-2 ${
+                saldoFacturaPacking <= 0 && advanceAmount > 0
+                  ? 'bg-emerald-50 border-emerald-300 text-emerald-900'
+                  : 'bg-slate-50 border-slate-200 text-slate-700'
+              }`}>
                 <div>
-                  <span className="text-slate-500 font-medium">Abonos Recibidos a Factura: </span>
-                  <strong className="font-mono font-bold text-emerald-700">{formatMoney(abonosAmount, fobCurrSymbol)}</strong>
+                  <span className="text-slate-500 font-medium">Factura Packing (Piso): </span>
+                  <strong className="font-mono font-bold">{formatMoney(advanceAmount, fobCurrSymbol)}</strong>
                 </div>
                 <div>
-                  <span className="text-slate-500 font-medium">Saldo Pendiente de Factura FOB: </span>
-                  <strong className="font-mono font-bold text-amber-700">{formatMoney(Math.max(advanceAmount - abonosAmount, 0), fobCurrSymbol)}</strong>
+                  <span className="text-slate-500 font-medium">Abonos Comprador Recibidos: </span>
+                  <strong className="font-mono font-bold text-emerald-700">{formatMoney(totalAbonosComprador, fobCurrSymbol)}</strong>
+                </div>
+                <div>
+                  <span className="text-slate-500 font-medium">Estado Factura Packing: </span>
+                  <strong className={`font-mono font-bold ${saldoFacturaPacking <= 0 && advanceAmount > 0 ? 'text-emerald-700' : 'text-amber-700'}`}>
+                    {saldoFacturaPacking <= 0 && advanceAmount > 0 ? '✓ 100% CUBIERTA / PAGADA' : `Falta: ${formatMoney(saldoFacturaPacking, fobCurrSymbol)}`}
+                  </strong>
                 </div>
               </div>
 

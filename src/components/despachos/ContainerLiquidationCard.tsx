@@ -324,6 +324,13 @@ export default function ContainerLiquidationCard({
   const netAmountCLP = currency === 'CLP' ? netAmount : Math.round((netAmount * tasaCLP) * 100) / 100
   const realFobInCurrency = currency === 'CLP' ? realFobCLP : Math.round((realFobCLP / (tasaCLP || 1)) * 100) / 100
 
+  // Abonos de Destino (Comprador) y Liquidación Automática de Factura Packing (Piso)
+  const totalDestPayments = destinationPayments.reduce((acc, p) => acc + (Number(p.amount) || 0), 0)
+  const totalDestPaymentsCLP = currency === 'CLP' ? totalDestPayments : Math.round(totalDestPayments * tasaCLP)
+  const saldoFacturaPackingCLP = Math.max(0, advanceAmount - totalDestPaymentsCLP)
+  const facturaPackingCubierta = totalDestPaymentsCLP >= advanceAmount && advanceAmount > 0
+  const abonosAplicadosAlPisoCLP = Math.min(advanceAmount, totalDestPaymentsCLP)
+
   // Utilidad Real del Negocio
   const finalBalanceCLP = Math.round((netAmountCLP - realFobCLP) * 100) / 100
   const finalBalanceSalesCurrency = currency === 'CLP' ? finalBalanceCLP : Math.round((finalBalanceCLP / (tasaCLP || 1)) * 100) / 100
@@ -333,7 +340,7 @@ export default function ContainerLiquidationCard({
   const huellaCifras = JSON.stringify([
     currency, targetCurrency, fobCurrency, exchangeRate, fobExchangeRate,
     grossSales, totalCreditNotes, effectiveGrossSales, commissionPct, freight, handling, coldStorage, surveyor,
-    transport, otherExpenses, advanceAmount, abonosAmount,
+    transport, otherExpenses, advanceAmount, totalDestPaymentsCLP,
     inlandFreight, customsBrokerage, phytosanitarySag, portExpensesOrigin, inlandInsurance, otherOriginExpenses,
     rows.map(r => [r.envase, r.calibre, r.cajas, r.price_per_box]),
     creditNotes, destinationPayments
@@ -580,20 +587,20 @@ export default function ContainerLiquidationCard({
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-          {/* 1.1 FACTURA FRUTA EN PLANTA (EXW) */}
+          {/* 1.1 FACTURA FRUTA EN PLANTA (EXW - PISO PRINCIPAL) */}
           <div className="bg-slate-50/80 dark:bg-gray-950/60 border border-slate-200 dark:border-gray-800 rounded-xl p-5 space-y-4">
             <div className="border-b border-slate-200 dark:border-gray-800 pb-2">
               <h4 className="text-xs font-bold text-indigo-900 dark:text-indigo-300 uppercase tracking-wide">
-                1.1. Factura Fruta en Planta (EXW)
+                1.1. Factura Fruta en Planta (EXW - Piso Principal)
               </h4>
               <p className="text-[10px] text-slate-500 dark:text-gray-400 mt-0.5">
-                Monto total facturado por la fruta producida en packing (Pesos Chilenos)
+                Costo base inicial de la fruta en packing. Se liquida automáticamente con los abonos del comprador.
               </p>
             </div>
 
             <div className="space-y-3">
               <div className="flex flex-wrap items-center justify-between gap-2 text-xs">
-                <label className="text-slate-700 dark:text-gray-300 font-semibold">Monto Factura EXW:</label>
+                <label className="text-slate-700 dark:text-gray-300 font-semibold">Monto Factura Packing (Piso):</label>
                 <div className="flex items-center gap-2">
                   <span className="font-bold text-slate-700 dark:text-gray-300 text-xs px-2 py-1 bg-slate-200/60 dark:bg-gray-800 rounded-lg">CLP ($)</span>
                   <input
@@ -607,34 +614,30 @@ export default function ContainerLiquidationCard({
                   />
                 </div>
               </div>
-
-              <div className="flex flex-wrap items-center justify-between gap-2 text-xs">
-                <label className="text-slate-700 dark:text-gray-300 font-semibold">Abonos / Adelantos:</label>
-                <div className="flex items-center gap-2">
-                  <span className="font-bold text-slate-700 dark:text-gray-300 text-xs px-2 py-1 bg-slate-200/60 dark:bg-gray-800 rounded-lg">CLP ($)</span>
-                  <input
-                    type="number"
-                    step="1"
-                    value={abonosAmount || ''}
-                    onChange={(e) => setAbonosAmount(parseFloat(e.target.value) || 0)}
-                    disabled={isClosed}
-                    placeholder="0"
-                    className="w-36 bg-white dark:bg-gray-900 border border-slate-300 dark:border-gray-700 rounded-lg px-2.5 py-1 text-right font-mono font-bold text-slate-900 dark:text-white outline-none focus:border-indigo-500 text-xs"
-                  />
-                </div>
-              </div>
             </div>
 
-            {/* Muestreo de Abonos y Saldo Factura EXW */}
-            <div className="flex items-center justify-between text-xs bg-emerald-500/5 p-2.5 rounded-lg border border-emerald-500/20 text-slate-700 dark:text-gray-300">
-              <div className="flex items-center gap-1.5">
-                <span className="text-slate-500">Abonos Recibidos:</span>
-                <span className="font-mono font-bold text-emerald-700 dark:text-emerald-400">{formatMoney(abonosAmount, '$ CLP')}</span>
+            {/* Muestreo automático de extinción del piso con abonos de destino */}
+            <div className={`p-3 rounded-xl border text-xs space-y-1.5 ${
+              facturaPackingCubierta 
+                ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-800 dark:text-emerald-300' 
+                : 'bg-amber-500/10 border-amber-500/30 text-amber-800 dark:text-amber-300'
+            }`}>
+              <div className="flex items-center justify-between font-bold">
+                <span>Estado de Pago Factura Packing:</span>
+                <span className="font-mono">
+                  {facturaPackingCubierta ? '✓ 100% CUBIERTA Y PAGADA' : (advanceAmount <= 0 ? 'Sin Factura' : 'PENDIENTE DE PAGO')}
+                </span>
               </div>
-              <div className="flex items-center gap-1.5">
-                <span className="text-slate-500">Saldo Pendiente EXW:</span>
-                <span className="font-mono font-bold text-amber-700 dark:text-amber-400">{formatMoney(Math.max(advanceAmount - abonosAmount, 0), '$ CLP')}</span>
+              <div className="flex items-center justify-between text-[11px] opacity-90">
+                <span>Abonos del comprador recibidos:</span>
+                <span className="font-mono font-bold text-emerald-600 dark:text-emerald-400">{formatMoney(totalDestPaymentsCLP, '$ CLP')}</span>
               </div>
+              {!facturaPackingCubierta && advanceAmount > 0 && (
+                <div className="flex items-center justify-between text-[11px] font-bold border-t border-amber-500/20 pt-1 text-amber-700 dark:text-amber-400">
+                  <span>Falta para liquidar la factura:</span>
+                  <span className="font-mono">{formatMoney(saldoFacturaPackingCLP, '$ CLP')}</span>
+                </div>
+              )}
             </div>
           </div>
 
@@ -1256,7 +1259,9 @@ export default function ContainerLiquidationCard({
           totalExpenses={totalExpenses}
           netAmount={netAmount}
           advanceAmount={advanceAmount}
-          abonosAmount={abonosAmount}
+          abonosAmount={totalDestPaymentsCLP}
+          totalDestPaymentsCLP={totalDestPaymentsCLP}
+          saldoFacturaPackingCLP={saldoFacturaPackingCLP}
           fobCurrency={fobCurrency}
           fobExchangeRate={fobExchangeRate}
           finalBalanceInCurrency={finalBalanceInCurrency}

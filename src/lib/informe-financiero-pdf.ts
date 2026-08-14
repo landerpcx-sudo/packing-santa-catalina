@@ -346,10 +346,14 @@ export async function construirInformeFinancieroPDF(
 
     // Resumen Ejecutivo Multimoneda
     const finalBalanceCLP = netAmountCLP - realFobCLP
-    const saldoFob = Math.max(advanceAmount - abonosAmount, 0)
-    const facturaPagada = saldoFob <= 0 && advanceAmount > 0
+    const destinationPayments: Array<{ id?: string; amount: number; date?: string; reference?: string; note?: string }> =
+      Array.isArray(liq.destination_payments) ? liq.destination_payments : []
+    const totalDestinationPayments = destinationPayments.reduce((a, p) => a + (Number(p.amount) || 0), 0)
+    const totalDestPaymentsCLP = currency === 'CLP' ? totalDestinationPayments : Math.round(totalDestinationPayments * tasaCLPOtorgada)
+    const saldoFacturaPacking = Math.max(0, advanceAmount - totalDestPaymentsCLP)
+    const facturaPackingPagada = totalDestPaymentsCLP >= advanceAmount && advanceAmount > 0
     const rentable = finalBalanceCLP >= 0
-    const margenPct = grossSales > 0 ? (finalBalance / grossSales) * 100 : 0
+    const margenPct = effectiveGrossSales > 0 ? (finalBalance / effectiveGrossSales) * 100 : 0
 
     const tarjetas: Array<{ etiqueta: string; cifra: string; pie: string; color: string; fondo: string }> = [
       {
@@ -373,13 +377,13 @@ export async function construirInformeFinancieroPDF(
         fondo: rentable ? COLOR.tealFondo : COLOR.rojoFondo,
       },
       {
-        etiqueta: facturaPagada ? 'FACTURA FOB' : 'SALDO FACTURA FOB',
-        cifra: facturaPagada ? 'PAGADA' : clp(saldoFob),
-        pie: facturaPagada
-          ? `Facturado: ${clp(advanceAmount)}`
-          : `Facturado: ${clp(advanceAmount)}`,
-        color: facturaPagada ? COLOR.verde : COLOR.ambar,
-        fondo: facturaPagada ? COLOR.verdeFondo : COLOR.ambarFondo,
+        etiqueta: facturaPackingPagada ? 'FACTURA PACKING' : 'SALDO FACTURA PACKING',
+        cifra: facturaPackingPagada ? 'PAGADA ✓' : clp(saldoFacturaPacking),
+        pie: facturaPackingPagada
+          ? `Piso: ${clp(advanceAmount)} · Cubierto 100%`
+          : `Factura: ${clp(advanceAmount)} · Abonos: ${clp(totalDestPaymentsCLP)}`,
+        color: facturaPackingPagada ? COLOR.verde : COLOR.ambar,
+        fondo: facturaPackingPagada ? COLOR.verdeFondo : COLOR.ambarFondo,
       },
     ]
 
@@ -749,16 +753,20 @@ export async function construirInformeFinancieroPDF(
 
     doc.y += 10
 
-    // Abonos y Saldo Factura
+    // Cobertura Automática de Factura Packing con Abonos del Comprador
     asegurar(16)
     const yAbonos = doc.y
     doc.rect(L, yAbonos, W, 16).fill(COLOR.fondo)
     doc.fillColor(COLOR.suave).font('R').fontSize(7)
-      .text(`Abonos recibidos a factura EXW: `, L + 8, yAbonos + 5, { continued: true })
-      .fillColor(COLOR.verde).font('B').text(clp(abonosAmount))
+      .text(`Factura Packing (Piso): `, L + 8, yAbonos + 5, { continued: true })
+      .fillColor(COLOR.tinta).font('B').text(clp(advanceAmount))
     doc.fillColor(COLOR.suave).font('R').fontSize(7)
-      .text(`Saldo pendiente de factura EXW: `, L + W / 2, yAbonos + 5, { continued: true })
-      .fillColor(COLOR.ambar).font('B').text(clp(Math.max(advanceAmount - abonosAmount, 0)))
+      .text(` · Abonos comprador recibidos: `, { continued: true })
+      .fillColor(COLOR.verde).font('B').text(clp(totalDestPaymentsCLP))
+    doc.fillColor(COLOR.suave).font('R').fontSize(7)
+      .text(` · Estado Factura: `, { continued: true })
+      .fillColor(facturaPackingPagada ? COLOR.verde : COLOR.ambar).font('B')
+      .text(facturaPackingPagada ? '100% CUBIERTA ✓' : `FALTA ${clp(saldoFacturaPacking)}`)
     doc.y = yAbonos + 20
 
     // Tasa de cambio oficial de Venta -> Pesos Chilenos (CLP)
@@ -1073,21 +1081,8 @@ export async function construirInformeFinancieroPDF(
 
     // Variables de cuentas bilaterales (ya calculadas al inicio)
     const grossSalesAdjusted = effectiveGrossSales
-
-    const destinationPayments: Array<{ id?: string; amount: number; date?: string; reference?: string; note?: string }> =
-      Array.isArray(liq.destination_payments) ? liq.destination_payments : []
-    const totalDestinationPayments = destinationPayments.reduce((a, p) => a + (Number(p.amount) || 0), 0)
     const saldoBuyer = Math.max(0, grossSalesAdjusted - totalDestinationPayments)
     const saldoBuyerCLP = saldoBuyer * tasaCLPOtorgada
-    const totalDestPaymentsCLP = totalDestinationPayments * tasaCLPOtorgada
-
-    // Abonos de Packing
-    const advancePaymentsPacking: Array<{ id?: string; amount: number; date?: string; note?: string }> =
-      Array.isArray((dispatch as any).advance_payments) && (dispatch as any).advance_payments.length > 0
-        ? (dispatch as any).advance_payments
-        : (abonosAmount > 0 ? [{ id: '1', amount: abonosAmount, date: dispatch.dispatch_date, note: 'Abono inicial' }] : [])
-    const totalAbonosPacking = abonosAmount
-    const saldoAdeudadoPacking = Math.max(0, advanceAmount - totalAbonosPacking)
 
     // Cabecera explicativa
     const yBanner = doc.y
@@ -1185,60 +1180,62 @@ export async function construirInformeFinancieroPDF(
       .text(`Total abonado: ${dinero(totalDestinationPayments, simb)} de ${dinero(grossSalesAdjusted, simb)}`, xCol1 + 16, yBoxBuyer + 58)
 
 
-    // ── COLUMNA 2: PACKING SANTA CATALINA (Cuenta por Pagar) ──
+    // ── COLUMNA 2: LIQUIDACIÓN FACTURA PACKING (PISO EN CLP) ──
     doc.roundedRect(xCol2, yColsTop, colW, 410, 6).fill(COLOR.fondo)
     doc.roundedRect(xCol2, yColsTop, colW, 410, 6).lineWidth(0.8).strokeColor(COLOR.linea).stroke()
 
     // Header Col 2
     doc.roundedRect(xCol2, yColsTop, colW, 24, 6).fill(COLOR.teal)
     doc.fillColor('#ffffff').font('B').fontSize(7.5)
-      .text('2. CUENTA POR PAGAR: PACKING ($ CLP)', xCol2 + 10, yColsTop + 7, { width: colW - 20 })
+      .text('2. LIQUIDACIÓN FACTURA PACKING (PISO EN CLP)', xCol2 + 10, yColsTop + 7, { width: colW - 20 })
 
     let y2 = yColsTop + 30
 
-    doc.fillColor(COLOR.texto).font('R').fontSize(7).text('Monto Factura Fruta Planta (EXW):', xCol2 + 10, y2)
+    doc.fillColor(COLOR.texto).font('R').fontSize(7).text('Monto Factura Fruta Planta (Piso):', xCol2 + 10, y2)
     doc.fillColor(COLOR.tinta).font('B').fontSize(7.5).text(clp(advanceAmount), xCol2 + 10, y2, { width: colW - 20, align: 'right' })
     y2 += 13
 
-    doc.fillColor(COLOR.verde).font('R').fontSize(7).text('(-) Abonos Pagados al Packing:', xCol2 + 10, y2)
-    doc.fillColor(COLOR.verde).font('B').fontSize(7.5).text(`-${clp(totalAbonosPacking)}`, xCol2 + 10, y2, { width: colW - 20, align: 'right' })
+    doc.fillColor(COLOR.verde).font('R').fontSize(7).text('(-) Abonos Recibidos del Comprador:', xCol2 + 10, y2)
+    doc.fillColor(COLOR.verde).font('B').fontSize(7.5).text(`-${clp(totalDestPaymentsCLP)}`, xCol2 + 10, y2, { width: colW - 20, align: 'right' })
     y2 += 13
 
     doc.moveTo(xCol2 + 10, y2).lineTo(xCol2 + colW - 10, y2).lineWidth(0.5).strokeColor(COLOR.lineaSuave).stroke()
     y2 += 11
 
-    // Desglose de Abonos al Packing
-    doc.fillColor(COLOR.tinta).font('B').fontSize(7).text('HISTORIAL DE ABONOS AL PACKING:', xCol2 + 10, y2)
+    // Desglose de Abonos Aplicados al Piso
+    doc.fillColor(COLOR.tinta).font('B').fontSize(7).text('APLICACIÓN DE ABONOS A LA FACTURA:', xCol2 + 10, y2)
     y2 += 9
-    if (advancePaymentsPacking.length === 0) {
-      doc.fillColor(COLOR.tenue).font('R').fontSize(6.5).text('Sin abonos registrados al packing.', xCol2 + 10, y2)
+    if (destinationPayments.length === 0) {
+      doc.fillColor(COLOR.tenue).font('R').fontSize(6.5).text('Sin abonos del comprador recibidos aún.', xCol2 + 10, y2)
       y2 += 13
     } else {
-      advancePaymentsPacking.slice(0, 6).forEach((ap, idx) => {
-        const desc = ap.note || `Abono #${idx + 1}`
-        doc.fillColor(COLOR.texto).font('R').fontSize(6.5).text(`${fecha(ap.date)} - ${desc.slice(0, 20)}`, xCol2 + 10, y2, { width: colW - 75, lineBreak: false })
-        doc.fillColor(COLOR.verde).font('B').fontSize(6.5).text(clp(Number(ap.amount) || 0), xCol2 + 10, y2, { width: colW - 20, align: 'right' })
+      destinationPayments.slice(0, 6).forEach((dp, idx) => {
+        const ref = dp.reference ? `[${dp.reference}] ` : ''
+        const desc = `${ref}${dp.note || `Abono #${idx + 1}`}`
+        const montoCLP = (Number(dp.amount) || 0) * tasaCLPOtorgada
+        doc.fillColor(COLOR.texto).font('R').fontSize(6.5).text(`${fecha(dp.date)} - ${desc.slice(0, 20)}`, xCol2 + 10, y2, { width: colW - 75, lineBreak: false })
+        doc.fillColor(COLOR.verde).font('B').fontSize(6.5).text(clp(montoCLP), xCol2 + 10, y2, { width: colW - 20, align: 'right' })
         y2 += 11
       })
     }
 
     // Caja de Saldo Packing
     const yBoxPacking = yColsTop + 320
-    const packingPaid = saldoAdeudadoPacking <= 0 && advanceAmount > 0
+    const packingPaid = saldoFacturaPacking <= 0 && advanceAmount > 0
     doc.roundedRect(xCol2 + 10, yBoxPacking, colW - 20, 80, 4).fill(packingPaid ? COLOR.verdeFondo : COLOR.ambarFondo)
     doc.roundedRect(xCol2 + 10, yBoxPacking, colW - 20, 80, 4).lineWidth(0.8).strokeColor(packingPaid ? COLOR.verdeBorde : COLOR.linea).stroke()
 
     doc.fillColor(packingPaid ? COLOR.verde : COLOR.ambar).font('B').fontSize(6.5)
-      .text(packingPaid ? 'PAGADO AL 100% AL PACKING ✓' : 'SALDO PENDIENTE A PAGAR AL PACKING', xCol2 + 16, yBoxPacking + 7)
+      .text(packingPaid ? 'FACTURA PACKING CUBIERTA AL 100% ✓' : 'SALDO PENDIENTE FACTURA PACKING', xCol2 + 16, yBoxPacking + 7)
 
     doc.fillColor(COLOR.tinta).font('B').fontSize(11.5)
-      .text(clp(saldoAdeudadoPacking), xCol2 + 16, yBoxPacking + 20)
+      .text(clp(saldoFacturaPacking), xCol2 + 16, yBoxPacking + 20)
 
     doc.fillColor(COLOR.suave).font('R').fontSize(6.8)
       .text(`Facturado Planta: ${clp(advanceAmount)}`, xCol2 + 16, yBoxPacking + 38)
 
     doc.fillColor(COLOR.tenue).font('R').fontSize(6)
-      .text(`Total pagado: ${clp(totalAbonosPacking)} (${Math.round(advanceAmount > 0 ? (totalAbonosPacking/advanceAmount)*100 : 0)}% cubierto)`, xCol2 + 16, yBoxPacking + 58)
+      .text(`Abonos recibidos: ${clp(totalDestPaymentsCLP)} (${Math.min(100, Math.round(advanceAmount > 0 ? (totalDestPaymentsCLP / advanceAmount) * 100 : 0))}% cubierto)`, xCol2 + 16, yBoxPacking + 58)
 
     // ── RESUMEN CONSOLIDADO DE CAJA Y LIQUIDEZ (Pie) ──
     const yFooterBox = yColsTop + 420
@@ -1248,9 +1245,10 @@ export async function construirInformeFinancieroPDF(
     doc.fillColor(COLOR.tinta).font('B').fontSize(7.5)
       .text('RESUMEN DE LIQUIDEZ Y FLUJO NETO DE LA OPERACIÓN', L + 12, yFooterBox + 7)
 
-    const margenEfectivoCLP = totalDestPaymentsCLP - totalAbonosPacking
+    const coberturaPisoCLP = Math.min(totalDestPaymentsCLP, advanceAmount)
+    const excedenteSobrePisoCLP = Math.max(0, totalDestPaymentsCLP - advanceAmount)
     doc.fillColor(COLOR.texto).font('R').fontSize(6.8)
-      .text(`Recaudado Destino: ${clp(totalDestPaymentsCLP)}  |  Pagado Packing: ${clp(totalAbonosPacking)}  |  Flujo Neto en Caja: ${clp(margenEfectivoCLP)}`, L + 12, yFooterBox + 20)
+      .text(`Recaudado Comprador: ${clp(totalDestPaymentsCLP)}  |  Cubierto Factura Packing: ${clp(coberturaPisoCLP)}  |  Excedente Cobrado: ${clp(excedenteSobrePisoCLP)}`, L + 12, yFooterBox + 20)
     doc.fillColor(COLOR.suave).font('R').fontSize(6.2)
       .text(`Utilidad Final Proyectada del Contenedor al completar cobranza: ${dinero(finalBalance, simb)} (${clp(finalBalanceCLP)})`, L + 12, yFooterBox + 32)
 
