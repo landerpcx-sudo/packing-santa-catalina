@@ -753,34 +753,49 @@ export async function construirInformeFinancieroPDF(
 
     doc.y += 10
 
-    // Cobertura Automática de Factura Packing con Abonos del Comprador
-    asegurar(16)
+    // Cobertura Automática de Factura Packing con Abonos del Comprador (Grid de 3 columnas limpias)
+    asegurar(26)
     const yAbonos = doc.y
-    doc.rect(L, yAbonos, W, 16).fill(COLOR.fondo)
-    doc.fillColor(COLOR.suave).font('R').fontSize(7)
-      .text(`Factura Packing (Piso): `, L + 8, yAbonos + 5, { continued: true })
+    const hAbonos = 22
+    doc.roundedRect(L, yAbonos, W, hAbonos, 4).fill(COLOR.fondo)
+    doc.roundedRect(L, yAbonos, W, hAbonos, 4).lineWidth(0.5).strokeColor(COLOR.lineaSuave).stroke()
+
+    const col1W = W * 0.35
+    const col2W = W * 0.35
+    const col3W = W * 0.30
+
+    // Col 1: Factura Packing
+    doc.fillColor(COLOR.suave).font('R').fontSize(6.8)
+      .text('Factura Packing (Piso): ', L + 8, yAbonos + 6, { continued: true })
       .fillColor(COLOR.tinta).font('B').text(clp(advanceAmount))
-    doc.fillColor(COLOR.suave).font('R').fontSize(7)
-      .text(` · Abonos comprador recibidos: `, { continued: true })
+
+    // Col 2: Abonos del Comprador
+    doc.fillColor(COLOR.suave).font('R').fontSize(6.8)
+      .text('Abonos Recibidos: ', L + col1W + 8, yAbonos + 6, { continued: true })
       .fillColor(COLOR.verde).font('B').text(clp(totalDestPaymentsCLP))
-    doc.fillColor(COLOR.suave).font('R').fontSize(7)
-      .text(` · Estado Factura: `, { continued: true })
+
+    // Col 3: Estado de la Factura
+    doc.fillColor(COLOR.suave).font('R').fontSize(6.8)
+      .text('Estado Factura: ', L + col1W + col2W + 4, yAbonos + 6, { continued: true })
       .fillColor(facturaPackingPagada ? COLOR.verde : COLOR.ambar).font('B')
       .text(facturaPackingPagada ? '100% CUBIERTA ✓' : `FALTA ${clp(saldoFacturaPacking)}`)
-    doc.y = yAbonos + 20
+
+    doc.y = yAbonos + hAbonos + 8
 
     // Tasa de cambio oficial de Venta -> Pesos Chilenos (CLP)
-    asegurar(22)
+    asegurar(20)
     const fechaTasaStr = liq.rate_date ? fecha(liq.rate_date) : (dispatch.dispatch_date ? fecha(dispatch.dispatch_date) : fecha(new Date().toISOString()))
 
     if (!esSoloCLP) {
       doc.fillColor(COLOR.suave).font('R').fontSize(6.8)
         .text(
-          `Tasa de Cambio Oficial (${currency} -> CLP): 1 ${currency} = $ ${tasaCLPOtorgada.toLocaleString('es-CL')} CLP (Fecha T/C: ${fechaTasaStr})` +
+          `Tasa de Cambio Oficial (${currency} → CLP): 1 ${currency} = $ ${tasaCLPOtorgada.toLocaleString('es-CL')} CLP (Fecha T/C: ${fechaTasaStr})` +
           (liq.rate_provider_info ? `  ·  ${liq.rate_provider_info}` : ''),
-          L, doc.y, { width: W }
+          L + 4, doc.y, { width: W - 8 }
         )
-      doc.y += 18
+      doc.y += 14
+    } else {
+      doc.y += 4
     }
 
     // Cuadro destacado con el resultado final del negocio en Doble Moneda (Destino & CLP)
