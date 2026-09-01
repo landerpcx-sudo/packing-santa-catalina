@@ -54,7 +54,15 @@ export async function GET(request: Request) {
     query = query.ilike('client', `%${client}%`)
   }
 
-  if (status) query = query.eq('overall_status', status)
+  if (status) {
+    if (status === 'pending') {
+      query = query.in('overall_status', ['pending', 'uploaded', 'observed', 'late'])
+    } else if (status === 'complete') {
+      query = query.in('overall_status', ['complete', 'closed'])
+    } else {
+      query = query.eq('overall_status', status)
+    }
+  }
   if (search) query = query.or(`internal_code.ilike.%${search}%,client.ilike.%${search}%,destination.ilike.%${search}%,container_number.ilike.%${search}%`)
   if (market) query = query.ilike('destination', `%${market}%`)
   if (container) query = query.ilike('container_number', `%${container}%`)

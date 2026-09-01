@@ -114,6 +114,7 @@ export async function POST(request: Request) {
         .eq('lot_id', entityId)
         .eq('document_type', documentType)
         .like('original_file_name', `${nameWithoutExt}%`)
+        .is('deleted_at', null)
 
       if (existingDocs && existingDocs.length > 0) {
         const exactMatch = existingDocs.some(d => d.original_file_name === sanitizedName)
@@ -136,6 +137,7 @@ export async function POST(request: Request) {
         .select('version_number')
         .eq('lot_id', entityId)
         .eq('document_type', documentType)
+        .is('deleted_at', null)
 
       if (documentType === 'process') {
         versionQuery = versionQuery.eq('original_file_name', sanitizedName)

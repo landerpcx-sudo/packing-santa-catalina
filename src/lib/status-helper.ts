@@ -13,11 +13,12 @@ export async function recalculateLotStatus(lotId: string): Promise<{
   overall_status: string
 } | null> {
   try {
-    // 1. Obtener todos los documentos asociados a este lote
+    // 1. Obtener todos los documentos activos (no eliminados) asociados a este lote
     const { data: docs, error } = await supabaseAdmin
       .from('lot_documents')
       .select('id, document_type, original_file_name, version_number, status')
       .eq('lot_id', lotId)
+      .is('deleted_at', null)
 
     if (error) {
       console.error(`Error al obtener documentos del lote ${lotId} para recalcular estados:`, error)
@@ -73,11 +74,20 @@ export async function recalculateLotStatus(lotId: string): Promise<{
       }
     }
 
+    // 0. Obtener el estado actual del lote (para preservar 'closed' si fue cerrado manualmente)
+    const { data: currentLot } = await supabaseAdmin
+      .from('lots')
+      .select('overall_status')
+      .eq('id', lotId)
+      .single()
+
     // --- CÁLCULO DEL ESTADO GENERAL (OVERALL_STATUS) ---
     const stages = [reception_status, quality_status, process_status]
     let overall_status = 'uploaded' // Por defecto si hay avances
 
-    if (stages.every(s => s === 'validated')) {
+    if (currentLot?.overall_status === 'closed') {
+      overall_status = 'closed'
+    } else if (stages.every(s => s === 'validated')) {
       overall_status = 'complete'
     } else if (stages.every(s => s === 'pending')) {
       overall_status = 'pending'

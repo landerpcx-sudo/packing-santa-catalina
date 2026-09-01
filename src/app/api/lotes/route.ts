@@ -54,7 +54,15 @@ export async function GET(request: Request) {
     query = query.ilike('client', `%${client}%`)
   }
 
-  if (status) query = query.eq('overall_status', status)
+  if (status) {
+    if (status === 'pending') {
+      query = query.or('overall_status.in.(pending,uploaded),overall_status.is.null')
+    } else if (status === 'complete' || status === 'validated') {
+      query = query.in('overall_status', ['complete', 'validated'])
+    } else {
+      query = query.eq('overall_status', status)
+    }
+  }
   if (search) query = query.or(`internal_code.ilike.%${search}%,display_name.ilike.%${search}%,client.ilike.%${search}%`)
   if (producer) query = query.ilike('producer', `%${producer}%`)
   if (species) {

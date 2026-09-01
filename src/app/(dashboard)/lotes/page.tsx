@@ -198,13 +198,31 @@ function LotesContent() {
     fetchLots()
   }, [fetchLots])
 
-  // Estadísticas rápidas con useMemo (Mejora #18)
-  const stats = useMemo(() => ({
-    total: total,
-    pending:  lots.filter(l => !l.overall_status || l.overall_status === 'pending' || l.overall_status === 'uploaded').length,
-    late:     lots.filter(l => l.overall_status === 'late' || l.overall_status === 'observed').length,
-    complete: lots.filter(l => ['complete','validated','closed'].includes(l.overall_status)).length,
-  }), [lots, total])
+  const [globalStats, setGlobalStats] = useState({ total: 0, pending: 0, late: 0, complete: 0 })
+
+  const fetchGlobalStats = useCallback(async () => {
+    try {
+      const res = await fetch('/api/dashboard/stats')
+      if (res.ok) {
+        const json = await res.json()
+        const lotes = json.data?.lotes
+        if (lotes) {
+          setGlobalStats({
+            total: lotes.total || 0,
+            pending: lotes.incompletos || 0,
+            late: lotes.observados || 0,
+            complete: lotes.completos || 0,
+          })
+        }
+      }
+    } catch (e) {
+      console.error('Error fetching global stats:', e)
+    }
+  }, [])
+
+  useEffect(() => {
+    fetchGlobalStats()
+  }, [fetchGlobalStats])
 
   return (
     <div className="space-y-6">
@@ -221,7 +239,7 @@ function LotesContent() {
         </div>
         <div className="flex items-center gap-3">
           <button
-            onClick={() => fetchLots()}
+            onClick={() => { fetchLots(); fetchGlobalStats(); }}
             className="p-2.5 rounded-xl border border-white/10 text-gray-400 hover:text-white hover:bg-white/5 transition-all"
             title="Actualizar"
           >
@@ -237,18 +255,22 @@ function LotesContent() {
         </div>
       </div>
 
-      {/* Estadísticas mini */}
+      {/* Estadísticas mini interactivas */}
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
         {[
-          { label: 'Total Lotes', value: stats.total, color: 'text-blue-400', bg: 'bg-blue-400/10 border-blue-400/20' },
-          { label: 'Pendientes', value: stats.pending, color: 'text-red-400', bg: 'bg-red-400/10 border-red-400/20' },
-          { label: 'Atrasados', value: stats.late, color: 'text-orange-400', bg: 'bg-orange-400/10 border-orange-400/20' },
-          { label: 'Completos', value: stats.complete, color: 'text-green-400', bg: 'bg-green-400/10 border-green-400/20' },
+          { key: '', label: 'Total Lotes', value: globalStats.total || total, color: 'text-blue-400', bg: 'bg-blue-400/10 border-blue-400/20', activeBg: 'ring-2 ring-blue-400' },
+          { key: 'pending', label: 'Pendientes', value: globalStats.pending, color: 'text-red-400', bg: 'bg-red-400/10 border-red-400/20', activeBg: 'ring-2 ring-red-400' },
+          { key: 'late', label: 'Atrasados', value: globalStats.late, color: 'text-orange-400', bg: 'bg-orange-400/10 border-orange-400/20', activeBg: 'ring-2 ring-orange-400' },
+          { key: 'complete', label: 'Completos', value: globalStats.complete, color: 'text-green-400', bg: 'bg-green-400/10 border-green-400/20', activeBg: 'ring-2 ring-green-400' },
         ].map((s) => (
-          <div key={s.label} className={`border rounded-xl p-3 ${s.bg}`}>
+          <button
+            key={s.label}
+            onClick={() => handleStatusChange(filterStatus === s.key ? '' : s.key)}
+            className={`border rounded-xl p-3 text-left transition-all hover:scale-[1.02] cursor-pointer ${s.bg} ${filterStatus === s.key ? s.activeBg : ''}`}
+          >
             <p className="text-gray-400 text-xs">{s.label}</p>
             <p className={`text-2xl font-bold mt-1 ${s.color}`}>{s.value}</p>
-          </div>
+          </button>
         ))}
       </div>
 
@@ -273,7 +295,9 @@ function LotesContent() {
           >
             <option value="" className="bg-[#111827]">Todos los estados</option>
             <option value="pending" className="bg-[#111827]">Pendiente</option>
-            <option value="complete" className="bg-[#111827]">Completo</option>
+            <option value="uploaded" className="bg-[#111827]">Subido</option>
+            <option value="complete" className="bg-[#111827]">Aprobado</option>
+            <option value="observed" className="bg-[#111827]">Observado</option>
             <option value="late" className="bg-[#111827]">Atrasado</option>
             <option value="closed" className="bg-[#111827]">Cerrado</option>
           </select>

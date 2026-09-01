@@ -97,6 +97,7 @@ export async function POST(
       .eq('lot_id', id)
       .eq('document_type', document_type)
       .like('original_file_name', `${nameWithoutExt}%`)
+      .is('deleted_at', null)
 
     if (existingDocs && existingDocs.length > 0) {
       const exactMatch = existingDocs.some(d => d.original_file_name === sanitizedName)
@@ -120,6 +121,7 @@ export async function POST(
       .select('version_number')
       .eq('lot_id', id)
       .eq('document_type', document_type)
+      .is('deleted_at', null)
 
     if (document_type === 'process') {
       // Para process, si el nombre del archivo es diferente se trata de un informe paralelo (v1)
