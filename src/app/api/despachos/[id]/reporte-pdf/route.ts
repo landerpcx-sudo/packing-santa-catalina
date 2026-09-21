@@ -27,6 +27,7 @@ export async function GET(
         id,
         internal_code,
         dispatch_code,
+        container_number,
         client,
         destination,
         dispatch_date,
@@ -555,10 +556,17 @@ export async function GET(
     }
 
     // 6. Enviar respuesta binaria con cabeceras de PDF (inline para previsualización en navegador)
+    const cod = dispatch.dispatch_code || dispatch.internal_code || id
+    const cont = dispatch.container_number ? ` - ${dispatch.container_number}` : ''
+    const nombreDossierBase = `Dossier Despacho ${cod}${cont}`.replace(/[/\\?%*:|"<>]/g, '-')
+    const asciiNombre = `Dossier Despacho ${cod}${cont}.pdf`.replace(/[/\\?%*:|"<>]/g, '-')
+    const utf8Nombre = `${nombreDossierBase}.pdf`
+    const encodedNombre = encodeURIComponent(utf8Nombre)
+
     return new NextResponse(new Uint8Array(finalPdfBuffer), {
       headers: {
         'Content-Type': 'application/pdf',
-        'Content-Disposition': `inline; filename="Reporte_Despacho_${dispatch.dispatch_code || dispatch.internal_code}.pdf"`,
+        'Content-Disposition': `inline; filename="${asciiNombre}"; filename*=UTF-8''${encodedNombre}`,
         'Content-Length': finalPdfBuffer.length.toString(),
         'Cache-Control': 'no-cache',
       }

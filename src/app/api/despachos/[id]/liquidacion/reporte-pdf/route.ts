@@ -67,13 +67,18 @@ export async function GET(
 
     const pdf = await construirInformeFinancieroPDF(dispatch, liq)
 
-    const nombre = `Informe_Financiero_LIQ-${dispatch.dispatch_code}.pdf`
+    const codigo = dispatch.dispatch_code || dispatch.internal_code || id
+    const contenedor = dispatch.container_number ? ` - ${dispatch.container_number}` : ''
+    const nombreBase = `Liquidación Despacho ${codigo}${contenedor}`.replace(/[/\\?%*:|"<>]/g, '-')
+    const nombreAscii = `Liquidacion Despacho ${codigo}${contenedor}.pdf`.replace(/[/\\?%*:|"<>]/g, '-')
+    const nombreUtf8 = `${nombreBase}.pdf`
+    const encodedNombre = encodeURIComponent(nombreUtf8)
 
     return new NextResponse(new Uint8Array(pdf), {
       headers: {
         'Content-Type': 'application/pdf',
         // inline: el navegador lo muestra en su visor, con imprimir y descargar.
-        'Content-Disposition': `inline; filename="${nombre}"`,
+        'Content-Disposition': `inline; filename="${nombreAscii}"; filename*=UTF-8''${encodedNombre}`,
         'Content-Length': pdf.length.toString(),
         'Cache-Control': 'no-store',
       },

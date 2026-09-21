@@ -174,8 +174,24 @@ export async function construirInformeFinancieroPDF(
   const maxUtilidadAbs = Math.max(...analisis.map((a: any) => Math.abs(a.utilidadPorCaja)), 0.01)
 
   // 4. Dibujar el PDF
+  const codigoDespacho = dispatch.dispatch_code || dispatch.internal_code || 'S/C'
+  const contDespacho = dispatch.container_number ? ` - ${dispatch.container_number}` : ''
+  const docTitle = `Liquidación Despacho ${codigoDespacho}${contDespacho}`
+
   const pdf = await new Promise<Buffer>((resolve, reject) => {
-    const doc = new PDFDocument({ size: 'A4', margin: 40, bufferPages: true, autoFirstPage: false })
+    const doc = new PDFDocument({
+      size: 'A4',
+      margin: 40,
+      bufferPages: true,
+      autoFirstPage: false,
+      info: {
+        Title: docTitle,
+        Author: 'Packing Santa Catalina',
+        Subject: `Liquidación Financiera Despacho ${codigoDespacho}${contDespacho}`,
+        Keywords: 'Liquidación, Finanzas, Despacho, Exportación, Contenedor',
+        CreationDate: new Date(),
+      },
+    })
     const chunks: any[] = []
     doc.on('data', c => chunks.push(c))
     doc.on('end', () => resolve(Buffer.concat(chunks)))

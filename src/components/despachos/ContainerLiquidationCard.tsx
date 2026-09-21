@@ -490,7 +490,8 @@ export default function ContainerLiquidationCard({
             total_expenses: totalExpenses,
             net_amount: netAmount,
             advance_amount: advanceAmount,
-            exchange_rate: exchangeRate,
+            exchange_rate: effectiveDestClpRate,
+            usd_exchange_rate: effectiveUsdClpRate,
             final_balance: finalBalanceInCurrency,
             // Guardar el PDF no debe finalizar una liquidación en borrador.
             status: liquidationStatus,

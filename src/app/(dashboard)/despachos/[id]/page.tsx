@@ -920,8 +920,13 @@ function TarjetaInforme({
       if (descarga) {
         const contentDisp = res.headers.get('content-disposition')
         let filename = 'archivo.zip'
-        if (contentDisp && contentDisp.includes('filename=')) {
-          filename = contentDisp.split('filename=')[1].replace(/"/g, '')
+        if (contentDisp && contentDisp.includes('filename*=')) {
+          try {
+            const match = contentDisp.match(/filename\*=UTF-8''([^;]+)/i)
+            if (match && match[1]) filename = decodeURIComponent(match[1])
+          } catch {}
+        } else if (contentDisp && contentDisp.includes('filename=')) {
+          filename = contentDisp.split('filename=')[1].split(';')[0].replace(/"/g, '').trim()
         }
         const a = document.createElement('a')
         a.href = blobUrl
@@ -930,10 +935,12 @@ function TarjetaInforme({
         a.click()
         a.remove()
       } else {
+        // Redirigir la pestaña abierta directamente al endpoint HTTP para que el visor de PDF
+        // del navegador muestre el nombre oficial del despacho y contenedor
         if (newTab && !newTab.closed) {
-          newTab.location.href = blobUrl
+          newTab.location.href = href
         } else {
-          window.open(blobUrl, '_blank')
+          window.open(href, '_blank')
         }
       }
 
