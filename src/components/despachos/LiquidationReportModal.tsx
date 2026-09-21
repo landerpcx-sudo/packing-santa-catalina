@@ -13,6 +13,8 @@ interface LiquidationReportModalProps {
   currency: string
   targetCurrency: string
   exchangeRate: number
+  usdExchangeRate?: number
+  rateDate?: string
   rateProviderInfo?: string
   grossSales: number
   creditNotes?: any[]
@@ -29,6 +31,7 @@ interface LiquidationReportModalProps {
   totalExpenses: number
   netAmount: number
   advanceAmount: number // Costo FOB Facturado (Monto Factura)
+  originExpensesTotal?: number // Gastos de Planta a Puerto
   abonosAmount?: number // Abonos recibidos del cliente
   totalDestPaymentsCLP?: number
   saldoFacturaPackingCLP?: number
@@ -59,6 +62,8 @@ export default function LiquidationReportModal({
   currency,
   targetCurrency,
   exchangeRate,
+  usdExchangeRate,
+  rateDate,
   rateProviderInfo,
   grossSales,
   creditNotes = [],
@@ -75,6 +80,7 @@ export default function LiquidationReportModal({
   totalExpenses,
   netAmount,
   advanceAmount,
+  originExpensesTotal = 0,
   abonosAmount = 0,
   fobCurrency = 'CLP',
   fobExchangeRate = 1000,
@@ -401,93 +407,252 @@ export default function LiquidationReportModal({
           </div>
 
           {/* SECCIÓN III: ESTADO FINANCIERO Y UTILIDAD TOTAL DEL NEGOCIO */}
-          <div className="space-y-3">
-            <h3 className="text-xs font-bold uppercase tracking-wider text-slate-800 flex items-center gap-1.5 border-b border-slate-200 pb-1">
-              <span className="w-2 h-2 rounded-full bg-emerald-600" />
-              III. Resumen Financiero y Utilidad Total del Contenedor
-            </h3>
+          {(() => {
+            const isDestOtherThanUsdAndClp = currency !== 'USD' && currency !== 'CLP'
+            const effectiveDestClp = currency === 'CLP' ? 1 : (exchangeRate > 0 ? exchangeRate : 1000)
+            const effectiveUsdClp = (usdExchangeRate && usdExchangeRate > 0) ? usdExchangeRate : (currency === 'USD' ? effectiveDestClp : 950)
+            const effectiveDestUsd = currency === 'USD' ? 1 : (currency === 'CLP' ? (1 / effectiveUsdClp) : (effectiveDestClp / effectiveUsdClp))
 
-            <div className="border border-slate-300 rounded-2xl p-5 space-y-3 bg-white">
-              <div className="grid grid-cols-2 sm:grid-cols-5 gap-3 text-xs border-b border-slate-200 pb-3">
-                <div>
-                  <span className="text-slate-400 text-[10px] block uppercase font-bold">Venta Bruta Cajas</span>
-                  <span className="font-mono font-bold text-slate-800 text-sm">{formatMoney(grossSales)}</span>
-                </div>
-                <div>
-                  <span className="text-red-500 text-[10px] block uppercase font-bold">(-) Notas Crédito</span>
-                  <span className="font-mono font-bold text-red-600 text-sm">-{formatMoney(calculatedTotalNC)}</span>
-                </div>
-                <div>
-                  <span className="text-emerald-600 text-[10px] block uppercase font-bold">(=) Venta Real Lograda</span>
-                  <span className="font-mono font-bold text-emerald-800 text-sm">{formatMoney(realGrossSales)}</span>
-                </div>
-                <div>
-                  <span className="text-slate-400 text-[10px] block uppercase font-bold">(-) Deducciones Destino</span>
-                  <span className="font-mono font-bold text-red-700 text-sm">-{formatMoney(totalExpenses)}</span>
-                </div>
-                <div>
-                  <span className="text-emerald-700 text-[10px] block uppercase font-bold">(=) Importe Neto A Favor</span>
-                  <span className="font-mono font-bold text-emerald-700 text-sm">{formatMoney(netAmount)}</span>
+            // Origen
+            const origExp = originExpensesTotal || 0
+            const realFobCLP = advanceAmount + origExp
+            const realFobUSD = Math.round((realFobCLP / effectiveUsdClp) * 100) / 100
+            const realFobDest = currency === 'CLP' ? realFobCLP : (currency === 'USD' ? realFobUSD : Math.round((realFobCLP / effectiveDestClp) * 100) / 100)
+
+            // Ventas y Deducciones en las 3 monedas
+            const vB_Dest = grossSales
+            const vB_USD = currency === 'USD' ? grossSales : (currency === 'CLP' ? grossSales / effectiveUsdClp : grossSales * effectiveDestUsd)
+            const vB_CLP = currency === 'CLP' ? grossSales : grossSales * effectiveDestClp
+
+            const nc_Dest = calculatedTotalNC
+            const nc_USD = currency === 'USD' ? calculatedTotalNC : (currency === 'CLP' ? calculatedTotalNC / effectiveUsdClp : calculatedTotalNC * effectiveDestUsd)
+            const nc_CLP = currency === 'CLP' ? calculatedTotalNC : calculatedTotalNC * effectiveDestClp
+
+            const vr_Dest = realGrossSales
+            const vr_USD = vB_USD - nc_USD
+            const vr_CLP = vB_CLP - nc_CLP
+
+            const ded_Dest = totalExpenses
+            const ded_USD = currency === 'USD' ? totalExpenses : (currency === 'CLP' ? totalExpenses / effectiveUsdClp : totalExpenses * effectiveDestUsd)
+            const ded_CLP = currency === 'CLP' ? totalExpenses : totalExpenses * effectiveDestClp
+
+            const net_Dest = netAmount
+            const net_USD = vr_USD - ded_USD
+            const net_CLP = vr_CLP - ded_CLP
+
+            const exw_CLP = advanceAmount
+            const exw_USD = advanceAmount / effectiveUsdClp
+            const exw_Dest = currency === 'CLP' ? advanceAmount : (currency === 'USD' ? exw_USD : advanceAmount / effectiveDestClp)
+
+            const orig_CLP = origExp
+            const orig_USD = origExp / effectiveUsdClp
+            const orig_Dest = currency === 'CLP' ? origExp : (currency === 'USD' ? orig_USD : origExp / effectiveDestClp)
+
+            const ut_CLP = net_CLP - realFobCLP
+            const ut_USD = net_USD - realFobUSD
+            const ut_Dest = currency === 'CLP' ? ut_CLP : (currency === 'USD' ? ut_USD : net_Dest - realFobDest)
+
+            const safeCj = totalCajas > 0 ? totalCajas : 1
+
+            const fmtClp = (val: number) => `$ ${Math.round(val).toLocaleString('es-CL')} CLP`
+            const fmtUsd = (val: number) => `$ ${val.toLocaleString('es-CL', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} USD`
+            const fmtDest = (val: number) => `${currSymbol} ${val.toLocaleString('es-CL', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} ${currency}`
+
+            return (
+              <div className="space-y-4">
+                <h3 className="text-xs font-bold uppercase tracking-wider text-slate-800 flex items-center gap-1.5 border-b border-slate-200 pb-1">
+                  <span className="w-2 h-2 rounded-full bg-emerald-600" />
+                  III. Resumen Financiero y Tabla Maestra Multi-Moneda
+                </h3>
+
+                <div className="border border-slate-300 rounded-2xl p-5 space-y-4 bg-white shadow-sm overflow-x-auto">
+                  {/* TABLA MAESTRA MULTI-MONEDA */}
+                  <table className="w-full text-xs border-collapse">
+                    <thead>
+                      <tr className="bg-slate-100 border-b border-slate-300 text-[11px] font-bold text-slate-700">
+                        <th className="py-2 px-3 text-left">Concepto Financiero</th>
+                        {isDestOtherThanUsdAndClp && (
+                          <th className="py-2 px-3 text-right">Venta Destino ({currency} {currSymbol})</th>
+                        )}
+                        <th className="py-2 px-3 text-right">Dólares Americanos (USD $)</th>
+                        <th className="py-2 px-3 text-right">Pesos Chilenos (CLP $)</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-200 font-mono">
+                      {/* Venta Bruta */}
+                      <tr className="hover:bg-slate-50/50">
+                        <td className="py-2 px-3 font-sans font-semibold text-slate-800">Venta Bruta Cajas</td>
+                        {isDestOtherThanUsdAndClp && <td className="py-2 px-3 text-right font-bold text-slate-900">{fmtDest(vB_Dest)}</td>}
+                        <td className="py-2 px-3 text-right text-slate-800">{fmtUsd(vB_USD)}</td>
+                        <td className="py-2 px-3 text-right text-slate-800">{fmtClp(vB_CLP)}</td>
+                      </tr>
+
+                      {/* Notas de Crédito */}
+                      {calculatedTotalNC > 0 && (
+                        <>
+                          <tr className="bg-red-50/40 text-red-700">
+                            <td className="py-1.5 px-3 font-sans">(-) Notas de Crédito / Calidad</td>
+                            {isDestOtherThanUsdAndClp && <td className="py-1.5 px-3 text-right font-semibold">-{fmtDest(nc_Dest)}</td>}
+                            <td className="py-1.5 px-3 text-right">-{fmtUsd(nc_USD)}</td>
+                            <td className="py-1.5 px-3 text-right">-{fmtClp(nc_CLP)}</td>
+                          </tr>
+                          <tr className="bg-slate-100/60 font-bold text-emerald-800">
+                            <td className="py-1.5 px-3 font-sans">(=) Venta Real Efectiva Lograda</td>
+                            {isDestOtherThanUsdAndClp && <td className="py-1.5 px-3 text-right">{fmtDest(vr_Dest)}</td>}
+                            <td className="py-1.5 px-3 text-right">{fmtUsd(vr_USD)}</td>
+                            <td className="py-1.5 px-3 text-right">{fmtClp(vr_CLP)}</td>
+                          </tr>
+                        </>
+                      )}
+
+                      {/* Deducciones */}
+                      <tr className="text-red-700">
+                        <td className="py-2 px-3 font-sans font-semibold">(-) Deducciones en Destino</td>
+                        {isDestOtherThanUsdAndClp && <td className="py-2 px-3 text-right">-{fmtDest(ded_Dest)}</td>}
+                        <td className="py-2 px-3 text-right">-{fmtUsd(ded_USD)}</td>
+                        <td className="py-2 px-3 text-right">-{fmtClp(ded_CLP)}</td>
+                      </tr>
+
+                      {/* Importe Neto */}
+                      <tr className="bg-emerald-50 font-bold text-emerald-800 border-t border-b border-emerald-200">
+                        <td className="py-2 px-3 font-sans">(=) Importe Neto a Favor</td>
+                        {isDestOtherThanUsdAndClp && <td className="py-2 px-3 text-right">{fmtDest(net_Dest)}</td>}
+                        <td className="py-2 px-3 text-right">{fmtUsd(net_USD)}</td>
+                        <td className="py-2 px-3 text-right">{fmtClp(net_CLP)}</td>
+                      </tr>
+                      <tr className="text-emerald-700 text-[11px]">
+                        <td className="py-1 px-3 font-sans pl-6">Ingreso Neto / Caja</td>
+                        {isDestOtherThanUsdAndClp && <td className="py-1 px-3 text-right">{fmtDest(net_Dest / safeCj)} / cj</td>}
+                        <td className="py-1 px-3 text-right">{fmtUsd(net_USD / safeCj)} / cj</td>
+                        <td className="py-1 px-3 text-right">{fmtClp(net_CLP / safeCj)} / cj</td>
+                      </tr>
+
+                      {/* Costo Fruta EXW */}
+                      <tr className="text-red-700">
+                        <td className="py-2 px-3 font-sans font-semibold">(-) Costo Fruta EXW Facturado (Planta)</td>
+                        {isDestOtherThanUsdAndClp && <td className="py-2 px-3 text-right">-{fmtDest(exw_Dest)}</td>}
+                        <td className="py-2 px-3 text-right">-{fmtUsd(exw_USD)}</td>
+                        <td className="py-2 px-3 text-right">-{fmtClp(exw_CLP)}</td>
+                      </tr>
+
+                      {/* Costos Planta a Puerto */}
+                      <tr className="text-indigo-700">
+                        <td className="py-2 px-3 font-sans font-semibold">(-) Costos de Planta a Puerto (Origen)</td>
+                        {isDestOtherThanUsdAndClp && <td className="py-2 px-3 text-right">-{fmtDest(orig_Dest)}</td>}
+                        <td className="py-2 px-3 text-right">-{fmtUsd(orig_USD)}</td>
+                        <td className="py-2 px-3 text-right">-{fmtClp(orig_CLP)}</td>
+                      </tr>
+
+                      {/* Costo FOB Real */}
+                      <tr className="bg-slate-100 font-bold text-slate-900 border-t border-slate-300">
+                        <td className="py-2 px-3 font-sans">(=) Costo FOB Real en Puerto</td>
+                        {isDestOtherThanUsdAndClp && <td className="py-2 px-3 text-right">-{fmtDest(realFobDest)}</td>}
+                        <td className="py-2 px-3 text-right">-{fmtUsd(realFobUSD)}</td>
+                        <td className="py-2 px-3 text-right">-{fmtClp(realFobCLP)}</td>
+                      </tr>
+                      <tr className="text-slate-600 text-[11px]">
+                        <td className="py-1 px-3 font-sans pl-6">FOB Real Fruta / Caja (Puerto)</td>
+                        {isDestOtherThanUsdAndClp && <td className="py-1 px-3 text-right">{fmtDest(realFobDest / safeCj)} / cj</td>}
+                        <td className="py-1 px-3 text-right">{fmtUsd(realFobUSD / safeCj)} / cj</td>
+                        <td className="py-1 px-3 text-right">{fmtClp(realFobCLP / safeCj)} / cj</td>
+                      </tr>
+
+                      {/* UTILIDAD FINAL */}
+                      <tr className={`font-black text-sm border-t-2 ${
+                        ut_CLP >= 0 ? 'bg-emerald-100/70 text-emerald-900 border-emerald-500' : 'bg-red-100/70 text-red-900 border-red-500'
+                      }`}>
+                        <td className="py-2.5 px-3 font-sans uppercase">(=) UTILIDAD FINAL DEL NEGOCIO</td>
+                        {isDestOtherThanUsdAndClp && <td className="py-2.5 px-3 text-right">{fmtDest(ut_Dest)}</td>}
+                        <td className="py-2.5 px-3 text-right">{fmtUsd(ut_USD)}</td>
+                        <td className="py-2.5 px-3 text-right">{fmtClp(ut_CLP)}</td>
+                      </tr>
+                      <tr className={`font-bold text-xs ${
+                        ut_CLP >= 0 ? 'bg-emerald-50/50 text-emerald-800' : 'bg-red-50/50 text-red-800'
+                      }`}>
+                        <td className="py-1.5 px-3 font-sans pl-6">Utilidad Promedio / Caja</td>
+                        {isDestOtherThanUsdAndClp && <td className="py-1.5 px-3 text-right">{fmtDest(ut_Dest / safeCj)} / cj</td>}
+                        <td className="py-1.5 px-3 text-right">{fmtUsd(ut_USD / safeCj)} / cj</td>
+                        <td className="py-1.5 px-3 text-right">{fmtClp(ut_CLP / safeCj)} / cj</td>
+                      </tr>
+                    </tbody>
+                  </table>
+
+                  {/* Cobertura de Factura Packing con Abonos del Comprador */}
+                  <div className={`flex flex-wrap items-center justify-between text-xs p-3 rounded-xl border gap-2 ${
+                    saldoFacturaPacking <= 0 && advanceAmount > 0
+                      ? 'bg-emerald-50 border-emerald-300 text-emerald-900'
+                      : 'bg-slate-50 border-slate-200 text-slate-700'
+                  }`}>
+                    <div>
+                      <span className="text-slate-500 font-medium">Factura Packing (Piso): </span>
+                      <strong className="font-mono font-bold">{formatMoney(advanceAmount, fobCurrSymbol)}</strong>
+                    </div>
+                    <div>
+                      <span className="text-slate-500 font-medium">Abonos Comprador Recibidos: </span>
+                      <strong className="font-mono font-bold text-emerald-700">{formatMoney(totalAbonosComprador, fobCurrSymbol)}</strong>
+                    </div>
+                    <div>
+                      <span className="text-slate-500 font-medium">Estado Factura Packing: </span>
+                      <strong className={`font-mono font-bold ${saldoFacturaPacking <= 0 && advanceAmount > 0 ? 'text-emerald-700' : 'text-amber-700'}`}>
+                        {saldoFacturaPacking <= 0 && advanceAmount > 0 ? '✓ 100% CUBIERTA / PAGADA' : `Falta: ${formatMoney(saldoFacturaPacking, fobCurrSymbol)}`}
+                      </strong>
+                    </div>
+                  </div>
+
+                  {/* Tasa de Cambio Oficial */}
+                  <div className="flex flex-wrap items-center justify-between text-xs bg-indigo-50/60 p-2.5 rounded-xl border border-indigo-100 gap-2">
+                    <div className="text-slate-700 font-medium">
+                      <span>Tasa de Cambio Oficial (Fecha T/C: <strong>{rateDate ? formatDate(rateDate) : (dispatchDate ? formatDate(dispatchDate) : 'Al día')}</strong>): </span>
+                      {isDestOtherThanUsdAndClp ? (
+                        <span className="font-mono text-indigo-800">
+                          1 {currency} = $ {effectiveDestClp.toLocaleString('es-CL')} CLP · 1 USD = $ {effectiveUsdClp.toLocaleString('es-CL')} CLP (1 {currency} = {effectiveDestUsd.toFixed(4)} USD)
+                        </span>
+                      ) : (
+                        <span className="font-mono text-indigo-800">
+                          1 USD = $ {effectiveDestClp.toLocaleString('es-CL')} CLP
+                        </span>
+                      )}
+                    </div>
+                    {rateProviderInfo && (
+                      <span className="text-indigo-600 text-[11px] font-medium">[{rateProviderInfo}]</span>
+                    )}
+                  </div>
+
+                  {/* CUADRO DESTACADO DE UTILIDAD DEL NEGOCIO */}
+                  <div className={`p-5 rounded-2xl border-2 space-y-2 ${
+                    ut_CLP >= 0
+                      ? 'bg-emerald-50 border-emerald-400 text-emerald-900'
+                      : 'bg-amber-50 border-amber-400 text-amber-900'
+                  }`}>
+                    <div className="flex items-center justify-between">
+                      <span className="text-xs font-black uppercase tracking-wider">
+                        {ut_CLP >= 0 ? '(=) UTILIDAD FINAL DEL NEGOCIO (VENTA DESTINO - DEDUCCIONES - COSTO FOB REAL)' : 'RESULTADO POR DEBAJO DE COSTO FOB FACTURADO'}
+                      </span>
+                      <span className="text-xs font-mono font-bold">Liquidación Multimoneda</span>
+                    </div>
+                    <div className="flex flex-wrap items-baseline justify-between gap-3 pt-1">
+                      <div className="flex flex-wrap items-baseline gap-2">
+                        <span className="text-3xl font-black font-mono tracking-tight text-emerald-900">
+                          {fmtClp(ut_CLP)}
+                        </span>
+                        <span className="text-xl font-black font-mono tracking-tight text-emerald-700">
+                          · {fmtUsd(ut_USD)}
+                        </span>
+                        {isDestOtherThanUsdAndClp && (
+                          <span className="text-base font-bold font-mono text-slate-800">
+                            · ({fmtDest(ut_Dest)})
+                          </span>
+                        )}
+                      </div>
+                      <span className="text-xs font-mono font-bold text-slate-600">
+                        Utilidad Promedio / Caja: {fmtClp(ut_CLP / safeCj)} / cj · {fmtUsd(ut_USD / safeCj)} / cj
+                      </span>
+                    </div>
+                  </div>
                 </div>
               </div>
-
-              {/* Detalle de Liquidación de Factura Packing (Piso Principal) con Abonos del Comprador */}
-              <div className={`flex flex-wrap items-center justify-between text-xs p-3 rounded-xl border gap-2 ${
-                saldoFacturaPacking <= 0 && advanceAmount > 0
-                  ? 'bg-emerald-50 border-emerald-300 text-emerald-900'
-                  : 'bg-slate-50 border-slate-200 text-slate-700'
-              }`}>
-                <div>
-                  <span className="text-slate-500 font-medium">Factura Packing (Piso): </span>
-                  <strong className="font-mono font-bold">{formatMoney(advanceAmount, fobCurrSymbol)}</strong>
-                </div>
-                <div>
-                  <span className="text-slate-500 font-medium">Abonos Comprador Recibidos: </span>
-                  <strong className="font-mono font-bold text-emerald-700">{formatMoney(totalAbonosComprador, fobCurrSymbol)}</strong>
-                </div>
-                <div>
-                  <span className="text-slate-500 font-medium">Estado Factura Packing: </span>
-                  <strong className={`font-mono font-bold ${saldoFacturaPacking <= 0 && advanceAmount > 0 ? 'text-emerald-700' : 'text-amber-700'}`}>
-                    {saldoFacturaPacking <= 0 && advanceAmount > 0 ? '✓ 100% CUBIERTA / PAGADA' : `Falta: ${formatMoney(saldoFacturaPacking, fobCurrSymbol)}`}
-                  </strong>
-                </div>
-              </div>
-
-              {/* Tasa de Cambio */}
-              {currency !== 'CLP' && (
-                <div className="flex flex-wrap items-center justify-between text-xs bg-indigo-50/60 p-2.5 rounded-xl border border-indigo-100 gap-2">
-                  <span className="text-slate-600 font-medium">
-                    Tasa de Cambio Oficial ({currency} → CLP): <strong className="font-mono text-indigo-700">1 {currency} = $ {exchangeRate.toLocaleString('es-CL')} CLP</strong>
-                  </span>
-                  {rateProviderInfo && (
-                    <span className="text-indigo-600 text-[11px] font-medium">[{rateProviderInfo}]</span>
-                  )}
-                </div>
-              )}
-
-              {/* CUADRO DESTACADO DE UTILIDAD DEL NEGOCIO */}
-              <div className={`p-5 rounded-2xl border-2 space-y-1 ${
-                finalBalanceInCurrency >= 0
-                  ? 'bg-emerald-50 border-emerald-400 text-emerald-900'
-                  : 'bg-amber-50 border-amber-400 text-amber-900'
-              }`}>
-                <div className="flex items-center justify-between">
-                  <span className="text-xs font-black uppercase tracking-wider">
-                    {finalBalanceInCurrency >= 0 ? 'UTILIDAD NETO TOTAL DEL CONTENEDOR (A FAVOR EXPORTADOR)' : 'RESULTADO POR DEBAJO DE COSTO FOB FACTURADO'}
-                  </span>
-                  <span className="text-xs font-mono font-bold">Moneda Final: {targetCurrency}</span>
-                </div>
-                <div className="flex items-baseline justify-between pt-1">
-                  <span className="text-3xl font-black font-mono tracking-tight">
-                    {targetSymbol} {finalBalanceTargetCurrency.toLocaleString('es-CL', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} {targetCurrency}
-                  </span>
-                  <span className="text-xs font-mono font-bold opacity-80">
-                    (Equivalente: {formatMoney(finalBalanceInCurrency, currSymbol)})
-                  </span>
-                </div>
-              </div>
-            </div>
-          </div>
+            )
+          })()}
 
           {/* SECCIÓN IV: INTELIGENCIA COMERCIAL Y ANÁLISIS DE RENTABILIDAD POR CALIBRE */}
           <div className="space-y-4 pt-4 border-t-2 border-slate-300">

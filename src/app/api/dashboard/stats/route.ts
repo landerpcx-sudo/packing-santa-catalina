@@ -66,35 +66,42 @@ export async function GET() {
       .sort((a, b) => a.report_date.localeCompare(b.report_date))
       .slice(-7)
 
-    return NextResponse.json({
-      data: {
-        lotes: {
-          total: lotsTotal.count ?? 0,
-          completos: lotsComplete.count ?? 0,
-          incompletos: lotsIncomplete.count ?? 0,
-          observados: lotsObserved.count ?? 0,
-          recPending: lotsRecPending.count ?? 0,
-          qualPending: lotsQualPending.count ?? 0,
-          procPending: lotsProcPending.count ?? 0,
+    return NextResponse.json(
+      {
+        data: {
+          lotes: {
+            total: lotsTotal.count ?? 0,
+            completos: lotsComplete.count ?? 0,
+            incompletos: lotsIncomplete.count ?? 0,
+            observados: lotsObserved.count ?? 0,
+            recPending: lotsRecPending.count ?? 0,
+            qualPending: lotsQualPending.count ?? 0,
+            procPending: lotsProcPending.count ?? 0,
+          },
+          despachos: {
+            total: dispTotal.count ?? 0,
+            completos: dispComplete.count ?? 0,
+            pendientes: dispPending.count ?? 0,
+            atrasados: dispLate.count ?? 0,
+          },
+          temperaturas: {
+            total: tempsTotal.count ?? 0,
+            pendientes: tempsPending.count ?? 0,
+            atrasados: tempsLate.count ?? 0,
+            today,
+            todayReport: todayReport
+              ? { temperature_value: todayReport.temperature_value, status: todayReport.status }
+              : null,
+          },
+          miniChart,
         },
-        despachos: {
-          total: dispTotal.count ?? 0,
-          completos: dispComplete.count ?? 0,
-          pendientes: dispPending.count ?? 0,
-          atrasados: dispLate.count ?? 0,
-        },
-        temperaturas: {
-          total: tempsTotal.count ?? 0,
-          pendientes: tempsPending.count ?? 0,
-          atrasados: tempsLate.count ?? 0,
-          today,
-          todayReport: todayReport
-            ? { temperature_value: todayReport.temperature_value, status: todayReport.status }
-            : null,
-        },
-        miniChart,
       },
-    })
+      {
+        headers: {
+          'Cache-Control': 'public, s-maxage=15, stale-while-revalidate=45',
+        },
+      }
+    )
   } catch (err: any) {
     console.error('GET /api/dashboard/stats error:', err)
     return NextResponse.json({ error: err.message || 'Error interno' }, { status: 500 })

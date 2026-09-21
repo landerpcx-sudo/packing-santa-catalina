@@ -69,9 +69,7 @@ export async function POST(request: Request) {
           .in('id', lotDocIds)
 
         const lotIds = [...new Set(updatedDocs?.map(d => d.lot_id) || [])]
-        for (const lotId of lotIds) {
-          await recalculateLotStatus(lotId)
-        }
+        await Promise.all(lotIds.map(lotId => recalculateLotStatus(lotId)))
       }
     }
 
@@ -101,14 +99,14 @@ export async function POST(request: Request) {
           .in('id', dispatchDocIds)
 
         const dispatchIds = [...new Set(updatedDocs?.map(d => d.dispatch_id) || [])]
-        for (const dispatchId of dispatchIds) {
+        await Promise.all(dispatchIds.map(async (dispatchId) => {
           // Releer el despacho DESPUÉS del update para tener pack_list_status actualizado
           const { data: dispatch } = await supabaseAdmin
             .from('dispatches')
             .select('pack_list_status, pata_pata_photos_count, thermograph_photos_count, expected_pallets')
             .eq('id', dispatchId)
             .single()
-          if (!dispatch) continue
+          if (!dispatch) return
 
           const { data: allDocs } = await supabaseAdmin
             .from('dispatch_documents')
@@ -135,7 +133,7 @@ export async function POST(request: Request) {
           if (hasPackListValidated) dispatchUpdates.pack_list_status = 'validated'
 
           await supabaseAdmin.from('dispatches').update(dispatchUpdates).eq('id', dispatchId)
-        }
+        }))
       }
     }
 

@@ -234,6 +234,7 @@ export interface DispatchLiquidation {
   credit_notes?: DestinationCreditNote[] | null
   destination_payments?: DestinationPayment[] | null
   exchange_rate: number
+  usd_exchange_rate?: number
   final_balance: number
   status: 'draft' | 'finalized'
   created_by?: string | null

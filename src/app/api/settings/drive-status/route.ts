@@ -21,7 +21,14 @@ export async function GET() {
       return NextResponse.json({ connected: false })
     }
 
-    return NextResponse.json({ connected: !!tokenObj.access_token || !!tokenObj.refresh_token })
+    return NextResponse.json(
+      { connected: !!tokenObj.access_token || !!tokenObj.refresh_token },
+      {
+        headers: {
+          'Cache-Control': 'public, s-maxage=30, stale-while-revalidate=60',
+        },
+      }
+    )
   } catch (err) {
     return NextResponse.json({ connected: false })
   }

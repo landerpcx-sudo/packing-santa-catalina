@@ -57,9 +57,12 @@ export async function GET(
       )
     }
 
-    // Asegurar que la tasa de cambio exista (por defecto tasa de CLP en ~1050 si no está definida)
-    if (!liq.exchange_rate || Number(liq.exchange_rate) <= 1) {
-      liq.exchange_rate = liq.currency === 'CLP' ? 1 : 1050
+    // Asegurar coherencia de tasas de cambio
+    if (liq.currency === 'CLP') {
+      liq.exchange_rate = 1
+    }
+    if (!liq.usd_exchange_rate) {
+      liq.usd_exchange_rate = liq.currency === 'USD' ? Number(liq.exchange_rate) || 950 : 950
     }
 
     const pdf = await construirInformeFinancieroPDF(dispatch, liq)

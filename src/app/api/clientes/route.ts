@@ -13,7 +13,14 @@ export async function GET() {
 
     if (error) throw error
 
-    return NextResponse.json({ data: clients })
+    return NextResponse.json(
+      { data: clients },
+      {
+        headers: {
+          'Cache-Control': 'public, s-maxage=30, stale-while-revalidate=60',
+        },
+      }
+    )
   } catch (err: any) {
     console.error('GET /api/clientes error:', err)
     return NextResponse.json({ error: err.message || 'Error al obtener clientes' }, { status: 500 })

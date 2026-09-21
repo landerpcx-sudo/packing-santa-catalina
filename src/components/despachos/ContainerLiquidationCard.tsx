@@ -94,8 +94,9 @@ export default function ContainerLiquidationCard({
   const [advanceAmount, setAdvanceAmount] = useState<number>(0) // Valor Facturado EXW
   const [abonosAmount, setAbonosAmount] = useState<number>(0) // Abonos Recibidos de Factura EXW
   const [fobCurrency, setFobCurrency] = useState<'CLP' | 'USD' | 'EUR' | 'GBP'>('CLP')
-  const [fobExchangeRate, setFobExchangeRate] = useState<number>(1000) // Tasa por defecto CLP / EUR
-  const [exchangeRate, setExchangeRate] = useState<number>(1000) // Tasa Venta (EUR/USD -> CLP)
+  const [fobExchangeRate, setFobExchangeRate] = useState<number>(1000)
+  const [exchangeRate, setExchangeRate] = useState<number>(1000) // Tasa Moneda Venta -> CLP
+  const [usdExchangeRate, setUsdExchangeRate] = useState<number>(950) // Tasa USD -> CLP (Dólar Observado)
 
   // Cuentas Bilaterales en Destino
   const [creditNotes, setCreditNotes] = useState<DestinationCreditNote[]>([])
@@ -152,10 +153,17 @@ export default function ContainerLiquidationCard({
           setAdvanceAmount(initialAdvance)
 
           const loadedRate = Number(existingLiq.exchange_rate)
-          if (existingLiq.currency !== 'CLP' && (!loadedRate || loadedRate <= 5)) {
-            setExchangeRate(1050)
+          const loadedUsdRate = Number((existingLiq as any).usd_exchange_rate)
+
+          if (existingLiq.currency === 'USD') {
+            setExchangeRate(loadedRate || 950)
+            setUsdExchangeRate(loadedRate || loadedUsdRate || 950)
+          } else if (existingLiq.currency === 'CLP') {
+            setExchangeRate(1)
+            setUsdExchangeRate(loadedUsdRate || 950)
           } else {
-            setExchangeRate(loadedRate || 1000)
+            setExchangeRate(loadedRate || 1050)
+            setUsdExchangeRate(loadedUsdRate || 950)
           }
 
           // Costos de Planta a Puerto (Gastos de Origen en CLP)
@@ -228,26 +236,33 @@ export default function ContainerLiquidationCard({
     fetchLiquidationData()
   }, [fetchLiquidationData, refreshKey])
 
-  // Consultar API Tipo de Cambio Oficial (Moneda Destino -> CLP Pesos Chilenos)
+  // Consultar API Tipo de Cambio Oficial (Destino -> CLP y USD -> CLP)
   const handleFetchExchangeRate = async () => {
-    if (currency === 'CLP') {
-      setExchangeRate(1)
-      setFobExchangeRate(1)
-      setMessage({ type: 'info', text: 'La moneda de venta es CLP: la tasa de cambio es 1.00.' })
-      return
-    }
     setFetchingRate(true)
     setMessage(null)
     setRateProviderInfo('')
     try {
-      const res = await fetch(`/api/tipo-cambio?from=${currency}&to=CLP&date=${rateDate}`)
+      const res = await fetch(`/api/tipo-cambio?from=${currency}&date=${rateDate}`)
       const data = await res.json()
       
-      if (res.ok && data.rate) {
-        setExchangeRate(data.rate)
-        setFobExchangeRate(data.rate)
-        setRateProviderInfo(`Fuente: ${data.provider} (${data.date || rateDate})`)
-        setMessage({ type: 'success', text: `Tasa obtenida (1 ${currency} = $ ${data.rate.toLocaleString('es-CL')} CLP) [${data.provider}]` })
+      if (res.ok && data.success) {
+        const destRate = Number(data.dest_clp_rate || data.rate)
+        const usdRate = Number(data.usd_clp_rate || 950)
+        setExchangeRate(destRate)
+        setUsdExchangeRate(usdRate)
+        setFobExchangeRate(destRate)
+        setRateProviderInfo(`Fuente: ${data.provider}`)
+
+        if (currency === 'USD') {
+          setMessage({ type: 'success', text: `Tasa obtenida: 1 USD = $ ${usdRate.toLocaleString('es-CL')} CLP [${data.provider}]` })
+        } else if (currency === 'CLP') {
+          setMessage({ type: 'success', text: `Tasa Dólar Observado obtenida: 1 USD = $ ${usdRate.toLocaleString('es-CL')} CLP [${data.provider}]` })
+        } else {
+          setMessage({
+            type: 'success',
+            text: `Tasas obtenidas: 1 ${currency} = $ ${destRate.toLocaleString('es-CL')} CLP | 1 USD = $ ${usdRate.toLocaleString('es-CL')} CLP (1 ${currency} = ${data.dest_usd_rate} USD) [${data.provider}]`
+          })
+        }
       } else {
         setMessage({ type: 'error', text: data.error || 'No se pudo consultar el tipo de cambio oficial.' })
       }
@@ -316,29 +331,48 @@ export default function ContainerLiquidationCard({
     inlandFreight + customsBrokerage + phytosanitarySag + portExpensesOrigin + inlandInsurance + otherOriginExpenses
   ) * 100) / 100
 
-  // Costo FOB Real en Puerto (CLP) = Factura EXW + Costos Planta a Puerto
-  const realFobCLP = Math.round((advanceAmount + originExpensesTotal) * 100) / 100
+  // Conversión de Moneda y Tasas Efectivas Reales
+  const effectiveDestClpRate = currency === 'CLP' ? 1 : (exchangeRate > 0 ? exchangeRate : 1000)
+  const effectiveUsdClpRate = usdExchangeRate > 0 ? usdExchangeRate : (currency === 'USD' ? effectiveDestClpRate : 950)
+  const effectiveDestUsdRate = currency === 'USD' ? 1 : (currency === 'CLP' ? (1 / effectiveUsdClpRate) : (effectiveDestClpRate / effectiveUsdClpRate))
 
-  // Conversión de Moneda (Moneda Destino -> CLP)
-  const tasaCLP = currency === 'CLP' ? 1 : (exchangeRate || 1)
-  const netAmountCLP = currency === 'CLP' ? netAmount : Math.round((netAmount * tasaCLP) * 100) / 100
-  const realFobInCurrency = currency === 'CLP' ? realFobCLP : Math.round((realFobCLP / (tasaCLP || 1)) * 100) / 100
+  // Costos de Origen en CLP y conversiones
+  const realFobCLP = Math.round((advanceAmount + originExpensesTotal) * 100) / 100
+  const realFobUSD = Math.round((realFobCLP / effectiveUsdClpRate) * 100) / 100
+  const realFobInCurrency = currency === 'CLP' ? realFobCLP : (currency === 'USD' ? realFobUSD : Math.round((realFobCLP / effectiveDestClpRate) * 100) / 100)
+
+  // Venta y Gastos en CLP y USD
+  const grossSalesCLP = currency === 'CLP' ? grossSales : Math.round(grossSales * effectiveDestClpRate)
+  const grossSalesUSD = currency === 'USD' ? grossSales : (currency === 'CLP' ? Math.round((grossSales / effectiveUsdClpRate) * 100) / 100 : Math.round(grossSales * effectiveDestUsdRate * 100) / 100)
+
+  const totalCreditNotesCLP = currency === 'CLP' ? totalCreditNotes : Math.round(totalCreditNotes * effectiveDestClpRate)
+  const totalCreditNotesUSD = currency === 'USD' ? totalCreditNotes : (currency === 'CLP' ? Math.round((totalCreditNotes / effectiveUsdClpRate) * 100) / 100 : Math.round(totalCreditNotes * effectiveDestUsdRate * 100) / 100)
+
+  const effectiveGrossSalesCLP = grossSalesCLP - totalCreditNotesCLP
+  const effectiveGrossSalesUSD = grossSalesUSD - totalCreditNotesUSD
+
+  const totalExpensesCLP = currency === 'CLP' ? totalExpenses : Math.round(totalExpenses * effectiveDestClpRate)
+  const totalExpensesUSD = currency === 'USD' ? totalExpenses : (currency === 'CLP' ? Math.round((totalExpenses / effectiveUsdClpRate) * 100) / 100 : Math.round(totalExpenses * effectiveDestUsdRate * 100) / 100)
+
+  const netAmountCLP = effectiveGrossSalesCLP - totalExpensesCLP
+  const netAmountUSD = effectiveGrossSalesUSD - totalExpensesUSD
 
   // Abonos de Destino (Comprador) y Liquidación Automática de Factura Packing (Piso)
   const totalDestPayments = destinationPayments.reduce((acc, p) => acc + (Number(p.amount) || 0), 0)
-  const totalDestPaymentsCLP = currency === 'CLP' ? totalDestPayments : Math.round(totalDestPayments * tasaCLP)
+  const totalDestPaymentsCLP = currency === 'CLP' ? totalDestPayments : Math.round(totalDestPayments * effectiveDestClpRate)
   const saldoFacturaPackingCLP = Math.max(0, advanceAmount - totalDestPaymentsCLP)
   const facturaPackingCubierta = totalDestPaymentsCLP >= advanceAmount && advanceAmount > 0
   const abonosAplicadosAlPisoCLP = Math.min(advanceAmount, totalDestPaymentsCLP)
 
-  // Utilidad Real del Negocio
+  // Utilidad Real del Negocio en Triple Moneda (CLP, USD, Destino)
   const finalBalanceCLP = Math.round((netAmountCLP - realFobCLP) * 100) / 100
-  const finalBalanceSalesCurrency = currency === 'CLP' ? finalBalanceCLP : Math.round((finalBalanceCLP / (tasaCLP || 1)) * 100) / 100
+  const finalBalanceUSD = Math.round((netAmountUSD - realFobUSD) * 100) / 100
+  const finalBalanceSalesCurrency = currency === 'CLP' ? finalBalanceCLP : (currency === 'USD' ? finalBalanceUSD : Math.round((netAmount - realFobInCurrency) * 100) / 100)
   const finalBalanceInCurrency = finalBalanceSalesCurrency // Compatibilidad prop modal
 
   // Huella de las cifras que salen impresas en el informe.
   const huellaCifras = JSON.stringify([
-    currency, targetCurrency, fobCurrency, exchangeRate, fobExchangeRate,
+    currency, targetCurrency, fobCurrency, exchangeRate, fobExchangeRate, usdExchangeRate,
     grossSales, totalCreditNotes, effectiveGrossSales, commissionPct, freight, handling, coldStorage, surveyor,
     transport, otherExpenses, advanceAmount, totalDestPaymentsCLP,
     inlandFreight, customsBrokerage, phytosanitarySag, portExpensesOrigin, inlandInsurance, otherOriginExpenses,
@@ -370,7 +404,8 @@ export default function ContainerLiquidationCard({
         total_expenses: totalExpenses,
         net_amount: netAmount,
         advance_amount: advanceAmount,
-        exchange_rate: exchangeRate,
+        exchange_rate: effectiveDestClpRate,
+        usd_exchange_rate: effectiveUsdClpRate,
         final_balance: finalBalanceInCurrency,
         status: statusToSave,
         user_id: null,
@@ -1051,10 +1086,10 @@ export default function ContainerLiquidationCard({
               <div>
                 <h4 className="text-xs font-bold text-indigo-900 dark:text-indigo-200 uppercase tracking-wide flex items-center gap-1.5">
                   <Globe className="w-4 h-4 text-indigo-600 dark:text-indigo-400" />
-                  Cambio de Moneda ({currency} → CLP Pesos Chilenos)
+                  Tipo de Cambio Oficial Multi-Moneda
                 </h4>
                 <p className="text-[11px] text-slate-600 dark:text-gray-400 mt-0.5">
-                  Los costos de puerto a destino y venta están en <strong>{currency}</strong>. Aplica el cambio de moneda a pesos Chilenos:
+                  Fija la fecha de liquidación para consultar la tasa real del Banco Central (con fallback automático a día hábil bancario anterior):
                 </p>
               </div>
 
@@ -1082,9 +1117,9 @@ export default function ContainerLiquidationCard({
               </div>
             </div>
 
-            <div className="flex flex-wrap items-center justify-between gap-3 pt-2 border-t border-indigo-100 dark:border-indigo-900/50 text-xs">
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3 pt-2 border-t border-indigo-100 dark:border-indigo-900/50 text-xs">
               <div className="flex items-center gap-2">
-                <span className="text-slate-700 dark:text-gray-300 font-medium">Tasa de Cambio Oficial:</span>
+                <span className="text-slate-700 dark:text-gray-300 font-medium">T/C {currency} → CLP:</span>
                 <span className="font-mono font-bold text-slate-900 dark:text-white">1 {currency} =</span>
                 <input
                   type="number"
@@ -1092,15 +1127,42 @@ export default function ContainerLiquidationCard({
                   value={exchangeRate}
                   onChange={(e) => setExchangeRate(parseFloat(e.target.value) || 1)}
                   disabled={isClosed}
-                  className="w-28 bg-white dark:bg-gray-900 border border-slate-300 dark:border-gray-700 rounded-lg px-2 py-1 text-right font-mono font-bold text-slate-900 dark:text-white outline-none focus:border-indigo-500 text-xs"
+                  className="w-24 bg-white dark:bg-gray-900 border border-slate-300 dark:border-gray-700 rounded-lg px-2 py-1 text-right font-mono font-bold text-slate-900 dark:text-white outline-none focus:border-indigo-500 text-xs"
                 />
                 <span className="font-mono font-bold text-slate-900 dark:text-white">CLP</span>
               </div>
 
-              {rateProviderInfo && (
-                <span className="text-[10px] text-indigo-600 dark:text-indigo-400 font-medium">{rateProviderInfo}</span>
+              {currency !== 'USD' && (
+                <div className="flex items-center gap-2">
+                  <span className="text-slate-700 dark:text-gray-300 font-medium">T/C Dólar (USD → CLP):</span>
+                  <span className="font-mono font-bold text-slate-900 dark:text-white">1 USD =</span>
+                  <input
+                    type="number"
+                    step="0.01"
+                    value={usdExchangeRate}
+                    onChange={(e) => setUsdExchangeRate(parseFloat(e.target.value) || 1)}
+                    disabled={isClosed}
+                    className="w-24 bg-white dark:bg-gray-900 border border-slate-300 dark:border-gray-700 rounded-lg px-2 py-1 text-right font-mono font-bold text-slate-900 dark:text-white outline-none focus:border-indigo-500 text-xs"
+                  />
+                  <span className="font-mono font-bold text-slate-900 dark:text-white">CLP</span>
+                </div>
+              )}
+
+              {currency !== 'USD' && (
+                <div className="flex items-center gap-1.5 text-indigo-700 dark:text-indigo-300 font-medium">
+                  <span>Equivalencia {currency}/USD:</span>
+                  <strong className="font-mono bg-white dark:bg-gray-900 px-2 py-1 rounded border border-indigo-200 dark:border-indigo-800">
+                    1 {currency} = {effectiveDestUsdRate.toFixed(4)} USD
+                  </strong>
+                </div>
               )}
             </div>
+
+            {rateProviderInfo && (
+              <div className="text-[10px] text-indigo-600 dark:text-indigo-400 font-medium pt-1">
+                ✓ {rateProviderInfo}
+              </div>
+            )}
           </div>
         )}
 
@@ -1109,9 +1171,11 @@ export default function ContainerLiquidationCard({
             <div className="bg-white dark:bg-gray-900 p-3 rounded-lg border border-slate-200 dark:border-gray-800">
               <span className="text-slate-500 dark:text-gray-400 block text-[11px]">Venta Bruta Cajas ({currency}):</span>
               <span className="font-mono font-bold text-slate-900 dark:text-white text-sm block mt-0.5">{formatMoney(grossSales, currSymbol)}</span>
-              {currency !== 'CLP' && (
-                <span className="text-[10px] text-slate-400 block mt-0.5 font-mono">(= {formatMoney(grossSales * tasaCLP, '$ CLP')})</span>
-              )}
+              {currency !== 'USD' && currency !== 'CLP' ? (
+                <span className="text-[10px] text-slate-400 block mt-0.5 font-mono">(= {formatMoney(grossSalesUSD, '$ USD')} · {formatMoney(grossSalesCLP, '$ CLP')})</span>
+              ) : currency === 'USD' ? (
+                <span className="text-[10px] text-slate-400 block mt-0.5 font-mono">(= {formatMoney(grossSalesCLP, '$ CLP')})</span>
+              ) : null}
             </div>
 
             <div className={`p-3 rounded-lg border ${totalCreditNotes > 0 ? 'bg-red-500/10 border-red-500/30 dark:bg-red-950/30 dark:border-red-900/40' : 'bg-white dark:bg-gray-900 border-slate-200 dark:border-gray-800'}`}>
@@ -1127,17 +1191,21 @@ export default function ContainerLiquidationCard({
             <div className="bg-white dark:bg-gray-900 p-3 rounded-lg border border-slate-200 dark:border-gray-800">
               <span className="text-slate-500 dark:text-gray-400 block text-[11px]">Total Deducciones Destino ({currency}):</span>
               <span className="font-mono font-bold text-red-600 dark:text-red-400 text-sm block mt-0.5">-{formatMoney(totalExpenses, currSymbol)}</span>
-              {currency !== 'CLP' && (
-                <span className="text-[10px] text-slate-400 block mt-0.5 font-mono">(= -{formatMoney(totalExpenses * tasaCLP, '$ CLP')})</span>
-              )}
+              {currency !== 'USD' && currency !== 'CLP' ? (
+                <span className="text-[10px] text-slate-400 block mt-0.5 font-mono">(= -{formatMoney(totalExpensesUSD, '$ USD')} · -{formatMoney(totalExpensesCLP, '$ CLP')})</span>
+              ) : currency === 'USD' ? (
+                <span className="text-[10px] text-slate-400 block mt-0.5 font-mono">(= -{formatMoney(totalExpensesCLP, '$ CLP')})</span>
+              ) : null}
             </div>
 
             <div className="bg-emerald-500/10 p-3 rounded-lg border border-emerald-500/20">
               <span className="text-xs font-bold text-emerald-800 dark:text-emerald-300 block">Importe Neto a Favor ({currency}):</span>
               <span className="font-mono font-bold text-emerald-700 dark:text-emerald-400 text-base block mt-0.5">{formatMoney(netAmount, currSymbol)}</span>
-              {currency !== 'CLP' && (
+              {currency !== 'USD' && currency !== 'CLP' ? (
+                <span className="text-[11px] text-emerald-600 dark:text-emerald-400 font-bold block mt-0.5 font-mono">(= {formatMoney(netAmountUSD, '$ USD')} · {formatMoney(netAmountCLP, '$ CLP')})</span>
+              ) : currency === 'USD' ? (
                 <span className="text-[11px] text-emerald-600 dark:text-emerald-400 font-bold block mt-0.5 font-mono">(= {formatMoney(netAmountCLP, '$ CLP')})</span>
-              )}
+              ) : null}
             </div>
           </div>
 
@@ -1145,21 +1213,21 @@ export default function ContainerLiquidationCard({
             <div className="flex items-center justify-between">
               <span className="text-slate-600 dark:text-gray-400 font-medium">(-) Factura Fruta EXW (Planta):</span>
               <span className="font-mono font-bold text-slate-900 dark:text-white">
-                {formatMoney(advanceAmount, '$ CLP')} {currency !== 'CLP' && `(${formatMoney(advanceAmount / tasaCLP, currSymbol)})`}
+                {formatMoney(advanceAmount, '$ CLP')} {currency !== 'USD' && currency !== 'CLP' ? `(${formatMoney(advanceAmount / effectiveUsdClpRate, '$ USD')} · ${formatMoney(advanceAmount / effectiveDestClpRate, currSymbol)})` : currency === 'USD' ? `(${formatMoney(advanceAmount / effectiveUsdClpRate, '$ USD')})` : ''}
               </span>
             </div>
 
             <div className="flex items-center justify-between">
               <span className="text-slate-600 dark:text-gray-400 font-medium">(-) Costos de Planta a Puerto (Origen):</span>
               <span className="font-mono font-bold text-indigo-700 dark:text-indigo-300">
-                {formatMoney(originExpensesTotal, '$ CLP')} {currency !== 'CLP' && `(${formatMoney(originExpensesTotal / tasaCLP, currSymbol)})`}
+                {formatMoney(originExpensesTotal, '$ CLP')} {currency !== 'USD' && currency !== 'CLP' ? `(${formatMoney(originExpensesTotal / effectiveUsdClpRate, '$ USD')} · ${formatMoney(originExpensesTotal / effectiveDestClpRate, currSymbol)})` : currency === 'USD' ? `(${formatMoney(originExpensesTotal / effectiveUsdClpRate, '$ USD')})` : ''}
               </span>
             </div>
 
             <div className="flex items-center justify-between bg-slate-200/70 dark:bg-gray-900 p-2.5 rounded-lg font-bold text-slate-900 dark:text-white border border-slate-300 dark:border-gray-700">
               <span className="uppercase text-[11px] text-slate-700 dark:text-gray-300">(=) Costo FOB Real en Puerto (Origen):</span>
               <span className="font-mono text-indigo-700 dark:text-indigo-300 text-sm">
-                {formatMoney(realFobCLP, '$ CLP')} {currency !== 'CLP' && `(${formatMoney(realFobInCurrency, currSymbol)})`}
+                {formatMoney(realFobCLP, '$ CLP')} {currency !== 'USD' && currency !== 'CLP' ? `(${formatMoney(realFobUSD, '$ USD')} · ${formatMoney(realFobInCurrency, currSymbol)})` : currency === 'USD' ? `(${formatMoney(realFobUSD, '$ USD')})` : ''}
               </span>
             </div>
           </div>
@@ -1175,26 +1243,34 @@ export default function ContainerLiquidationCard({
                 ? 'text-emerald-800 dark:text-emerald-300'
                 : 'text-amber-800 dark:text-amber-300'
             }`}>
-              {finalBalanceCLP >= 0 ? 'Utilidad del Negocio (Importe Neto en CLP - Costo FOB Real en CLP)' : 'Resultado por debajo de Costo FOB Real'}
+              {finalBalanceCLP >= 0 ? 'Utilidad del Negocio (Importe Neto - Costo FOB Real)' : 'Resultado por debajo de Costo FOB Real'}
             </div>
-            <div className="flex flex-wrap items-baseline justify-between gap-2">
-              <span className={`text-2xl font-black font-mono ${
-                finalBalanceCLP >= 0 ? 'text-emerald-900 dark:text-emerald-200' : 'text-amber-900 dark:text-amber-200'
-              }`}>
-                {formatMoney(finalBalanceCLP, '$ CLP')}
-              </span>
-              {currency !== 'CLP' && (
-                <span className="text-sm text-slate-700 dark:text-gray-300 font-mono font-bold">
-                  ({formatMoney(finalBalanceSalesCurrency, currSymbol)} {currency})
+            <div className="flex flex-wrap items-baseline justify-between gap-3">
+              <div className="flex flex-wrap items-baseline gap-2">
+                <span className={`text-2xl font-black font-mono ${
+                  finalBalanceCLP >= 0 ? 'text-emerald-900 dark:text-emerald-200' : 'text-amber-900 dark:text-amber-200'
+                }`}>
+                  {formatMoney(finalBalanceCLP, '$ CLP')}
                 </span>
-              )}
+                <span className="text-base font-bold font-mono text-emerald-700 dark:text-emerald-400">
+                  · {formatMoney(finalBalanceUSD, '$ USD')}
+                </span>
+                {currency !== 'USD' && currency !== 'CLP' && (
+                  <span className="text-sm text-slate-700 dark:text-gray-300 font-mono font-bold">
+                    · ({formatMoney(finalBalanceSalesCurrency, currSymbol)} {currency})
+                  </span>
+                )}
+              </div>
             </div>
 
-            <div className="flex items-center justify-between pt-2 text-[11px] font-medium border-t border-slate-200/60 dark:border-gray-800">
+            <div className="flex flex-wrap items-center justify-between pt-2 text-[11px] font-medium border-t border-slate-200/60 dark:border-gray-800 gap-2">
               <span className="text-slate-600 dark:text-gray-400">Utilidad Promedio por Caja ({totalCajas.toLocaleString()} cajas):</span>
               <span className="font-mono font-bold text-indigo-700 dark:text-indigo-300">
-                {formatMoney(totalCajas > 0 ? finalBalanceCLP / totalCajas : 0, '$ CLP')} / caja
-                {currency !== 'CLP' && ` (${formatMoney(totalCajas > 0 ? finalBalanceSalesCurrency / totalCajas : 0, currSymbol)} ${currency}/caja)`}
+                {formatMoney(totalCajas > 0 ? finalBalanceCLP / totalCajas : 0, '$ CLP')} / cj
+                {' · '}{formatMoney(totalCajas > 0 ? finalBalanceUSD / totalCajas : 0, '$ USD')} / cj
+                {currency !== 'USD' && currency !== 'CLP' && (
+                  ` · ${formatMoney(totalCajas > 0 ? finalBalanceSalesCurrency / totalCajas : 0, currSymbol)} / cj`
+                )}
               </span>
             </div>
           </div>
@@ -1242,7 +1318,9 @@ export default function ContainerLiquidationCard({
           dispatchDate={dispatchMeta.dispatchDate}
           currency={currency}
           targetCurrency={targetCurrency}
-          exchangeRate={exchangeRate}
+          exchangeRate={effectiveDestClpRate}
+          usdExchangeRate={effectiveUsdClpRate}
+          rateDate={rateDate}
           rateProviderInfo={rateProviderInfo}
           grossSales={grossSales}
           creditNotes={creditNotes}
@@ -1259,6 +1337,7 @@ export default function ContainerLiquidationCard({
           totalExpenses={totalExpenses}
           netAmount={netAmount}
           advanceAmount={advanceAmount}
+          originExpensesTotal={originExpensesTotal}
           abonosAmount={totalDestPaymentsCLP}
           totalDestPaymentsCLP={totalDestPaymentsCLP}
           saldoFacturaPackingCLP={saldoFacturaPackingCLP}

@@ -141,6 +141,7 @@ function LotesContent() {
   const [filterVariety, setFilterVariety] = useState('')
 
   const searchRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const lastFetchId = useRef(0)
 
   useEffect(() => {
     setFilterSpecies(speciesFilterFromUrl)
@@ -152,8 +153,11 @@ function LotesContent() {
     clientValue?: string,
     producerValue?: string,
     speciesValue?: string,
-    varietyValue?: string
+    varietyValue?: string,
+    fromDate?: string,
+    toDate?: string
   ) => {
+    const fetchId = ++lastFetchId.current
     setLoading(true)
     const params = new URLSearchParams({ limit: '50' })
     const s = searchValue !== undefined ? searchValue : search
@@ -162,6 +166,8 @@ function LotesContent() {
     const p = producerValue !== undefined ? producerValue : filterProducer
     const sp = speciesValue !== undefined ? speciesValue : filterSpecies
     const v = varietyValue !== undefined ? varietyValue : filterVariety
+    const dFrom = fromDate !== undefined ? fromDate : dateFrom
+    const dTo = toDate !== undefined ? toDate : dateTo
 
     if (s) params.set('search', s)
     if (f) params.set('status', f)
@@ -169,30 +175,81 @@ function LotesContent() {
     if (p) params.set('producer', p)
     if (sp) params.set('species', sp)
     if (v) params.set('variety', v)
-    if (dateFrom) params.set('from', dateFrom)
-    if (dateTo)   params.set('to', dateTo)
+    if (dFrom) params.set('from', dFrom)
+    if (dTo)   params.set('to', dTo)
 
-    const res = await fetch(`/api/lotes?${params}`)
-    if (res.ok) {
-      const json = await res.json()
-      setLots(json.data || [])
-      setTotal(json.total || 0)
+    try {
+      const res = await fetch(`/api/lotes?${params}`)
+      if (res.ok) {
+        const json = await res.json()
+        if (fetchId === lastFetchId.current) {
+          setLots(json.data || [])
+          setTotal(json.total || 0)
+        }
+      }
+    } catch (err) {
+      console.error('Error cargando lotes:', err)
+    } finally {
+      if (fetchId === lastFetchId.current) {
+        setLoading(false)
+      }
     }
-    setLoading(false)
   }, [search, filterStatus, filterClient, filterProducer, filterSpecies, filterVariety, dateFrom, dateTo])
 
   // Debounce para el campo de búsqueda (Mejora #11)
   const handleSearchChange = (value: string) => {
     setSearch(value)
     if (searchRef.current) clearTimeout(searchRef.current)
-    searchRef.current = setTimeout(() => fetchLots(value, filterStatus), 350)
+    searchRef.current = setTimeout(() => {
+      fetchLots(value, filterStatus, filterClient, filterProducer, filterSpecies, filterVariety, dateFrom, dateTo)
+    }, 350)
   }
 
   // Filtro de estado: disparo inmediato
   const handleStatusChange = (value: string) => {
     setFilterStatus(value)
-    fetchLots(search, value)
+    fetchLots(search, value, filterClient, filterProducer, filterSpecies, filterVariety, dateFrom, dateTo)
   }
+
+  const handleClientChange = (value: string) => {
+    setFilterClient(value)
+    if (searchRef.current) clearTimeout(searchRef.current)
+    searchRef.current = setTimeout(() => {
+      fetchLots(search, filterStatus, value, filterProducer, filterSpecies, filterVariety, dateFrom, dateTo)
+    }, 350)
+  }
+
+  const handleProducerChange = (value: string) => {
+    setFilterProducer(value)
+    if (searchRef.current) clearTimeout(searchRef.current)
+    searchRef.current = setTimeout(() => {
+      fetchLots(search, filterStatus, filterClient, value, filterSpecies, filterVariety, dateFrom, dateTo)
+    }, 350)
+  }
+
+  const handleVarietyChange = (value: string) => {
+    setFilterVariety(value)
+    if (searchRef.current) clearTimeout(searchRef.current)
+    searchRef.current = setTimeout(() => {
+      fetchLots(search, filterStatus, filterClient, filterProducer, filterSpecies, value, dateFrom, dateTo)
+    }, 350)
+  }
+
+  const handleDateFromChange = (value: string) => {
+    setDateFrom(value)
+    fetchLots(search, filterStatus, filterClient, filterProducer, filterSpecies, filterVariety, value, dateTo)
+  }
+
+  const handleDateToChange = (value: string) => {
+    setDateTo(value)
+    fetchLots(search, filterStatus, filterClient, filterProducer, filterSpecies, filterVariety, dateFrom, value)
+  }
+
+  useEffect(() => {
+    return () => {
+      if (searchRef.current) clearTimeout(searchRef.current)
+    }
+  }, [])
 
   useEffect(() => {
     fetchLots()
@@ -312,7 +369,7 @@ function LotesContent() {
             type="text"
             placeholder="Filtrar por cliente..."
             value={filterClient}
-            onChange={(e) => { setFilterClient(e.target.value); fetchLots(search, filterStatus, e.target.value, filterProducer, filterSpecies, filterVariety) }}
+            onChange={(e) => handleClientChange(e.target.value)}
             className="w-full bg-white/5 border border-white/10 rounded-xl px-3 py-2 text-white placeholder-gray-500 text-xs focus:outline-none focus:border-green-400/50 transition-all"
           />
         </div>
@@ -322,7 +379,7 @@ function LotesContent() {
             type="text"
             placeholder="Filtrar por productor..."
             value={filterProducer}
-            onChange={(e) => { setFilterProducer(e.target.value); fetchLots(search, filterStatus, filterClient, e.target.value, filterSpecies, filterVariety) }}
+            onChange={(e) => handleProducerChange(e.target.value)}
             className="w-full bg-white/5 border border-white/10 rounded-xl px-3 py-2 text-white placeholder-gray-500 text-xs focus:outline-none focus:border-green-400/50 transition-all"
           />
         </div>
@@ -357,7 +414,7 @@ function LotesContent() {
             type="text"
             placeholder="Filtrar por variedad..."
             value={filterVariety}
-            onChange={(e) => { setFilterVariety(e.target.value); fetchLots(search, filterStatus, filterClient, filterProducer, filterSpecies, e.target.value) }}
+            onChange={(e) => handleVarietyChange(e.target.value)}
             className="w-full bg-white/5 border border-white/10 rounded-xl px-3 py-2 text-white placeholder-gray-500 text-xs focus:outline-none focus:border-green-400/50 transition-all"
           />
         </div>
@@ -370,7 +427,7 @@ function LotesContent() {
           <input
             type="date"
             value={dateFrom}
-            onChange={(e) => { setDateFrom(e.target.value); fetchLots(search, filterStatus) }}
+            onChange={(e) => handleDateFromChange(e.target.value)}
             className="bg-white/5 border border-white/10 rounded-xl px-3 py-2 text-sm text-white focus:outline-none focus:border-green-400/50 transition-all"
           />
         </div>
@@ -379,7 +436,7 @@ function LotesContent() {
           <input
             type="date"
             value={dateTo}
-            onChange={(e) => { setDateTo(e.target.value); fetchLots(search, filterStatus) }}
+            onChange={(e) => handleDateToChange(e.target.value)}
             className="bg-white/5 border border-white/10 rounded-xl px-3 py-2 text-sm text-white focus:outline-none focus:border-green-400/50 transition-all"
           />
         </div>
