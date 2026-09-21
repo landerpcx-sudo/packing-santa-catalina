@@ -32,6 +32,13 @@ interface LiquidationReportModalProps {
   netAmount: number
   advanceAmount: number // Costo FOB Facturado (Monto Factura)
   originExpensesTotal?: number // Gastos de Planta a Puerto
+  navieraRebateAmount?: number
+  navieraRebateCurrency?: 'USD' | 'CLP'
+  navieraRebateClp?: number
+  extraIncomeAmount?: number
+  extraIncomeCurrency?: 'USD' | 'EUR' | 'CLP'
+  extraIncomeClp?: number
+  extraIncomeNotes?: string
   abonosAmount?: number // Abonos recibidos del cliente
   totalDestPaymentsCLP?: number
   saldoFacturaPackingCLP?: number
@@ -81,6 +88,13 @@ export default function LiquidationReportModal({
   netAmount,
   advanceAmount,
   originExpensesTotal = 0,
+  navieraRebateAmount = 0,
+  navieraRebateCurrency = 'USD',
+  navieraRebateClp = 0,
+  extraIncomeAmount = 0,
+  extraIncomeCurrency = 'USD',
+  extraIncomeClp = 0,
+  extraIncomeNotes = '',
   abonosAmount = 0,
   fobCurrency = 'CLP',
   fobExchangeRate = 1000,
@@ -413,11 +427,29 @@ export default function LiquidationReportModal({
             const effectiveUsdClp = (usdExchangeRate && usdExchangeRate > 0) ? usdExchangeRate : (currency === 'USD' ? effectiveDestClp : 950)
             const effectiveDestUsd = currency === 'USD' ? 1 : (currency === 'CLP' ? (1 / effectiveUsdClp) : (effectiveDestClp / effectiveUsdClp))
 
-            // Origen
+            // Origen y Rebate Naviera
             const origExp = originExpensesTotal || 0
-            const realFobCLP = advanceAmount + origExp
+            const rebCLP = navieraRebateClp !== undefined && navieraRebateClp > 0
+              ? navieraRebateClp
+              : (navieraRebateCurrency === 'USD' ? (navieraRebateAmount || 0) * effectiveUsdClp : (navieraRebateAmount || 0))
+            const rebUSD = navieraRebateCurrency === 'USD' ? (navieraRebateAmount || 0) : rebCLP / effectiveUsdClp
+            const rebDest = currency === 'CLP' ? rebCLP : (currency === 'USD' ? rebUSD : rebCLP / effectiveDestClp)
+
+            const origNetoCLP = Math.max(0, origExp - rebCLP)
+            const origNetoUSD = origExp > 0 ? Math.max(0, (origExp / effectiveUsdClp) - rebUSD) : 0
+            const origNetoDest = currency === 'CLP' ? origNetoCLP : (currency === 'USD' ? origNetoUSD : origNetoCLP / effectiveDestClp)
+
+            const realFobCLP = advanceAmount + origExp - rebCLP
             const realFobUSD = Math.round((realFobCLP / effectiveUsdClp) * 100) / 100
             const realFobDest = currency === 'CLP' ? realFobCLP : (currency === 'USD' ? realFobUSD : Math.round((realFobCLP / effectiveDestClp) * 100) / 100)
+
+            // Compensación Comercial Extraordinaria (Negociación de Pérdidas)
+            const extraAmt = extraIncomeAmount || 0
+            const extCLP = extraIncomeClp !== undefined && extraIncomeClp > 0
+              ? extraIncomeClp
+              : (extraIncomeCurrency === 'USD' ? extraAmt * effectiveUsdClp : (extraIncomeCurrency === 'EUR' ? extraAmt * effectiveDestClp : extraAmt))
+            const extUSD = extraIncomeCurrency === 'USD' ? extraAmt : extCLP / effectiveUsdClp
+            const extDest = currency === 'CLP' ? extCLP : (currency === 'USD' ? extUSD : extCLP / effectiveDestClp)
 
             // Ventas y Deducciones en las 3 monedas
             const vB_Dest = grossSales
@@ -448,9 +480,13 @@ export default function LiquidationReportModal({
             const orig_USD = origExp / effectiveUsdClp
             const orig_Dest = currency === 'CLP' ? origExp : (currency === 'USD' ? orig_USD : origExp / effectiveDestClp)
 
-            const ut_CLP = net_CLP - realFobCLP
-            const ut_USD = net_USD - realFobUSD
-            const ut_Dest = currency === 'CLP' ? ut_CLP : (currency === 'USD' ? ut_USD : net_Dest - realFobDest)
+            const operMarginCLP = net_CLP - realFobCLP
+            const operMarginUSD = net_USD - realFobUSD
+            const operMarginDest = net_Dest - realFobDest
+
+            const ut_CLP = operMarginCLP + extCLP
+            const ut_USD = operMarginUSD + extUSD
+            const ut_Dest = currency === 'CLP' ? ut_CLP : (currency === 'USD' ? ut_USD : operMarginDest + extDest)
 
             const safeCj = totalCajas > 0 ? totalCajas : 1
 
@@ -505,9 +541,9 @@ export default function LiquidationReportModal({
                         </>
                       )}
 
-                      {/* Deducciones */}
+                      {/* Deducciones Internacionales */}
                       <tr className="text-red-700">
-                        <td className="py-2 px-3 font-sans font-semibold">(-) Deducciones en Destino</td>
+                        <td className="py-2 px-3 font-sans font-semibold">(-) Deducciones y Costos Internacionales en Destino</td>
                         {isDestOtherThanUsdAndClp && <td className="py-2 px-3 text-right">-{fmtDest(ded_Dest)}</td>}
                         <td className="py-2 px-3 text-right">-{fmtUsd(ded_USD)}</td>
                         <td className="py-2 px-3 text-right">-{fmtClp(ded_CLP)}</td>
@@ -537,15 +573,33 @@ export default function LiquidationReportModal({
 
                       {/* Costos Planta a Puerto */}
                       <tr className="text-indigo-700">
-                        <td className="py-2 px-3 font-sans font-semibold">(-) Costos de Planta a Puerto (Origen)</td>
+                        <td className="py-2 px-3 font-sans font-semibold">(-) Costos Logísticos Planta a Puerto (Bruto)</td>
                         {isDestOtherThanUsdAndClp && <td className="py-2 px-3 text-right">-{fmtDest(orig_Dest)}</td>}
                         <td className="py-2 px-3 text-right">-{fmtUsd(orig_USD)}</td>
                         <td className="py-2 px-3 text-right">-{fmtClp(orig_CLP)}</td>
                       </tr>
 
+                      {/* Rebate Naviera si existe */}
+                      {rebCLP > 0 && (
+                        <>
+                          <tr className="text-emerald-700 bg-emerald-50/60 font-semibold">
+                            <td className="py-1.5 px-3 font-sans pl-6">(+) Ingreso Rebate Naviera (Agunsa / MSC)</td>
+                            {isDestOtherThanUsdAndClp && <td className="py-1.5 px-3 text-right">+{fmtDest(rebDest)}</td>}
+                            <td className="py-1.5 px-3 text-right">+{fmtUsd(rebUSD)}</td>
+                            <td className="py-1.5 px-3 text-right">+{fmtClp(rebCLP)}</td>
+                          </tr>
+                          <tr className="text-indigo-900 font-semibold">
+                            <td className="py-1.5 px-3 font-sans">(=) Costos Logísticos Netos de Origen</td>
+                            {isDestOtherThanUsdAndClp && <td className="py-1.5 px-3 text-right">-{fmtDest(origNetoDest)}</td>}
+                            <td className="py-1.5 px-3 text-right">-{fmtUsd(origNetoUSD)}</td>
+                            <td className="py-1.5 px-3 text-right">-{fmtClp(origNetoCLP)}</td>
+                          </tr>
+                        </>
+                      )}
+
                       {/* Costo FOB Real */}
                       <tr className="bg-slate-100 font-bold text-slate-900 border-t border-slate-300">
-                        <td className="py-2 px-3 font-sans">(=) Costo FOB Real en Puerto</td>
+                        <td className="py-2 px-3 font-sans">(=) Costo FOB Real en Puerto (Nacional)</td>
                         {isDestOtherThanUsdAndClp && <td className="py-2 px-3 text-right">-{fmtDest(realFobDest)}</td>}
                         <td className="py-2 px-3 text-right">-{fmtUsd(realFobUSD)}</td>
                         <td className="py-2 px-3 text-right">-{fmtClp(realFobCLP)}</td>
@@ -556,6 +610,31 @@ export default function LiquidationReportModal({
                         <td className="py-1 px-3 text-right">{fmtUsd(realFobUSD / safeCj)} / cj</td>
                         <td className="py-1 px-3 text-right">{fmtClp(realFobCLP / safeCj)} / cj</td>
                       </tr>
+
+                      {/* Compensación Comercial Extraordinaria si existe */}
+                      {extCLP > 0 && (
+                        <>
+                          <tr className="text-slate-700 bg-slate-50 font-semibold border-t border-slate-200">
+                            <td className="py-1.5 px-3 font-sans">Margen Operacional del Despacho</td>
+                            {isDestOtherThanUsdAndClp && <td className="py-1.5 px-3 text-right">{fmtDest(operMarginDest)}</td>}
+                            <td className="py-1.5 px-3 text-right">{fmtUsd(operMarginUSD)}</td>
+                            <td className="py-1.5 px-3 text-right">{fmtClp(operMarginCLP)}</td>
+                          </tr>
+                          <tr className="text-amber-700 bg-amber-50 font-bold">
+                            <td className="py-2 px-3 font-sans">
+                              (+) Compensación Comercial / Negociación de Pérdidas
+                              {extraIncomeNotes && (
+                                <span className="block text-[10px] text-slate-500 font-normal mt-0.5 font-sans">
+                                  Glosa: {extraIncomeNotes}
+                                </span>
+                              )}
+                            </td>
+                            {isDestOtherThanUsdAndClp && <td className="py-2 px-3 text-right">+{fmtDest(extDest)}</td>}
+                            <td className="py-2 px-3 text-right">+{fmtUsd(extUSD)}</td>
+                            <td className="py-2 px-3 text-right">+{fmtClp(extCLP)}</td>
+                          </tr>
+                        </>
+                      )}
 
                       {/* UTILIDAD FINAL */}
                       <tr className={`font-black text-sm border-t-2 ${

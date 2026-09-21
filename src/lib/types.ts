@@ -233,6 +233,14 @@ export interface DispatchLiquidation {
   // Cuentas Bilaterales y Destino
   credit_notes?: DestinationCreditNote[] | null
   destination_payments?: DestinationPayment[] | null
+  // Rebate Naviera & Compensación Comercial Extraordinaria
+  naviera_rebate_amount?: number
+  naviera_rebate_currency?: string
+  naviera_rebate_clp?: number
+  extra_income_amount?: number
+  extra_income_currency?: string
+  extra_income_clp?: number
+  extra_income_notes?: string | null
   exchange_rate: number
   usd_exchange_rate?: number
   final_balance: number

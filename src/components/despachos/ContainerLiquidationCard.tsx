@@ -4,7 +4,7 @@ import React, { useState, useEffect, useCallback } from 'react'
 import {
   DollarSign, Calculator, RefreshCw, FileText, CheckCircle2,
   AlertCircle, Save, Printer, ArrowRight, Package, Percent, FileCheck, Globe, Calendar,
-  Receipt, AlertTriangle
+  Receipt, AlertTriangle, Ship, HandCoins, ShieldCheck
 } from 'lucide-react'
 import { DispatchPacklistItem, DispatchLiquidationItem, DispatchLiquidation, DestinationCreditNote, DestinationPayment } from '@/lib/types'
 import LiquidationReportModal from './LiquidationReportModal'
@@ -43,37 +43,32 @@ export default function ContainerLiquidationCard({
   const [saving, setSaving] = useState(false)
   const [fetchingRate, setFetchingRate] = useState(false)
   const [showReportModal, setShowReportModal] = useState(false)
-  const [generatingPdf, setGeneratingPdf] = useState(false)
-  // Huella de las cifras con las que se generó el último PDF (null = todavía
-  // no se ha generado ninguno en esta sesión de pantalla).
-  const [huellaPdf, setHuellaPdf] = useState<string | null>(null)
+
+  // Metadatos del Despacho
   const [dispatchMeta, setDispatchMeta] = useState<{
     client?: string | null
     destination?: string | null
     containerNumber?: string | null
     dispatchDate?: string | null
   }>({})
-  const [message, setMessage] = useState<{ type: 'success' | 'error' | 'info'; text: string } | null>(null)
 
-  // Datos
-  const [packlistItems, setPacklistItems] = useState<DispatchPacklistItem[]>([])
-  const [currency, setCurrency] = useState<'EUR' | 'USD' | 'CLP' | 'GBP' | 'CAD' | 'BRL' | 'CNY'>('EUR')
-  const [targetCurrency, setTargetCurrency] = useState<'EUR' | 'USD' | 'CLP' | 'GBP' | 'CAD' | 'BRL' | 'CNY'>('USD')
-  const [rateDate, setRateDate] = useState<string>(() => new Date().toISOString().split('T')[0])
-  const [rateProviderInfo, setRateProviderInfo] = useState<string>('')
+  // Estado del documento
   const [liquidationStatus, setLiquidationStatus] = useState<'draft' | 'finalized'>('draft')
+  const [message, setMessage] = useState<{ type: 'success' | 'error', text: string } | null>(null)
+  const [generatingPdf, setGeneratingPdf] = useState(false)
+  const [huellaPdf, setHuellaPdf] = useState<string | null>(null)
 
-  // Filas de precios por caja por calibre/embalaje
-  const [rows, setRows] = useState<Array<{
-    packlist_item_id?: string
-    envase: string
-    calibre: string
-    cajas: number
-    price_per_box: number
-    subtotal: number
-  }>>([])
+  // Moneda de Liquidación en Destino y T/C
+  const [currency, setCurrency] = useState<string>('EUR')
+  const [targetCurrency, setTargetCurrency] = useState<string>('USD')
+  const [rateDate, setRateDate] = useState<string>(new Date().toISOString().split('T')[0])
+  const [rateProviderInfo, setRateProviderInfo] = useState<string>('')
 
-  // Gastos
+  // Ítems (Venta Bruta)
+  const [rows, setRows] = useState<DispatchLiquidationItem[]>([])
+  const [packlistItems, setPacklistItems] = useState<DispatchPacklistItem[]>([])
+
+  // Gastos y Deducciones en Destino
   const [commissionPct, setCommissionPct] = useState<number>(10)
   const [freight, setFreight] = useState<number>(0)
   const [handling, setHandling] = useState<number>(0)
@@ -82,13 +77,21 @@ export default function ContainerLiquidationCard({
   const [transport, setTransport] = useState<number>(0)
   const [otherExpenses, setOtherExpenses] = useState<number>(0)
 
-  // Costos de Planta a Puerto (Gastos de Origen)
+  // Costos de Planta a Puerto (Gastos Origen en CLP)
   const [inlandFreight, setInlandFreight] = useState<number>(0)
   const [customsBrokerage, setCustomsBrokerage] = useState<number>(0)
   const [phytosanitarySag, setPhytosanitarySag] = useState<number>(0)
   const [portExpensesOrigin, setPortExpensesOrigin] = useState<number>(0)
   const [inlandInsurance, setInlandInsurance] = useState<number>(0)
   const [otherOriginExpenses, setOtherOriginExpenses] = useState<number>(0)
+
+  // Rebate Naviera & Compensación Comercial Extraordinaria
+  const [navieraRebateAmount, setNavieraRebateAmount] = useState<number>(0)
+  const [navieraRebateCurrency, setNavieraRebateCurrency] = useState<'USD' | 'CLP'>('USD')
+  const [showExtraIncome, setShowExtraIncome] = useState<boolean>(false)
+  const [extraIncomeAmount, setExtraIncomeAmount] = useState<number>(0)
+  const [extraIncomeCurrency, setExtraIncomeCurrency] = useState<'USD' | 'EUR' | 'CLP'>('USD')
+  const [extraIncomeNotes, setExtraIncomeNotes] = useState<string>('')
 
   // Anticipos, Moneda EXW / Origen y Tipo de Cambio
   const [advanceAmount, setAdvanceAmount] = useState<number>(0) // Valor Facturado EXW
@@ -188,6 +191,17 @@ export default function ContainerLiquidationCard({
           if (liq.rate_date) setRateDate(String(liq.rate_date).split('T')[0])
           if (Array.isArray(liq.credit_notes)) setCreditNotes(liq.credit_notes)
           if (Array.isArray(liq.destination_payments)) setDestinationPayments(liq.destination_payments)
+          if (liq.naviera_rebate_amount !== undefined && liq.naviera_rebate_amount !== null) {
+            setNavieraRebateAmount(Number(liq.naviera_rebate_amount) || 0)
+          }
+          if (liq.naviera_rebate_currency) setNavieraRebateCurrency(liq.naviera_rebate_currency)
+          if (liq.extra_income_amount !== undefined && liq.extra_income_amount !== null) {
+            const ext = Number(liq.extra_income_amount) || 0
+            setExtraIncomeAmount(ext)
+            if (ext > 0) setShowExtraIncome(true)
+          }
+          if (liq.extra_income_currency) setExtraIncomeCurrency(liq.extra_income_currency)
+          if (liq.extra_income_notes) setExtraIncomeNotes(liq.extra_income_notes)
 
           if (existingLiq.items && existingLiq.items.length > 0) {
             setRows(existingLiq.items.map(it => ({
@@ -336,10 +350,39 @@ export default function ContainerLiquidationCard({
   const effectiveUsdClpRate = usdExchangeRate > 0 ? usdExchangeRate : (currency === 'USD' ? effectiveDestClpRate : 950)
   const effectiveDestUsdRate = currency === 'USD' ? 1 : (currency === 'CLP' ? (1 / effectiveUsdClpRate) : (effectiveDestClpRate / effectiveUsdClpRate))
 
-  // Costos de Origen en CLP y conversiones
-  const realFobCLP = Math.round((advanceAmount + originExpensesTotal) * 100) / 100
+  // Rebate Naviera (Devolución Comercial Flete)
+  const effectiveRebateCLP = navieraRebateCurrency === 'USD'
+    ? Math.round((navieraRebateAmount || 0) * effectiveUsdClpRate)
+    : Math.round(navieraRebateAmount || 0)
+  const effectiveRebateUSD = navieraRebateCurrency === 'USD'
+    ? (navieraRebateAmount || 0)
+    : Math.round(((navieraRebateAmount || 0) / effectiveUsdClpRate) * 100) / 100
+  const effectiveRebateSalesCurrency = currency === 'CLP'
+    ? effectiveRebateCLP
+    : (currency === 'USD' ? effectiveRebateUSD : Math.round((effectiveRebateCLP / effectiveDestClpRate) * 100) / 100)
+
+  // Costos Logísticos de Planta a Puerto (Brutos y Netos tras deducir Rebate)
+  const logisticExpensesGrossCLP = originExpensesTotal
+  const logisticExpensesNetCLP = Math.max(0, logisticExpensesGrossCLP - effectiveRebateCLP)
+
+  // Costo Total Nacional en Puerto (FOB Real = Fruta EXW + Logística Neta)
+  const realFobCLP = Math.round((advanceAmount + logisticExpensesGrossCLP - effectiveRebateCLP) * 100) / 100
   const realFobUSD = Math.round((realFobCLP / effectiveUsdClpRate) * 100) / 100
   const realFobInCurrency = currency === 'CLP' ? realFobCLP : (currency === 'USD' ? realFobUSD : Math.round((realFobCLP / effectiveDestClpRate) * 100) / 100)
+
+  // Compensación Comercial Extraordinaria (Negociación de Pérdidas)
+  const rawExtraIncome = showExtraIncome ? (extraIncomeAmount || 0) : 0
+  const effectiveExtraIncomeCLP = extraIncomeCurrency === 'USD'
+    ? Math.round(rawExtraIncome * effectiveUsdClpRate)
+    : extraIncomeCurrency === 'EUR'
+    ? Math.round(rawExtraIncome * effectiveDestClpRate)
+    : Math.round(rawExtraIncome)
+  const effectiveExtraIncomeUSD = extraIncomeCurrency === 'USD'
+    ? rawExtraIncome
+    : Math.round((effectiveExtraIncomeCLP / effectiveUsdClpRate) * 100) / 100
+  const extraIncomeSalesCurrency = currency === 'CLP'
+    ? effectiveExtraIncomeCLP
+    : (currency === 'USD' ? effectiveExtraIncomeUSD : Math.round((effectiveExtraIncomeCLP / effectiveDestClpRate) * 100) / 100)
 
   // Venta y Gastos en CLP y USD
   const grossSalesCLP = currency === 'CLP' ? grossSales : Math.round(grossSales * effectiveDestClpRate)
@@ -364,10 +407,19 @@ export default function ContainerLiquidationCard({
   const facturaPackingCubierta = totalDestPaymentsCLP >= advanceAmount && advanceAmount > 0
   const abonosAplicadosAlPisoCLP = Math.min(advanceAmount, totalDestPaymentsCLP)
 
-  // Utilidad Real del Negocio en Triple Moneda (CLP, USD, Destino)
-  const finalBalanceCLP = Math.round((netAmountCLP - realFobCLP) * 100) / 100
-  const finalBalanceUSD = Math.round((netAmountUSD - realFobUSD) * 100) / 100
-  const finalBalanceSalesCurrency = currency === 'CLP' ? finalBalanceCLP : (currency === 'USD' ? finalBalanceUSD : Math.round((netAmount - realFobInCurrency) * 100) / 100)
+  // Margen Operacional (Neto Destino - Costo Nacional FOB Real)
+  const operatingMarginCLP = Math.round((netAmountCLP - realFobCLP) * 100) / 100
+  const operatingMarginUSD = Math.round((netAmountUSD - realFobUSD) * 100) / 100
+  const operatingMarginSalesCurrency = currency === 'CLP'
+    ? operatingMarginCLP
+    : (currency === 'USD' ? operatingMarginUSD : Math.round((netAmount - realFobInCurrency) * 100) / 100)
+
+  // Utilidad Real del Negocio en Triple Moneda (CLP, USD, Destino) tras Compensación Comercial
+  const finalBalanceCLP = Math.round((operatingMarginCLP + effectiveExtraIncomeCLP) * 100) / 100
+  const finalBalanceUSD = Math.round((operatingMarginUSD + effectiveExtraIncomeUSD) * 100) / 100
+  const finalBalanceSalesCurrency = currency === 'CLP'
+    ? finalBalanceCLP
+    : (currency === 'USD' ? finalBalanceUSD : Math.round((operatingMarginSalesCurrency + extraIncomeSalesCurrency) * 100) / 100)
   const finalBalanceInCurrency = finalBalanceSalesCurrency // Compatibilidad prop modal
 
   // Huella de las cifras que salen impresas en el informe.
@@ -376,6 +428,8 @@ export default function ContainerLiquidationCard({
     grossSales, totalCreditNotes, effectiveGrossSales, commissionPct, freight, handling, coldStorage, surveyor,
     transport, otherExpenses, advanceAmount, totalDestPaymentsCLP,
     inlandFreight, customsBrokerage, phytosanitarySag, portExpensesOrigin, inlandInsurance, otherOriginExpenses,
+    navieraRebateAmount, navieraRebateCurrency, effectiveRebateCLP,
+    showExtraIncome, extraIncomeAmount, extraIncomeCurrency, effectiveExtraIncomeCLP, extraIncomeNotes,
     rows.map(r => [r.envase, r.calibre, r.cajas, r.price_per_box]),
     creditNotes, destinationPayments
   ])
@@ -424,6 +478,15 @@ export default function ContainerLiquidationCard({
         inland_insurance: inlandInsurance,
         other_origin_expenses: otherOriginExpenses,
         origin_expenses_total: originExpensesTotal,
+        // Rebate Naviera
+        naviera_rebate_amount: navieraRebateAmount,
+        naviera_rebate_currency: navieraRebateCurrency,
+        naviera_rebate_clp: effectiveRebateCLP,
+        // Compensación Comercial Extraordinaria
+        extra_income_amount: showExtraIncome ? extraIncomeAmount : 0,
+        extra_income_currency: extraIncomeCurrency,
+        extra_income_clp: effectiveExtraIncomeCLP,
+        extra_income_notes: showExtraIncome ? (extraIncomeNotes || null) : null,
         credit_notes: creditNotes,
         destination_payments: destinationPayments,
       }
@@ -508,8 +571,16 @@ export default function ContainerLiquidationCard({
             phytosanitary_sag: phytosanitarySag,
             port_expenses_origin: portExpensesOrigin,
             inland_insurance: inlandInsurance,
-            other_origin_expenses: otherOriginExpenses,
             origin_expenses_total: originExpensesTotal,
+            // Rebate Naviera
+            naviera_rebate_amount: navieraRebateAmount,
+            naviera_rebate_currency: navieraRebateCurrency,
+            naviera_rebate_clp: effectiveRebateCLP,
+            // Compensación Comercial Extraordinaria
+            extra_income_amount: showExtraIncome ? extraIncomeAmount : 0,
+            extra_income_currency: extraIncomeCurrency,
+            extra_income_clp: effectiveExtraIncomeCLP,
+            extra_income_notes: showExtraIncome ? (extraIncomeNotes || null) : null,
             credit_notes: creditNotes,
             destination_payments: destinationPayments,
           })
@@ -766,19 +837,71 @@ export default function ContainerLiquidationCard({
               />
             </div>
 
+            <div className="pt-2 border-t border-slate-200 dark:border-gray-800 flex items-center justify-between text-xs font-semibold text-slate-700 dark:text-gray-300">
+              <span>Subtotal Costos Logísticos Brutos:</span>
+              <span className="font-mono">{formatMoney(logisticExpensesGrossCLP, '$ CLP')}</span>
+            </div>
+
+            {/* INGRESO REBATE NAVIERA */}
+            <div className="p-3 bg-emerald-500/10 border border-emerald-500/30 rounded-xl space-y-2">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-1.5 text-xs font-bold text-emerald-800 dark:text-emerald-300">
+                  <ShieldCheck className="w-4 h-4 text-emerald-600" />
+                  <span>(+) Ingreso Rebate Naviera (Agunsa / MSC)</span>
+                </div>
+                <div className="flex items-center gap-1">
+                  <select
+                    value={navieraRebateCurrency}
+                    onChange={(e) => setNavieraRebateCurrency(e.target.value as 'USD' | 'CLP')}
+                    disabled={isClosed}
+                    className="bg-white dark:bg-gray-900 border border-emerald-300 dark:border-emerald-700 text-emerald-800 dark:text-emerald-200 text-[11px] font-bold rounded px-1.5 py-0.5 outline-none"
+                  >
+                    <option value="USD">USD ($)</option>
+                    <option value="CLP">CLP ($)</option>
+                  </select>
+                  <input
+                    type="number"
+                    step="0.01"
+                    value={navieraRebateAmount || ''}
+                    onChange={(e) => setNavieraRebateAmount(parseFloat(e.target.value) || 0)}
+                    disabled={isClosed}
+                    placeholder="0.00"
+                    className="w-28 bg-white dark:bg-gray-900 border border-emerald-300 dark:border-emerald-700 rounded px-2 py-0.5 text-right font-mono font-bold text-emerald-800 dark:text-emerald-200 text-xs outline-none focus:border-emerald-500"
+                  />
+                </div>
+              </div>
+
+              <div className="flex items-center justify-between text-[11px] text-emerald-700 dark:text-emerald-400">
+                <span>
+                  {navieraRebateCurrency === 'USD' ? (
+                    <>Equivalente en CLP (T/C $ {effectiveUsdClpRate} CLP/USD):</>
+                  ) : (
+                    <>Devolución comercial aplicada directamente:</>
+                  )}
+                </span>
+                <span className="font-mono font-bold">
+                  +{formatMoney(effectiveRebateCLP, '$ CLP')}
+                </span>
+              </div>
+              <p className="text-[10px] text-emerald-600 dark:text-emerald-400/80">
+                Devolución comercial de flete marítimo otorgada por la naviera. Se deduce de los gastos logísticos nacionales.
+              </p>
+            </div>
+
+            {/* TOTAL COSTOS LOGÍSTICOS NETOS TRAS REBATE */}
             <div className="pt-2 border-t border-slate-200 dark:border-gray-800 flex items-center justify-between text-xs font-bold text-indigo-700 dark:text-indigo-300">
-              <span>TOTAL COSTOS PLANTA A PUERTO ($ CLP)</span>
-              <span className="font-mono text-sm">{formatMoney(originExpensesTotal, '$ CLP')}</span>
+              <span>(=) COSTOS LOGÍSTICOS NETOS (Planta a Puerto):</span>
+              <span className="font-mono text-sm">{formatMoney(logisticExpensesNetCLP, '$ CLP')}</span>
             </div>
 
             {/* RESUMEN COSTO FOB REAL CALCULADO */}
             <div className="mt-2 flex items-center justify-between text-xs bg-indigo-500/10 p-2.5 rounded-lg border border-indigo-500/20 font-bold text-slate-900 dark:text-white">
               <span className="uppercase text-[11px] text-indigo-900 dark:text-indigo-300 flex items-center gap-1">
                 <CheckCircle2 className="w-3.5 h-3.5 text-indigo-600" />
-                (=) Costo FOB Real en Puerto (Origen):
+                (=) Costo FOB Real en Puerto (EXW + Logística Neta):
               </span>
               <span className="font-mono text-indigo-700 dark:text-indigo-300 text-sm">
-                {formatMoney(realFobCLP, '$ CLP')} {currency !== 'CLP' && `(${formatMoney(realFobInCurrency, currSymbol)})`}
+                {formatMoney(realFobCLP, '$ CLP')} {currency !== 'CLP' && `(${formatMoney(realFobUSD, '$ USD')})`}
               </span>
             </div>
           </div>
@@ -958,11 +1081,11 @@ export default function ContainerLiquidationCard({
           )
         })()}
 
-        {/* 2.3 GASTOS Y DEDUCCIONES EN DESTINO */}
+        {/* 2.3 COSTOS INTERNACIONALES (PUERTO A DESTINO) */}
         <div className="bg-slate-50/80 dark:bg-gray-950/60 border border-slate-200 dark:border-gray-800 rounded-xl p-5 space-y-3">
           <h4 className="text-xs font-bold text-red-900 dark:text-red-300 uppercase tracking-wide flex items-center gap-1.5">
             <Percent className="w-3.5 h-3.5 text-red-500" />
-            2.3. Gastos en Destino y Comisión ({currency})
+            2.3. Costos Internacionales (Puerto a Destino) ({currency})
           </h4>
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-1">
@@ -1067,7 +1190,7 @@ export default function ContainerLiquidationCard({
           </div>
 
           <div className="pt-3 border-t border-slate-200 dark:border-gray-800 flex items-center justify-between text-xs font-bold text-red-600 dark:text-red-400">
-            <span>TOTAL GASTOS Y DEDUCCIONES EN DESTINO ({currSymbol})</span>
+            <span>TOTAL COSTOS INTERNACIONALES EN DESTINO ({currSymbol})</span>
             <span className="font-mono text-sm">-{formatMoney(totalExpenses)}</span>
           </div>
         </div>
@@ -1219,18 +1342,102 @@ export default function ContainerLiquidationCard({
             </div>
 
             <div className="flex items-center justify-between">
-              <span className="text-slate-600 dark:text-gray-400 font-medium">(-) Costos de Planta a Puerto (Origen):</span>
-              <span className="font-mono font-bold text-indigo-700 dark:text-indigo-300">
-                {formatMoney(originExpensesTotal, '$ CLP')} {currency !== 'USD' && currency !== 'CLP' ? `(${formatMoney(originExpensesTotal / effectiveUsdClpRate, '$ USD')} · ${formatMoney(originExpensesTotal / effectiveDestClpRate, currSymbol)})` : currency === 'USD' ? `(${formatMoney(originExpensesTotal / effectiveUsdClpRate, '$ USD')})` : ''}
-              </span>
+              <span className="text-slate-600 dark:text-gray-400 font-medium">(-) Costos Logísticos Netos Planta a Puerto:</span>
+              <div className="text-right font-mono">
+                <span className="font-bold text-indigo-700 dark:text-indigo-300">
+                  {formatMoney(logisticExpensesNetCLP, '$ CLP')} {currency !== 'USD' && currency !== 'CLP' ? `(${formatMoney(logisticExpensesNetCLP / effectiveUsdClpRate, '$ USD')})` : currency === 'USD' ? `(${formatMoney(logisticExpensesNetCLP / effectiveUsdClpRate, '$ USD')})` : ''}
+                </span>
+                {effectiveRebateCLP > 0 && (
+                  <span className="block text-[10px] text-emerald-600 dark:text-emerald-400 font-sans">
+                    (Bruto: {formatMoney(logisticExpensesGrossCLP, '$ CLP')} - Rebate: {formatMoney(effectiveRebateCLP, '$ CLP')})
+                  </span>
+                )}
+              </div>
             </div>
 
             <div className="flex items-center justify-between bg-slate-200/70 dark:bg-gray-900 p-2.5 rounded-lg font-bold text-slate-900 dark:text-white border border-slate-300 dark:border-gray-700">
-              <span className="uppercase text-[11px] text-slate-700 dark:text-gray-300">(=) Costo FOB Real en Puerto (Origen):</span>
+              <span className="uppercase text-[11px] text-slate-700 dark:text-gray-300">(=) Costo FOB Real en Puerto (Nacional):</span>
               <span className="font-mono text-indigo-700 dark:text-indigo-300 text-sm">
                 {formatMoney(realFobCLP, '$ CLP')} {currency !== 'USD' && currency !== 'CLP' ? `(${formatMoney(realFobUSD, '$ USD')} · ${formatMoney(realFobInCurrency, currSymbol)})` : currency === 'USD' ? `(${formatMoney(realFobUSD, '$ USD')})` : ''}
               </span>
             </div>
+          </div>
+
+          {/* COMPENSACIÓN COMERCIAL EXTRAORDINARIA / NEGOCIACIÓN DE PÉRDIDAS */}
+          <div className={`p-4 rounded-xl border transition-all ${
+            showExtraIncome 
+              ? 'bg-amber-500/10 border-amber-500/30' 
+              : 'bg-slate-50 dark:bg-gray-900/60 border-slate-200 dark:border-gray-800'
+          }`}>
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <label className="flex items-center gap-2 cursor-pointer select-none">
+                <input
+                  type="checkbox"
+                  checked={showExtraIncome}
+                  onChange={(e) => {
+                    setShowExtraIncome(e.target.checked)
+                    if (!e.target.checked) {
+                      setExtraIncomeAmount(0)
+                      setExtraIncomeNotes('')
+                    }
+                  }}
+                  disabled={isClosed}
+                  className="w-4 h-4 rounded text-amber-600 focus:ring-amber-500 cursor-pointer"
+                />
+                <span className="text-xs font-bold text-slate-900 dark:text-white flex items-center gap-1.5">
+                  <HandCoins className="w-4 h-4 text-amber-500" />
+                  Registrar Compensación Comercial Extraordinaria / Negociación de Pérdidas
+                </span>
+              </label>
+              {showExtraIncome && effectiveExtraIncomeCLP > 0 && (
+                <span className="text-[11px] font-mono font-bold text-amber-700 dark:text-amber-300">
+                  (+) {formatMoney(effectiveExtraIncomeCLP, '$ CLP')} {extraIncomeCurrency !== 'CLP' && `(${formatMoney(effectiveExtraIncomeUSD, '$ USD')})`}
+                </span>
+              )}
+            </div>
+
+            {showExtraIncome && (
+              <div className="mt-3 pt-3 border-t border-amber-500/20 grid grid-cols-1 sm:grid-cols-12 gap-3 text-xs">
+                <div className="sm:col-span-3 space-y-1">
+                  <label className="text-[10px] uppercase font-bold text-slate-600 dark:text-gray-400">Moneda Pactada</label>
+                  <select
+                    value={extraIncomeCurrency}
+                    onChange={(e) => setExtraIncomeCurrency(e.target.value as 'USD' | 'EUR' | 'CLP')}
+                    disabled={isClosed}
+                    className="w-full bg-white dark:bg-gray-900 border border-amber-300 dark:border-amber-700 rounded-lg px-2.5 py-1.5 font-bold text-slate-900 dark:text-white outline-none text-xs"
+                  >
+                    <option value="USD">USD ($) Dólares</option>
+                    <option value="EUR">EUR (€) Euros</option>
+                    <option value="CLP">CLP ($) Pesos Chilenos</option>
+                  </select>
+                </div>
+
+                <div className="sm:col-span-3 space-y-1">
+                  <label className="text-[10px] uppercase font-bold text-slate-600 dark:text-gray-400">Monto Compensación</label>
+                  <input
+                    type="number"
+                    step="0.01"
+                    value={extraIncomeAmount || ''}
+                    onChange={(e) => setExtraIncomeAmount(parseFloat(e.target.value) || 0)}
+                    disabled={isClosed}
+                    placeholder="0.00"
+                    className="w-full bg-white dark:bg-gray-900 border border-amber-300 dark:border-amber-700 rounded-lg px-2.5 py-1.5 text-right font-mono font-bold text-slate-900 dark:text-white outline-none focus:border-amber-500 text-xs"
+                  />
+                </div>
+
+                <div className="sm:col-span-6 space-y-1">
+                  <label className="text-[10px] uppercase font-bold text-slate-600 dark:text-gray-400">Glosa / Motivo de la Negociación</label>
+                  <input
+                    type="text"
+                    value={extraIncomeNotes}
+                    onChange={(e) => setExtraIncomeNotes(e.target.value)}
+                    disabled={isClosed}
+                    placeholder="Ej: Aporte extraordinario acordado con exportadora socia..."
+                    className="w-full bg-white dark:bg-gray-900 border border-amber-300 dark:border-amber-700 rounded-lg px-2.5 py-1.5 text-slate-900 dark:text-white outline-none text-xs"
+                  />
+                </div>
+              </div>
+            )}
           </div>
 
           {/* TARJETA DE UTILIDAD Y RESULTADO DEL NEGOCIO */}
@@ -1246,6 +1453,21 @@ export default function ContainerLiquidationCard({
             }`}>
               {finalBalanceCLP >= 0 ? 'Utilidad del Negocio (Importe Neto - Costo FOB Real)' : 'Resultado por debajo de Costo FOB Real'}
             </div>
+
+            {/* Desglose de Margen Operacional y Compensación Extra */}
+            {showExtraIncome && effectiveExtraIncomeCLP > 0 && (
+              <div className="text-xs space-y-1 pb-2 border-b border-slate-200/60 dark:border-gray-800 text-slate-700 dark:text-gray-300">
+                <div className="flex items-center justify-between">
+                  <span>Margen Operacional del Despacho:</span>
+                  <span className="font-mono font-bold">{formatMoney(operatingMarginCLP, '$ CLP')} ({formatMoney(operatingMarginUSD, '$ USD')})</span>
+                </div>
+                <div className="flex items-center justify-between text-amber-700 dark:text-amber-400 font-semibold">
+                  <span>(+) Compensación Comercial / Negociación:</span>
+                  <span className="font-mono font-bold">+{formatMoney(effectiveExtraIncomeCLP, '$ CLP')} (+{formatMoney(effectiveExtraIncomeUSD, '$ USD')})</span>
+                </div>
+              </div>
+            )}
+
             <div className="flex flex-wrap items-baseline justify-between gap-3">
               <div className="flex flex-wrap items-baseline gap-2">
                 <span className={`text-2xl font-black font-mono ${
@@ -1339,6 +1561,13 @@ export default function ContainerLiquidationCard({
           netAmount={netAmount}
           advanceAmount={advanceAmount}
           originExpensesTotal={originExpensesTotal}
+          navieraRebateAmount={navieraRebateAmount}
+          navieraRebateCurrency={navieraRebateCurrency}
+          navieraRebateClp={effectiveRebateCLP}
+          extraIncomeAmount={showExtraIncome ? extraIncomeAmount : 0}
+          extraIncomeCurrency={extraIncomeCurrency}
+          extraIncomeClp={effectiveExtraIncomeCLP}
+          extraIncomeNotes={showExtraIncome ? extraIncomeNotes : ''}
           abonosAmount={totalDestPaymentsCLP}
           totalDestPaymentsCLP={totalDestPaymentsCLP}
           saldoFacturaPackingCLP={saldoFacturaPackingCLP}

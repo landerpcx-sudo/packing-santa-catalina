@@ -110,20 +110,45 @@ export async function construirInformeFinancieroPDF(
   const usdExchangeRate = Number(liq.usd_exchange_rate) || (currency === 'USD' ? tasaCLPOtorgada : 950)
   const tasaDestinoUSD = currency === 'USD' ? 1 : (currency === 'CLP' ? (1 / usdExchangeRate) : (tasaCLPOtorgada / usdExchangeRate))
 
-  // 2. Costos de Origen en CLP y USD
-  const realFobCLP = advanceAmount + originExpensesTotal
+  // Rebate Naviera (Devolución Comercial Flete Agunsa / MSC)
+  const navieraRebateAmount = Number(liq.naviera_rebate_amount) || 0
+  const navieraRebateCurrency = (liq.naviera_rebate_currency as 'USD' | 'CLP') || 'USD'
+  const navieraRebateCLP = Number(liq.naviera_rebate_clp) || (
+    navieraRebateCurrency === 'USD' ? Math.round(navieraRebateAmount * usdExchangeRate) : Math.round(navieraRebateAmount)
+  )
+  const navieraRebateUSD = navieraRebateCurrency === 'USD' ? navieraRebateAmount : (navieraRebateCLP / usdExchangeRate)
+  const navieraRebateDest = currency === 'CLP' ? navieraRebateCLP : (currency === 'USD' ? navieraRebateUSD : (navieraRebateCLP / tasaCLPOtorgada))
+
+  // Compensación Comercial Extraordinaria / Negociación de Pérdidas
+  const extraIncomeAmount = Number(liq.extra_income_amount) || 0
+  const extraIncomeCurrency = (liq.extra_income_currency as 'USD' | 'EUR' | 'CLP') || 'USD'
+  const extraIncomeNotes = liq.extra_income_notes || ''
+  const extraIncomeCLP = Number(liq.extra_income_clp) || (
+    extraIncomeCurrency === 'USD' ? Math.round(extraIncomeAmount * usdExchangeRate) : (extraIncomeCurrency === 'EUR' ? Math.round(extraIncomeAmount * tasaCLPOtorgada) : Math.round(extraIncomeAmount))
+  )
+  const extraIncomeUSD = extraIncomeCurrency === 'USD' ? extraIncomeAmount : (extraIncomeCLP / usdExchangeRate)
+  const extraIncomeDest = currency === 'CLP' ? extraIncomeCLP : (currency === 'USD' ? extraIncomeUSD : (extraIncomeCLP / tasaCLPOtorgada))
+
+  // 2. Costos de Origen y FOB Real (deduciendo Rebate Naviera)
+  const originExpensesNetCLP = Math.max(0, originExpensesTotal - navieraRebateCLP)
+  const realFobCLP = advanceAmount + originExpensesTotal - navieraRebateCLP
   const realFobUSD = realFobCLP / usdExchangeRate
 
   // 3. Costo EXW Fruta y Origen expresados en Moneda de Venta
   const exwEnMonedaVenta = currency === 'CLP' ? advanceAmount : (advanceAmount / tasaCLPOtorgada)
   const origenEnMonedaVenta = currency === 'CLP' ? originExpensesTotal : (originExpensesTotal / tasaCLPOtorgada)
-  const fobEnMonedaVenta = exwEnMonedaVenta + origenEnMonedaVenta
+  const fobEnMonedaVenta = currency === 'CLP' ? realFobCLP : (currency === 'USD' ? realFobUSD : (realFobCLP / tasaCLPOtorgada))
 
-  // 4. Utilidad Real del Negocio (en Moneda Destino, USD y CLP)
+  // 4. Margen Operacional y Utilidad Real del Negocio tras Compensación Comercial
   const netAmountCLP = currency === 'CLP' ? netAmount : (netAmount * tasaCLPOtorgada)
   const netAmountUSD = currency === 'USD' ? netAmount : (currency === 'CLP' ? (netAmount / usdExchangeRate) : (netAmount * tasaDestinoUSD))
-  const finalBalanceCLP = netAmountCLP - realFobCLP
-  const finalBalanceUSD = netAmountUSD - realFobUSD
+  
+  const operMarginCLP = netAmountCLP - realFobCLP
+  const operMarginUSD = netAmountUSD - realFobUSD
+  const operMarginDest = netAmount - fobEnMonedaVenta
+
+  const finalBalanceCLP = operMarginCLP + extraIncomeCLP
+  const finalBalanceUSD = operMarginUSD + extraIncomeUSD
   const finalBalance = currency === 'CLP' ? finalBalanceCLP : (currency === 'USD' ? finalBalanceUSD : (finalBalanceCLP / tasaCLPOtorgada))
 
   const freight = Number(liq.freight_amount) || 0
@@ -471,7 +496,8 @@ export async function construirInformeFinancieroPDF(
       { etiqueta: 'Venta Bruta', desde: 0, hasta: grossSales, color: COLOR.indigo, total: true },
       ...(totalCreditNotes > 0 ? [{ etiqueta: 'Notas Crédito', desde: effectiveGrossSales, hasta: grossSales, color: COLOR.rojo, total: false }] : []),
       { etiqueta: 'Deducciones', desde: netAmount, hasta: effectiveGrossSales, color: COLOR.rojo, total: false },
-      { etiqueta: 'Costo FOB', desde: finalBalance, hasta: netAmount, color: COLOR.ambar, total: false },
+      { etiqueta: 'Costo FOB Real', desde: operMarginDest, hasta: netAmount, color: COLOR.ambar, total: false },
+      ...(extraIncomeCLP > 0 ? [{ etiqueta: 'Compensación', desde: operMarginDest, hasta: finalBalance, color: COLOR.verde, total: false }] : []),
       {
         etiqueta: 'Utilidad Final', desde: 0, hasta: finalBalance,
         color: finalBalance >= 0 ? COLOR.verde : COLOR.rojo, total: true,
@@ -752,23 +778,50 @@ export async function construirInformeFinancieroPDF(
     const exw_CLP = `-${clp(advanceAmount)}`
     filaMulti(esMultiMonedaCompleta ? ['(-) Costo Fruta EXW Facturado (Planta)', exw_Dest, exw_USD, exw_CLP] : ['(-) Costo Fruta EXW Facturado (Planta)', exw_USD, exw_CLP], { color: COLOR.rojo })
 
-    // Costos de Planta a Puerto (Gastos Origen)
+    // Costos de Planta a Puerto (Gastos Origen Bruto)
     const orig_Dest = `-${dinero(origenEnMonedaVenta, simb)}`
     const orig_USD = `-${usd(originExpensesTotal / usdExchangeRate)}`
     const orig_CLP = `-${clp(originExpensesTotal)}`
-    filaMulti(esMultiMonedaCompleta ? ['(-) Costos de Planta a Puerto (Origen)', orig_Dest, orig_USD, orig_CLP] : ['(-) Costos de Planta a Puerto (Origen)', orig_USD, orig_CLP], { color: COLOR.indigo })
+    filaMulti(esMultiMonedaCompleta ? ['(-) Costos Logísticos Planta a Puerto (Bruto)', orig_Dest, orig_USD, orig_CLP] : ['(-) Costos Logísticos Planta a Puerto (Bruto)', orig_USD, orig_CLP], { color: COLOR.indigo })
 
-    // Costo FOB Real en Puerto (EXW + Origen)
+    // Rebate Naviera si existe
+    if (navieraRebateCLP > 0) {
+      const reb_Dest = `+${dinero(navieraRebateDest, simb)}`
+      const reb_USD = `+${usd(navieraRebateUSD)}`
+      const reb_CLP = `+${clp(navieraRebateCLP)}`
+      filaMulti(esMultiMonedaCompleta ? ['    (+) Ingreso Rebate Naviera (Agunsa/MSC)', reb_Dest, reb_USD, reb_CLP] : ['    (+) Ingreso Rebate Naviera (Agunsa/MSC)', reb_USD, reb_CLP], { color: COLOR.verde })
+
+      const origNeto_Dest = `-${dinero(originExpensesNetCLP / tasaCLPOtorgada, simb)}`
+      const origNeto_USD = `-${usd(originExpensesNetCLP / usdExchangeRate)}`
+      const origNeto_CLP = `-${clp(originExpensesNetCLP)}`
+      filaMulti(esMultiMonedaCompleta ? ['(=) Costos Logísticos Netos de Origen', origNeto_Dest, origNeto_USD, origNeto_CLP] : ['(=) Costos Logísticos Netos de Origen', origNeto_USD, origNeto_CLP], { color: COLOR.indigo })
+    }
+
+    // Costo FOB Real en Puerto (EXW + Logística Neta)
     const fob_Dest = `-${dinero(fobEnMonedaVenta, simb)}`
     const fob_USD = `-${usd(realFobUSD)}`
     const fob_CLP = `-${clp(realFobCLP)}`
-    filaMulti(esMultiMonedaCompleta ? ['(=) Costo FOB Real en Puerto', fob_Dest, fob_USD, fob_CLP] : ['(=) Costo FOB Real en Puerto', fob_USD, fob_CLP], { negrita: true, color: COLOR.rojo, fondo: COLOR.fondoCabecera })
+    filaMulti(esMultiMonedaCompleta ? ['(=) Costo FOB Real en Puerto (Nacional)', fob_Dest, fob_USD, fob_CLP] : ['(=) Costo FOB Real en Puerto (Nacional)', fob_USD, fob_CLP], { negrita: true, color: COLOR.rojo, fondo: COLOR.fondoCabecera })
 
     // FOB Real / Caja (Puerto)
     const fobCj_Dest = `${dinero(fobEnMonedaVenta / safeCajas, simb)} / cj`
     const fobCj_USD = `${usd(realFobUSD / safeCajas)} / cj`
     const fobCj_CLP = `${clp(realFobCLP / safeCajas)} / cj`
     filaMulti(esMultiMonedaCompleta ? ['    FOB Real Fruta / Caja (Puerto)', fobCj_Dest, fobCj_USD, fobCj_CLP] : ['    FOB Real Fruta / Caja (Puerto)', fobCj_USD, fobCj_CLP], { color: COLOR.suave, alto: 15 })
+
+    // Compensación Comercial Extraordinaria si existe
+    if (extraIncomeCLP > 0) {
+      const op_Dest = dinero(operMarginDest, simb)
+      const op_USD = usd(operMarginUSD)
+      const op_CLP = clp(operMarginCLP)
+      filaMulti(esMultiMonedaCompleta ? ['Margen Operacional del Despacho', op_Dest, op_USD, op_CLP] : ['Margen Operacional del Despacho', op_USD, op_CLP], { color: COLOR.suave })
+
+      const ext_Dest = `+${dinero(extraIncomeDest, simb)}`
+      const ext_USD = `+${usd(extraIncomeUSD)}`
+      const ext_CLP = `+${clp(extraIncomeCLP)}`
+      const etiquetaComp = extraIncomeNotes ? `(+) Compensación Comercial (${extraIncomeNotes.slice(0, 24)}...)` : '(+) Compensación Comercial / Negociación'
+      filaMulti(esMultiMonedaCompleta ? [etiquetaComp, ext_Dest, ext_USD, ext_CLP] : [etiquetaComp, ext_USD, ext_CLP], { negrita: true, color: COLOR.ambar, fondo: COLOR.ambarFondo })
+    }
 
     // UTILIDAD FINAL NEGOCIO
     const ut_Dest = dinero(finalBalance, simb)
@@ -849,11 +902,12 @@ export async function construirInformeFinancieroPDF(
     const positivo = finalBalanceCLP >= 0
     doc.rect(L, yDetalle, W, 52).fill(positivo ? COLOR.verdeFondo : COLOR.ambarFondo)
     doc.rect(L, yDetalle, W, 52).lineWidth(1).strokeColor(positivo ? COLOR.verde : COLOR.ambar).stroke()
+    const extraAviso = extraIncomeCLP > 0 ? ` (Incluye compensación comercial de +${clp(extraIncomeCLP)})` : ''
     doc.fillColor(positivo ? COLOR.verde : COLOR.ambar).font('B').fontSize(7.5)
       .text(
-        positivo
+        (positivo
           ? '(=) UTILIDAD FINAL DEL NEGOCIO (VENTA DESTINO - DEDUCCIONES - COSTO FOB REAL)'
-          : 'RESULTADO POR DEBAJO DEL COSTO FOB REAL',
+          : 'RESULTADO POR DEBAJO DEL COSTO FOB REAL') + extraAviso,
         L + 12, yDetalle + 7, { width: W - 24 }
       )
 

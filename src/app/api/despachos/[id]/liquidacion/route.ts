@@ -95,7 +95,15 @@ export async function POST(
       origin_expenses_total = 0,
       // Cuentas Bilaterales y Destino
       credit_notes = [],
-      destination_payments = []
+      destination_payments = [],
+      // Rebate Naviera & Compensación Comercial Extraordinaria
+      naviera_rebate_amount = 0,
+      naviera_rebate_currency = 'USD',
+      naviera_rebate_clp = 0,
+      extra_income_amount = 0,
+      extra_income_currency = 'USD',
+      extra_income_clp = 0,
+      extra_income_notes = null
     } = body
 
     // 1. Crear o actualizar el encabezado de la liquidación
@@ -133,6 +141,13 @@ export async function POST(
       origin_expenses_total,
       credit_notes: Array.isArray(credit_notes) ? credit_notes : [],
       destination_payments: Array.isArray(destination_payments) ? destination_payments : [],
+      naviera_rebate_amount,
+      naviera_rebate_currency,
+      naviera_rebate_clp,
+      extra_income_amount,
+      extra_income_currency,
+      extra_income_clp,
+      extra_income_notes,
       created_by: (user_id && typeof user_id === 'string' && user_id.length > 20) ? user_id : null,
       updated_at: new Date().toISOString()
     }
