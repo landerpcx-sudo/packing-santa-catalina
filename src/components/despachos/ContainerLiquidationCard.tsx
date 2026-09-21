@@ -363,7 +363,7 @@ export default function ContainerLiquidationCard({
 
   // Costos Logísticos de Planta a Puerto (Brutos y Netos tras deducir Rebate)
   const logisticExpensesGrossCLP = originExpensesTotal
-  const logisticExpensesNetCLP = Math.max(0, logisticExpensesGrossCLP - effectiveRebateCLP)
+  const logisticExpensesNetCLP = logisticExpensesGrossCLP - effectiveRebateCLP
 
   // Costo Total Nacional en Puerto (FOB Real = Fruta EXW + Logística Neta)
   const realFobCLP = Math.round((advanceAmount + logisticExpensesGrossCLP - effectiveRebateCLP) * 100) / 100
@@ -891,7 +891,15 @@ export default function ContainerLiquidationCard({
             {/* TOTAL COSTOS LOGÍSTICOS NETOS TRAS REBATE */}
             <div className="pt-2 border-t border-slate-200 dark:border-gray-800 flex items-center justify-between text-xs font-bold text-indigo-700 dark:text-indigo-300">
               <span>(=) COSTOS LOGÍSTICOS NETOS (Planta a Puerto):</span>
-              <span className="font-mono text-sm">{formatMoney(logisticExpensesNetCLP, '$ CLP')}</span>
+              <span className="font-mono text-sm">
+                {logisticExpensesNetCLP < 0 ? (
+                  <span className="text-emerald-600 dark:text-emerald-400 font-bold">
+                    -{formatMoney(Math.abs(logisticExpensesNetCLP), '$ CLP')} <span className="text-[10px] font-medium">(Crédito a favor)</span>
+                  </span>
+                ) : (
+                  formatMoney(logisticExpensesNetCLP, '$ CLP')
+                )}
+              </span>
             </div>
 
             {/* RESUMEN COSTO FOB REAL CALCULADO */}
@@ -1342,10 +1350,12 @@ export default function ContainerLiquidationCard({
             </div>
 
             <div className="flex items-center justify-between">
-              <span className="text-slate-600 dark:text-gray-400 font-medium">(-) Costos Logísticos Netos Planta a Puerto:</span>
+              <span className="text-slate-600 dark:text-gray-400 font-medium">
+                {logisticExpensesNetCLP < 0 ? '(+) Saldo a Favor Logística Neta Planta a Puerto:' : '(-) Costos Logísticos Netos Planta a Puerto:'}
+              </span>
               <div className="text-right font-mono">
-                <span className="font-bold text-indigo-700 dark:text-indigo-300">
-                  {formatMoney(logisticExpensesNetCLP, '$ CLP')} {currency !== 'USD' && currency !== 'CLP' ? `(${formatMoney(logisticExpensesNetCLP / effectiveUsdClpRate, '$ USD')})` : currency === 'USD' ? `(${formatMoney(logisticExpensesNetCLP / effectiveUsdClpRate, '$ USD')})` : ''}
+                <span className={`font-bold ${logisticExpensesNetCLP < 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-indigo-700 dark:text-indigo-300'}`}>
+                  {logisticExpensesNetCLP < 0 ? '+' : ''}{formatMoney(logisticExpensesNetCLP < 0 ? Math.abs(logisticExpensesNetCLP) : logisticExpensesNetCLP, '$ CLP')} {currency !== 'USD' && currency !== 'CLP' ? `(${formatMoney(Math.abs(logisticExpensesNetCLP) / effectiveUsdClpRate, '$ USD')})` : currency === 'USD' ? `(${formatMoney(Math.abs(logisticExpensesNetCLP) / effectiveUsdClpRate, '$ USD')})` : ''}
                 </span>
                 {effectiveRebateCLP > 0 && (
                   <span className="block text-[10px] text-emerald-600 dark:text-emerald-400 font-sans">

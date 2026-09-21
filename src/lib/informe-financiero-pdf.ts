@@ -130,7 +130,7 @@ export async function construirInformeFinancieroPDF(
   const extraIncomeDest = currency === 'CLP' ? extraIncomeCLP : (currency === 'USD' ? extraIncomeUSD : (extraIncomeCLP / tasaCLPOtorgada))
 
   // 2. Costos de Origen y FOB Real (deduciendo Rebate Naviera)
-  const originExpensesNetCLP = Math.max(0, originExpensesTotal - navieraRebateCLP)
+  const originExpensesNetCLP = originExpensesTotal - navieraRebateCLP
   const realFobCLP = advanceAmount + originExpensesTotal - navieraRebateCLP
   const realFobUSD = realFobCLP / usdExchangeRate
 
@@ -791,10 +791,16 @@ export async function construirInformeFinancieroPDF(
       const reb_CLP = `+${clp(navieraRebateCLP)}`
       filaMulti(esMultiMonedaCompleta ? ['    (+) Ingreso Rebate Naviera (Agunsa/MSC)', reb_Dest, reb_USD, reb_CLP] : ['    (+) Ingreso Rebate Naviera (Agunsa/MSC)', reb_USD, reb_CLP], { color: COLOR.verde })
 
-      const origNeto_Dest = `-${dinero(originExpensesNetCLP / tasaCLPOtorgada, simb)}`
-      const origNeto_USD = `-${usd(originExpensesNetCLP / usdExchangeRate)}`
-      const origNeto_CLP = `-${clp(originExpensesNetCLP)}`
-      filaMulti(esMultiMonedaCompleta ? ['(=) Costos Logísticos Netos de Origen', origNeto_Dest, origNeto_USD, origNeto_CLP] : ['(=) Costos Logísticos Netos de Origen', origNeto_USD, origNeto_CLP], { color: COLOR.indigo })
+      const signoOrig = originExpensesNetCLP >= 0 ? '-' : '+'
+      const origNeto_Dest = `${signoOrig}${dinero(Math.abs(originExpensesNetCLP) / tasaCLPOtorgada, simb)}`
+      const origNeto_USD = `${signoOrig}${usd(Math.abs(originExpensesNetCLP) / usdExchangeRate)}`
+      const origNeto_CLP = `${signoOrig}${clp(Math.abs(originExpensesNetCLP))}`
+      filaMulti(
+        esMultiMonedaCompleta
+          ? [originExpensesNetCLP < 0 ? '    (+) Saldo a Favor Logística Neta' : '(=) Costos Logísticos Netos de Origen', origNeto_Dest, origNeto_USD, origNeto_CLP]
+          : [originExpensesNetCLP < 0 ? '    (+) Saldo a Favor Logística Neta' : '(=) Costos Logísticos Netos de Origen', origNeto_USD, origNeto_CLP],
+        { color: originExpensesNetCLP < 0 ? COLOR.verde : COLOR.indigo }
+      )
     }
 
     // Costo FOB Real en Puerto (EXW + Logística Neta)
